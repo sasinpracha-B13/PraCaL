@@ -329,6 +329,79 @@
   .row.between { justify-content: space-between; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-dark); font-size: 12px; font-weight: 600; }
 
+  /* Quantity stepper */
+  .qty-stepper {
+    display: inline-flex; align-items: center; gap: 0;
+    border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden;
+    background: #fff;
+  }
+  .qty-stepper button {
+    width: 40px; height: 40px; background: transparent; color: var(--ink);
+    font-size: 22px; line-height: 1; font-weight: 600;
+  }
+  .qty-stepper button:active { background: var(--bg-2); }
+  .qty-stepper button:disabled { color: var(--line); pointer-events: none; }
+  .qty-stepper .v { min-width: 32px; text-align: center; font-weight: 700; font-size: 17px; color: var(--ink); user-select: none; }
+
+  /* Addon row with quantity */
+  .addon-q {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1.5px solid var(--line); border-radius: 12px; background: #fff;
+    margin-bottom: 8px;
+  }
+  .addon-q.on { border-color: var(--primary); background: var(--primary-soft); }
+  .addon-q .emo { font-size: 22px; width: 28px; text-align: center; flex-shrink: 0; }
+  .addon-q .n { flex: 1; font-size: 15px; font-weight: 500; min-width: 0; }
+  .addon-q .n small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+  .addon-q .c { color: var(--primary-dark); font-weight: 600; font-size: 13px; margin-right: 4px; white-space: nowrap; }
+
+  /* Help icon */
+  .help {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%; font-size: 12px;
+    background: var(--bg-2); color: var(--muted); margin-left: 4px;
+    cursor: pointer; font-weight: 700; vertical-align: middle;
+  }
+  .help:active { background: var(--primary-soft); color: var(--primary-dark); }
+
+  /* Weekly strip */
+  .week-strip { display: flex; gap: 6px; padding: 8px 0; justify-content: space-between; }
+  .week-bar {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-width: 0;
+  }
+  .week-bar .day { font-size: 11px; color: var(--muted); }
+  .week-bar .col { width: 100%; height: 60px; background: var(--bg-2); border-radius: 6px; position: relative; overflow: hidden; }
+  .week-bar .col i { position: absolute; bottom: 0; left: 0; right: 0; background: var(--primary); border-radius: 6px 6px 0 0; transition: height 200ms; }
+  .week-bar .col i.ok { background: var(--green); }
+  .week-bar .col i.warn { background: var(--amber); }
+  .week-bar .col i.over { background: var(--red); }
+  .week-bar .col i.low { background: var(--red); opacity: 0.6; }
+  .week-bar .num { font-size: 11px; color: var(--ink-2); font-weight: 600; }
+  .week-bar.today .day { color: var(--primary); font-weight: 700; }
+
+  /* Sparkline / chart */
+  .chart-card { background: #fff; border-radius: 12px; padding: 12px 10px; }
+  .chart-card svg { width: 100%; height: auto; display: block; }
+
+  /* Report section */
+  .stat-card {
+    background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .stat-card h3 { margin: 0 0 10px; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; font-size: 15px; }
+  .stat-row.bold { font-weight: 600; font-size: 17px; color: var(--primary-dark); border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
+
+  .mode-opt {
+    display: block; width: 100%; text-align: left; padding: 14px;
+    border: 1.5px solid var(--line); border-radius: 12px; background: #fff;
+    margin-bottom: 8px; font-family: inherit;
+  }
+  .mode-opt.on { border-color: var(--primary); background: var(--primary-soft); }
+  .mode-opt .mn { font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .mode-opt .md { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.5; }
+
   @media (max-width: 360px) {
     body { font-size: 16px; }
     .btn { font-size: 17px; }
@@ -349,7 +422,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.0.3';
+const VERSION = 'v1.1.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -365,14 +438,28 @@ const CATEGORIES = [
 ];
 
 const ADDONS = [
-  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 90, protein_g: 6, carbs_g: 0.5, fat_g: 7 },
-  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 150, protein_g: 10, carbs_g: 1, fat_g: 12 },
-  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 70, protein_g: 6, carbs_g: 0.5, fat_g: 5 },
-  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 250, protein_g: 5, carbs_g: 54, fat_g: 0.5 },
-  { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2 },
-  { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0 },
-  { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5 }
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 90, protein_g: 6, carbs_g: 0.5, fat_g: 7, sugar_g: 0 },
+  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 150, protein_g: 10, carbs_g: 1, fat_g: 12, sugar_g: 1 },
+  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 70, protein_g: 6, carbs_g: 0.5, fat_g: 5, sugar_g: 0 },
+  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 250, protein_g: 5, carbs_g: 54, fat_g: 0.5, sugar_g: 0 },
+  { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2, sugar_g: 1 },
+  { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0, sugar_g: 1 },
+  { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5, sugar_g: 10 }
 ];
+
+const SUGAR_DAILY_LIMIT_G = 50;
+const SUGAR_WHO_RECOMMENDED_G = 25;
+const KCAL_PER_KG_FAT = 7700;
+
+const TOOLTIPS = {
+  bmr: 'BMR = แคลอรี่ที่ร่างกายใช้\nขณะพักผ่อนเต็มที่\n(นอนอยู่เฉยๆ ทั้งวัน)\nไม่รวมกิจกรรมใดๆ',
+  deficit: 'กินน้อยกว่าที่ร่างกายใช้\n× 30 วัน ÷ 7,700 (1 kg ไขมัน)\n= น้ำหนักที่ลดได้จากแคลอย่างเดียว',
+  protein: 'โปรตีน/วัน = น้ำหนักตัว ×\n1.2 (คงน้ำหนัก)\n1.6 (ลด — รักษากล้ามเนื้อ)\n1.8 (เพิ่ม — สร้างกล้ามเนื้อ)',
+  sugar: 'WHO แนะนำ <25g/วัน\n(6 ช้อนชา)\nน้ำตาลที่เติมเอง + น้ำตาลในอาหาร\nแปรรูป/เครื่องดื่ม',
+  carbs: 'คาร์บ → น้ำตาลในเลือด\nควบคุมเพื่อเลี่ยงน้ำตาลพุ่ง\nโดยเฉพาะผู้เป็นเบาหวาน',
+  activity: 'บวกจาก BMR ตามกิจวัตรปกติ\nเดินเยอะ +300 / ออกกำลังเบา +200-300\nออกกำลังหนัก +500 / ใช้แรงมาก +700',
+  weight_trend: 'ใช้ linear regression กับน้ำหนัก\n14 วันล่าสุด เพื่อประมาณอัตรา\nการเปลี่ยนแปลงจริง (แก้ noise)'
+};
 
 const SIZE_PRESETS = [
   { pct: 75, label: 'ครึ่งเดียว' },
@@ -569,23 +656,30 @@ function findMeal(id) { return allMeals().find(m => m.id === id) || null; }
 
 function calcEntryTotals(entry) {
   const m = entry.snapshot || findMeal(entry.mealId);
-  if (!m) return { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, weight_g: 0 };
+  if (!m) return { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, weight_g: 0 };
   const mult = (entry.sizePct || 100) / 100;
-  let calories = (m.baseCalories || 0) * mult;
-  let protein = (m.protein_g || 0) * mult;
-  let carbs = (m.carbs_g || 0) * mult;
-  let fat = (m.fat_g || 0) * mult;
-  let weight = (m.baseWeight_g || 0) * mult;
-  (entry.addons || []).forEach(id => {
+  const qty = entry.quantity || 1;
+  const factor = mult * qty;
+  let calories = (m.baseCalories || 0) * factor;
+  let protein = (m.protein_g || 0) * factor;
+  let carbs = (m.carbs_g || 0) * factor;
+  let fat = (m.fat_g || 0) * factor;
+  let sugar = (m.sugar_g || 0) * factor;
+  let weight = (m.baseWeight_g || 0) * factor;
+  (entry.addons || []).forEach(addon => {
+    const id = typeof addon === 'string' ? addon : addon.id;
+    const count = typeof addon === 'string' ? 1 : (addon.count || 0);
+    if (!count) return;
     const a = ADDONS.find(x => x.id === id);
     if (a) {
-      calories += a.calories;
-      protein += a.protein_g;
-      carbs += a.carbs_g;
-      fat += a.fat_g;
+      calories += a.calories * count;
+      protein += a.protein_g * count;
+      carbs += a.carbs_g * count;
+      fat += a.fat_g * count;
+      sugar += (a.sugar_g || 0) * count;
     }
   });
-  return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, weight_g: weight };
+  return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, weight_g: weight };
 }
 
 function todayEntries(userId = state.currentUserId) {
@@ -600,8 +694,260 @@ function sumEntries(entries) {
     acc.protein_g += t.protein_g;
     acc.carbs_g += t.carbs_g;
     acc.fat_g += t.fat_g;
+    acc.sugar_g += t.sugar_g;
     return acc;
-  }, { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+  }, { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 });
+}
+
+/* ========== DAY ARITHMETIC ========== */
+function dateToKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+function keyToDate(k) {
+  const [y, m, d] = k.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function daysBetween(a, b) {
+  const ms = keyToDate(b) - keyToDate(a);
+  return Math.round(ms / 86400000);
+}
+function lastNDaysKeys(n, endKey) {
+  const end = endKey ? keyToDate(endKey) : new Date();
+  const keys = [];
+  for (let i = n - 1; i >= 0; i--) keys.push(dateToKey(addDays(end, -i)));
+  return keys;
+}
+
+/* ========== WEIGHT & TREND ========== */
+function weightOnDate(user, key) {
+  if (!user?.weights) return null;
+  const w = user.weights.find(x => x.date === key);
+  return w ? w.weight_kg : null;
+}
+function setWeight(user, key, kg) {
+  user.weights = user.weights || [];
+  const existing = user.weights.find(x => x.date === key);
+  if (existing) existing.weight_kg = kg;
+  else user.weights.push({ date: key, weight_kg: kg });
+  user.weights.sort((a, b) => a.date.localeCompare(b.date));
+}
+function removeWeight(user, key) {
+  if (!user.weights) return;
+  user.weights = user.weights.filter(x => x.date !== key);
+}
+function sortedWeights(user, days = null) {
+  const all = (user?.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (days == null) return all;
+  const cutoff = dateToKey(addDays(new Date(), -days + 1));
+  return all.filter(w => w.date >= cutoff);
+}
+function movingAverage(series, window = 7) {
+  const sorted = series.slice().sort((a, b) => a.date.localeCompare(b.date));
+  return sorted.map((pt, i) => {
+    const slice = sorted.slice(Math.max(0, i - window + 1), i + 1);
+    const avg = slice.reduce((s, x) => s + x.weight_kg, 0) / slice.length;
+    return { date: pt.date, weight_kg: avg };
+  });
+}
+function linearRegression(series) {
+  if (series.length < 2) return { slope: 0, intercept: series[0]?.weight_kg || 0 };
+  const base = keyToDate(series[0].date);
+  const pts = series.map(p => ({ x: daysBetween(series[0].date, p.date), y: p.weight_kg }));
+  const n = pts.length;
+  const sx = pts.reduce((s, p) => s + p.x, 0);
+  const sy = pts.reduce((s, p) => s + p.y, 0);
+  const sxy = pts.reduce((s, p) => s + p.x * p.y, 0);
+  const sxx = pts.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sxx - sx * sx;
+  const slope = denom === 0 ? 0 : (n * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / n;
+  return { slope, intercept, baseDate: series[0].date };
+}
+function weightTrend(user, days = 14) {
+  const recent = sortedWeights(user, days);
+  if (recent.length < 2) return null;
+  const { slope } = linearRegression(recent);
+  return slope;
+}
+function weightChangeOver(user, days) {
+  const recent = sortedWeights(user, days);
+  if (recent.length < 2) return null;
+  return recent[recent.length - 1].weight_kg - recent[0].weight_kg;
+}
+function latestWeight(user) {
+  const all = sortedWeights(user);
+  return all.length ? all[all.length - 1] : null;
+}
+
+/* ========== AGGREGATION ========== */
+function dayTotals(userId, dateKey) {
+  const entries = ((state.logs[userId] || {})[dateKey] || []);
+  return { entries, totals: sumEntries(entries) };
+}
+function weekAggregate(userId, endKey) {
+  const keys = lastNDaysKeys(7, endKey);
+  const days = keys.map(k => {
+    const { entries, totals } = dayTotals(userId, k);
+    return { key: k, entries, totals, logged: entries.length > 0 };
+  });
+  const loggedDays = days.filter(d => d.logged);
+  const avg = loggedDays.length === 0
+    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 }
+    : {
+        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / loggedDays.length,
+        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / loggedDays.length,
+        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / loggedDays.length,
+        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / loggedDays.length,
+        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / loggedDays.length
+      };
+  return { days, avg, loggedCount: loggedDays.length };
+}
+function monthKeys(year, monthIdx) {
+  const first = new Date(year, monthIdx, 1);
+  const last = new Date(year, monthIdx + 1, 0);
+  const keys = [];
+  for (let d = 1; d <= last.getDate(); d++) keys.push(dateToKey(new Date(year, monthIdx, d)));
+  return keys;
+}
+function monthAggregate(userId, year, monthIdx) {
+  const keys = monthKeys(year, monthIdx);
+  const days = keys.map(k => {
+    const { entries, totals } = dayTotals(userId, k);
+    return { key: k, entries, totals, logged: entries.length > 0 };
+  });
+  const loggedDays = days.filter(d => d.logged);
+  const avg = loggedDays.length === 0
+    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 }
+    : {
+        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / loggedDays.length,
+        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / loggedDays.length,
+        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / loggedDays.length,
+        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / loggedDays.length,
+        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / loggedDays.length
+      };
+  const totalMeals = loggedDays.reduce((s, d) => s + d.entries.length, 0);
+  const avgMeals = loggedDays.length ? totalMeals / loggedDays.length : 0;
+  let streak = 0;
+  for (let i = days.length - 1; i >= 0; i--) {
+    if (days[i].logged) streak++;
+    else if (i < days.length - 1) break;
+  }
+  return { days, avg, loggedCount: loggedDays.length, totalDays: days.length, avgMeals, streak };
+}
+
+/* ========== SVG CHART (weight line) ========== */
+function svgLineChart(series, avgSeries, w = 320, h = 140) {
+  if (!series.length) {
+    return `<svg viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${h/2}" text-anchor="middle" fill="#aaa" font-size="12">ไม่มีข้อมูล</text></svg>`;
+  }
+  const padL = 32, padR = 8, padT = 10, padB = 22;
+  const innerW = w - padL - padR;
+  const innerH = h - padT - padB;
+  const all = series.concat(avgSeries || []);
+  const values = all.map(p => p.weight_kg);
+  let minV = Math.min(...values);
+  let maxV = Math.max(...values);
+  if (minV === maxV) { minV -= 1; maxV += 1; }
+  else { minV = Math.floor(minV - 0.5); maxV = Math.ceil(maxV + 0.5); }
+  const firstDate = keyToDate(series[0].date);
+  const lastDate = keyToDate(series[series.length - 1].date);
+  const spanDays = Math.max(1, daysBetween(series[0].date, series[series.length - 1].date));
+  const xFor = (pt) => padL + (daysBetween(series[0].date, pt.date) / spanDays) * innerW;
+  const yFor = (v) => padT + (1 - (v - minV) / (maxV - minV)) * innerH;
+
+  const path = (arr) => arr.map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(p).toFixed(1)},${yFor(p.weight_kg).toFixed(1)}`).join(' ');
+  const gridY = [minV, (minV + maxV) / 2, maxV];
+  const grid = gridY.map(v => `<line x1="${padL}" y1="${yFor(v)}" x2="${w - padR}" y2="${yFor(v)}" stroke="#eee" stroke-width="1"/><text x="${padL - 4}" y="${yFor(v) + 4}" text-anchor="end" fill="#999" font-size="10">${v.toFixed(1)}</text>`).join('');
+  const dots = series.map(p => `<circle cx="${xFor(p).toFixed(1)}" cy="${yFor(p.weight_kg).toFixed(1)}" r="2.8" fill="#d97706"/>`).join('');
+  const avgPath = (avgSeries && avgSeries.length > 1)
+    ? `<path d="${path(avgSeries)}" fill="none" stroke="#b35d00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+    : '';
+  const dataPath = `<path d="${path(series)}" fill="none" stroke="#fde7c8" stroke-width="1.5" stroke-linecap="round"/>`;
+  const startLbl = `${firstDate.getDate()}/${firstDate.getMonth() + 1}`;
+  const endLbl = `${lastDate.getDate()}/${lastDate.getMonth() + 1}`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="กราฟน้ำหนัก">
+    ${grid}
+    ${dataPath}
+    ${avgPath}
+    ${dots}
+    <text x="${padL}" y="${h - 6}" fill="#999" font-size="10">${startLbl}</text>
+    <text x="${w - padR}" y="${h - 6}" text-anchor="end" fill="#999" font-size="10">${endLbl}</text>
+  </svg>`;
+}
+
+/* ========== CSV EXPORT ========== */
+function csvEscape(v) {
+  if (v == null) return '';
+  const s = String(v);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function buildCSV(userId, startKey, endKey) {
+  const user = state.users.find(u => u.id === userId);
+  const rows = [['วันที่','ชื่ออาหาร','จำนวน','ขนาด (%)','แคลอรี่','โปรตีน(g)','คาร์บ(g)','น้ำตาล(g)','ไขมัน(g)','น้ำหนัก(kg)']];
+  const byDate = state.logs[userId] || {};
+  const allDates = Object.keys(byDate).filter(d => d >= startKey && d <= endKey).sort();
+  allDates.forEach(d => {
+    const entries = byDate[d] || [];
+    entries.forEach(e => {
+      const m = e.snapshot || findMeal(e.mealId);
+      const t = calcEntryTotals(e);
+      const baseName = m ? m.name : '(ไม่พบเมนู)';
+      const qty = e.quantity || 1;
+      rows.push([d, baseName, qty, e.sizePct || 100,
+        Math.round(t.calories), t.protein_g.toFixed(1), t.carbs_g.toFixed(1),
+        t.sugar_g.toFixed(1), t.fat_g.toFixed(1), '']);
+      (e.addons || []).forEach(a => {
+        const id = typeof a === 'string' ? a : a.id;
+        const count = typeof a === 'string' ? 1 : (a.count || 0);
+        if (!count) return;
+        const addon = ADDONS.find(x => x.id === id);
+        if (!addon) return;
+        rows.push([d, `  + ${addon.name}`, count, '-',
+          Math.round(addon.calories * count), (addon.protein_g * count).toFixed(1),
+          (addon.carbs_g * count).toFixed(1), ((addon.sugar_g || 0) * count).toFixed(1),
+          (addon.fat_g * count).toFixed(1), '']);
+      });
+    });
+    const daySum = sumEntries(entries);
+    const wk = weightOnDate(user, d);
+    rows.push([d, 'สรุปวัน', '-', '-',
+      Math.round(daySum.calories), daySum.protein_g.toFixed(1),
+      daySum.carbs_g.toFixed(1), daySum.sugar_g.toFixed(1), daySum.fat_g.toFixed(1),
+      wk != null ? wk.toFixed(1) : '']);
+  });
+  (user?.weights || []).forEach(w => {
+    if (w.date >= startKey && w.date <= endKey && !allDates.includes(w.date)) {
+      rows.push([w.date, '(ชั่งน้ำหนัก)', '-', '-', '-', '-', '-', '-', '-', w.weight_kg.toFixed(1)]);
+    }
+  });
+  const body = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+  return '\uFEFF' + body;
+}
+function downloadCSV(days) {
+  const u = currentUser();
+  if (!u) return;
+  const end = todayKey();
+  const start = days ? dateToKey(addDays(new Date(), -(days - 1))) : '0000-01-01';
+  const csv = buildCSV(u.id, start, end);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const safeName = (u.name || 'user').replace(/[^\w\u0E00-\u0E7F-]/g, '_');
+  const a = document.createElement('a');
+  a.href = url;
+  const prefix = days ? `${start}_to_${end}` : `all_to_${end}`;
+  a.download = `pracal_${safeName}_${prefix}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('ดาวน์โหลดแล้ว ✅');
 }
 
 /* ========== LOGGING ========== */
@@ -755,6 +1101,63 @@ function renderOnboarding() {
   `;
 }
 
+function helpHtml(key) {
+  return `<span class="help" data-act="show-tip" data-v="${key}" role="button" aria-label="ช่วยเหลือ">?</span>`;
+}
+
+const DOW = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+function weeklyStripHtml(user, calTarget) {
+  const agg = weekAggregate(user.id);
+  const today = todayKey();
+  const bars = agg.days.map(d => {
+    const pct = d.logged && calTarget ? (d.totals.calories / calTarget) * 100 : 0;
+    const cls = !d.logged ? '' : pct > 110 ? 'over' : pct < 75 ? 'low' : pct < 90 ? 'warn' : 'ok';
+    const h = Math.min(100, Math.max(d.logged ? 4 : 0, pct));
+    const date = keyToDate(d.key);
+    const dow = DOW[date.getDay()];
+    const isToday = d.key === today;
+    return `
+      <div class="week-bar ${isToday ? 'today' : ''}" data-act="view-history-day" data-v="${d.key}">
+        <div class="day">${dow}</div>
+        <div class="col"><i class="${cls}" style="height:${h.toFixed(1)}%"></i></div>
+        <div class="num">${d.logged ? fmt(d.totals.calories / 100, 0) + '' : '·'}</div>
+      </div>
+    `;
+  }).join('');
+  const gap = calTarget - agg.avg.calories;
+  const projKg = agg.loggedCount > 0 ? (gap * 30) / KCAL_PER_KG_FAT : 0;
+  let contextMsg = '';
+  if (agg.loggedCount === 0) {
+    contextMsg = 'ยังไม่มีข้อมูลสัปดาห์นี้';
+  } else if (gap > 700) {
+    contextMsg = '⚠️ ขาดดุลหนัก (>700 kcal/วัน) อาจเสียกล้ามเนื้อ';
+  } else if (gap > 300) {
+    contextMsg = `ลดน้ำหนักปลอดภัย · คาด ~${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  } else if (gap > 100) {
+    contextMsg = `ขาดดุลเล็กน้อย · คาด ~${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  } else if (gap > -100) {
+    contextMsg = 'รักษาน้ำหนัก ✓';
+  } else if (gap > -400) {
+    contextMsg = `เกินเป้าเล็กน้อย · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  } else {
+    contextMsg = `⚠️ กินเกินเยอะ · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  }
+  return `
+    <div class="card">
+      <div class="row between" style="margin-bottom:4px">
+        <h3 style="margin:0;font-size:16px">📅 7 วันล่าสุด</h3>
+        <span class="muted" style="font-size:12px">บันทึก ${agg.loggedCount}/7</span>
+      </div>
+      <div class="week-strip">${bars}</div>
+      <div style="font-size:13px;line-height:1.7">
+        <div class="row between"><span class="muted">เฉลี่ย</span><b>${fmt(agg.avg.calories)} / ${fmt(calTarget)} kcal</b></div>
+        <div class="hint" style="font-size:13px;color:var(--ink-2);margin-top:4px">💡 ${contextMsg}</div>
+      </div>
+    </div>
+  `;
+}
+
 function activitySelectorHtml(currentValue, actName) {
   return `
     <div class="activity-list">
@@ -781,17 +1184,22 @@ function renderDashboard() {
   const totals = sumEntries(entries);
   const calTarget = effectiveCalorieTarget(u.id);
   const protTarget = proteinTarget(u);
-  const calPct = calTarget ? Math.min(100, (totals.calories / calTarget) * 100) : 0;
+  const carbsTarget = Math.round(calTarget * 0.5 / 4);
+  const sugarLimit = SUGAR_DAILY_LIMIT_G;
   const calRemain = calTarget - totals.calories;
   const calPctRing = Math.min(100, (totals.calories / calTarget) * 100);
   const protPct = protTarget ? Math.min(100, (totals.protein_g / protTarget) * 100) : 0;
   const protRemain = protTarget - totals.protein_g;
+  const carbsPct = carbsTarget ? Math.min(100, (totals.carbs_g / carbsTarget) * 100) : 0;
+  const sugarPct = Math.min(100, (totals.sugar_g / sugarLimit) * 100);
+  const sugarCls = totals.sugar_g > sugarLimit ? 'over' : totals.sugar_g > sugarLimit * 0.6 ? 'warn' : 'ok';
 
   const ringC = 2 * Math.PI * 58;
   const ringOffset = ringC - (calPctRing / 100) * ringC;
   const ringColor = calPctRing >= 100 ? 'var(--red)' : calPctRing >= 85 ? 'var(--amber)' : 'var(--primary)';
 
   const favsForUser = favoriteSuggestions(entries);
+  const diabetic = u.displayMode === 'diabetic';
 
   return `
     <div class="screen">
@@ -807,44 +1215,70 @@ function renderDashboard() {
       </div>
 
       <div class="card">
-        <div class="ring-wrap">
-          <div class="ring" aria-label="แคลอรี่วันนี้">
-            <svg width="140" height="140" viewBox="0 0 140 140">
-              <circle cx="70" cy="70" r="58" fill="none" stroke="var(--bg-2)" stroke-width="14"/>
-              <circle cx="70" cy="70" r="58" fill="none" stroke="${ringColor}" stroke-width="14"
-                stroke-dasharray="${ringC.toFixed(2)}" stroke-dashoffset="${ringOffset.toFixed(2)}"
-                stroke-linecap="round"/>
-            </svg>
-            <div class="num">
-              <b>${fmt(totals.calories)}</b>
-              <small>จาก ${fmt(calTarget)} kcal</small>
+        ${diabetic ? `
+          <div class="bar-wrap">
+            <div class="bar-label">
+              <span>🍚 คาร์บ ${helpHtml('carbs')}</span>
+              <span><span class="v">${fmt(totals.carbs_g)}</span> / ${fmt(carbsTarget)} ก.</span>
+            </div>
+            <div class="bar"><i class="${carbsPct >= 100 ? 'over' : carbsPct >= 85 ? 'warn' : 'ok'}" style="width:${carbsPct.toFixed(1)}%"></i></div>
+            <div class="hint">💡 คาร์บ → น้ำตาลในเลือด</div>
+          </div>
+          <div class="bar-wrap mt">
+            <div class="bar-label">
+              <span>🍭 น้ำตาล ${helpHtml('sugar')}</span>
+              <span><span class="v">${fmt(totals.sugar_g, 1)}</span> / ${fmt(sugarLimit)} ก.${totals.sugar_g > sugarLimit ? ' ⚠️' : ''}</span>
+            </div>
+            <div class="bar"><i class="${sugarCls}" style="width:${sugarPct.toFixed(1)}%"></i></div>
+            <div class="hint">💡 WHO แนะนำ &lt;${SUGAR_WHO_RECOMMENDED_G}g/วัน (≈${Math.round(totals.sugar_g / 4)} ช้อนชาที่กินไป)</div>
+          </div>
+          <div class="facts mt">
+            <div><div class="v">${fmt(totals.calories)}</div><div class="l">แคล</div></div>
+            <div><div class="v">${fmt(totals.protein_g)} ก.</div><div class="l">โปรตีน</div></div>
+            <div><div class="v">${fmt(totals.fat_g)} ก.</div><div class="l">ไขมัน</div></div>
+          </div>
+        ` : `
+          <div class="ring-wrap">
+            <div class="ring" aria-label="แคลอรี่วันนี้">
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                <circle cx="70" cy="70" r="58" fill="none" stroke="var(--bg-2)" stroke-width="14"/>
+                <circle cx="70" cy="70" r="58" fill="none" stroke="${ringColor}" stroke-width="14"
+                  stroke-dasharray="${ringC.toFixed(2)}" stroke-dashoffset="${ringOffset.toFixed(2)}"
+                  stroke-linecap="round"/>
+              </svg>
+              <div class="num">
+                <b>${fmt(totals.calories)}</b>
+                <small>จาก ${fmt(calTarget)} kcal</small>
+              </div>
+            </div>
+            <div class="ring-labels">
+              <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
+              <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
+              <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
             </div>
           </div>
-          <div class="ring-labels">
-            <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
-            <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
-            <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
-          </div>
-        </div>
 
-        <div class="bar-wrap mt">
-          <div class="bar-label">
-            <span>🥩 โปรตีน</span>
-            <span><span class="v">${fmt(totals.protein_g)}</span> / ${fmt(protTarget)} ก.</span>
+          <div class="bar-wrap mt">
+            <div class="bar-label">
+              <span>🥩 โปรตีน ${helpHtml('protein')}</span>
+              <span><span class="v">${fmt(totals.protein_g)}</span> / ${fmt(protTarget)} ก.</span>
+            </div>
+            <div class="bar"><i class="${protPct >= 100 ? '' : protPct >= 60 ? 'warn' : 'over'}" style="width:${protPct.toFixed(1)}%"></i></div>
+            <div class="hint">
+              ${protRemain > 0 ? `เหลือ <b>${fmt(protRemain)} ก.</b> — พยายามกินเพิ่ม` : `ครบแล้ว 🎉`}
+            </div>
           </div>
-          <div class="bar"><i class="${protPct >= 100 ? '' : protPct >= 60 ? 'warn' : 'over'}" style="width:${protPct.toFixed(1)}%"></i></div>
-          <div class="hint">
-            ${protRemain > 0 ? `เหลือ <b>${fmt(protRemain)} ก.</b> — พยายามกินเพิ่ม` : `ครบแล้ว 🎉`}
-          </div>
-        </div>
 
-        <div class="facts">
-          <div><div class="v">${fmt(totals.carbs_g)} ก.</div><div class="l">คาร์บ</div></div>
-          <div><div class="v">${fmt(totals.fat_g)} ก.</div><div class="l">ไขมัน</div></div>
-          <div><div class="v">${entries.length}</div><div class="l">รายการ</div></div>
-        </div>
+          <div class="facts">
+            <div><div class="v">${fmt(totals.carbs_g)} ก.</div><div class="l">คาร์บ</div></div>
+            <div><div class="v">${fmt(totals.fat_g)} ก.</div><div class="l">ไขมัน</div></div>
+            <div><div class="v">${fmt(totals.sugar_g, 1)} ก.</div><div class="l">น้ำตาล</div></div>
+          </div>
+        `}
         <div class="hint" style="margin-top:10px;font-size:13px">${breakdownText(u)}</div>
       </div>
+
+      ${weeklyStripHtml(u, calTarget)}
 
       ${favsForUser.length ? `
         <h2>💡 เมนูแนะนำ</h2>
@@ -895,13 +1329,18 @@ function logEntryHtml(entry) {
   const m = entry.snapshot || findMeal(entry.mealId);
   const t = calcEntryTotals(entry);
   const pct = entry.sizePct || 100;
-  const addonList = (entry.addons || []).map(id => {
-    const a = ADDONS.find(x => x.id === id);
-    return a ? a.name : '';
+  const qty = entry.quantity || 1;
+  const addonList = (entry.addons || []).map(a => {
+    const id = typeof a === 'string' ? a : a.id;
+    const count = typeof a === 'string' ? 1 : (a.count || 0);
+    if (!count) return '';
+    const def = ADDONS.find(x => x.id === id);
+    if (!def) return '';
+    return count > 1 ? `${count}×${def.name}` : def.name;
   }).filter(Boolean).join(', ');
   return `
     <div class="log-item" data-act="edit-entry" data-id="${entry.id}">
-      <div class="emo">${m ? (m.emoji || '🍽️') : '🍽️'}</div>
+      <div class="emo">${qty > 1 ? `<span style="font-size:14px;background:var(--primary);color:#fff;padding:2px 6px;border-radius:8px;font-weight:700">${qty}×</span>` : (m ? (m.emoji || '🍽️') : '🍽️')}</div>
       <div class="body">
         <div class="name">${h(m ? m.name : 'ไม่พบเมนู')}</div>
         <div class="sub">${pct}% ${addonList ? '· + ' + h(addonList) : ''}</div>
@@ -917,7 +1356,7 @@ function bottomNavHtml(active) {
     <nav class="botnav">
       <button class="${active === 'home' ? 'on' : ''}" data-act="nav-home"><span class="i">🏠</span><span>หน้าหลัก</span></button>
       <button class="${active === 'fav' ? 'on' : ''}" data-act="nav-fav"><span class="i">⭐</span><span>เมนูประจำ</span></button>
-      <button class="${active === 'history' ? 'on' : ''}" data-act="nav-history"><span class="i">📅</span><span>ย้อนหลัง</span></button>
+      <button class="${active === 'reports' ? 'on' : ''}" data-act="nav-reports"><span class="i">📊</span><span>รายงาน</span></button>
       <button class="${active === 'settings' ? 'on' : ''}" data-act="nav-settings"><span class="i">⚙️</span><span>ตั้งค่า</span></button>
     </nav>
   `;
@@ -1119,9 +1558,15 @@ function renderManual() {
               <input id="mf-c" type="number" inputmode="decimal" class="input" placeholder="60" value="${h(d.carbs_g)}" min="0" max="500" step="0.1">
             </div>
           </div>
-          <div class="field">
-            <label for="mf-f">ไขมัน (ก.)</label>
-            <input id="mf-f" type="number" inputmode="decimal" class="input" placeholder="20" value="${h(d.fat_g)}" min="0" max="500" step="0.1">
+          <div class="row-2">
+            <div class="field">
+              <label for="mf-f">ไขมัน (ก.)</label>
+              <input id="mf-f" type="number" inputmode="decimal" class="input" placeholder="20" value="${h(d.fat_g)}" min="0" max="500" step="0.1">
+            </div>
+            <div class="field">
+              <label for="mf-s">น้ำตาล (ก.)</label>
+              <input id="mf-s" type="number" inputmode="decimal" class="input" placeholder="0" value="${h(d.sugar_g || 0)}" min="0" max="500" step="0.1">
+            </div>
           </div>
         </div>
         <div class="btn-row">
@@ -1134,6 +1579,10 @@ function renderManual() {
   `;
 }
 
+function normalizeAddons(arr) {
+  return (arr || []).map(a => typeof a === 'string' ? { id: a, count: 1 } : { id: a.id, count: a.count || 0 }).filter(x => x.count > 0);
+}
+
 function renderMealDetail() {
   const t = state.tmp;
   const meal = t.meal || findMeal(t.mealId);
@@ -1141,13 +1590,24 @@ function renderMealDetail() {
     return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>ไม่พบเมนู</h1></div></div>`;
   }
   const sizePct = t.sizePct || 100;
-  const addons = t.addons || [];
+  const quantity = t.quantity == null ? 1 : t.quantity;
+  const addonCounts = t.addonCounts || {};
   const mult = sizePct / 100;
-  const cal = meal.baseCalories * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.calories || 0), 0);
-  const prot = meal.protein_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.protein_g || 0), 0);
-  const carb = meal.carbs_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.carbs_g || 0), 0);
-  const fat = meal.fat_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.fat_g || 0), 0);
-  const wt = meal.baseWeight_g * mult;
+  const factor = mult * quantity;
+  let cal = meal.baseCalories * factor;
+  let prot = meal.protein_g * factor;
+  let carb = meal.carbs_g * factor;
+  let fat = meal.fat_g * factor;
+  let sugar = (meal.sugar_g || 0) * factor;
+  ADDONS.forEach(a => {
+    const c = addonCounts[a.id] || 0;
+    cal += a.calories * c;
+    prot += a.protein_g * c;
+    carb += a.carbs_g * c;
+    fat += a.fat_g * c;
+    sugar += (a.sugar_g || 0) * c;
+  });
+  const wt = meal.baseWeight_g * factor;
   const isFav = state.favorites.includes(meal.id);
   const editing = !!t.editingEntryId;
   const isCustom = state.customMeals.some(m => m.id === meal.id);
@@ -1163,7 +1623,7 @@ function renderMealDetail() {
 
       <div class="card">
         <div class="row between">
-          <div class="muted">แคลอรี่</div>
+          <div class="muted">รวม ${quantity > 1 ? `× ${quantity}` : ''}</div>
           <div style="font-size:24px;font-weight:700;color:var(--primary-dark)">${fmt(cal)} kcal</div>
         </div>
         <div class="facts">
@@ -1171,10 +1631,10 @@ function renderMealDetail() {
           <div><div class="v">${fmt(carb, 1)} ก.</div><div class="l">คาร์บ</div></div>
           <div><div class="v">${fmt(fat, 1)} ก.</div><div class="l">ไขมัน</div></div>
         </div>
-        <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก.</div>
+        <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก. · น้ำตาล ${fmt(sugar, 1)} ก.${sugar > 20 ? ` ≈ ${Math.round(sugar / 4)} ช้อนชา` : ''}</div>
       </div>
 
-      <h2>ขนาด</h2>
+      <h2>ขนาดแต่ละจาน</h2>
       <div class="size-grid">
         ${SIZE_PRESETS.map(p => `
           <button type="button" class="${p.pct === sizePct && presetOn ? 'on' : ''}" data-act="set-size" data-v="${p.pct}">
@@ -1190,20 +1650,34 @@ function renderMealDetail() {
         </div>
       </div>
 
-      <h2>เพิ่มเติม (ไม่จำเป็น)</h2>
-      ${ADDONS.map(a => `
-        <div class="addon ${addons.includes(a.id) ? 'on' : ''}" data-act="toggle-addon" data-v="${a.id}">
-          <div class="emo">${a.emoji}</div>
-          <div class="n">${h(a.name)}</div>
-          <div class="c">+${fmt(a.calories)}</div>
-          <div class="chk">${addons.includes(a.id) ? '✓' : ''}</div>
+      <h2>จำนวน (กี่จาน/ชาม)</h2>
+      <div class="card tight">
+        <div class="row between">
+          <div>
+            <div style="font-weight:600">${h(meal.name)}</div>
+            <div class="muted" style="font-size:13px">× ${fmt(meal.baseCalories * mult)} kcal/จาน = ${fmt(cal - ADDONS.reduce((s, a) => s + a.calories * (addonCounts[a.id] || 0), 0))} kcal</div>
+          </div>
+          ${qtyStepperHtml('main', quantity, 0, 5)}
         </div>
-      `).join('')}
+      </div>
+
+      <h2>เพิ่มเติม (ไม่จำเป็น)</h2>
+      ${ADDONS.map(a => {
+        const c = addonCounts[a.id] || 0;
+        const addCal = a.calories * c;
+        return `
+          <div class="addon-q ${c > 0 ? 'on' : ''}">
+            <div class="emo">${a.emoji}</div>
+            <div class="n">${h(a.name)}<small>${c > 0 ? `${c} × ${fmt(a.calories)} = ${fmt(addCal)} kcal` : `+${fmt(a.calories)} kcal/ชิ้น`}</small></div>
+            ${qtyStepperHtml('addon_' + a.id, c, 0, 5)}
+          </div>
+        `;
+      }).join('')}
 
       <div class="btn-row mt2">
         ${editing
           ? `<button class="btn block lg" data-act="update-log">✅ บันทึกการแก้ไข</button>`
-          : `<button class="btn block lg" data-act="save-log">✅ บันทึกในวันนี้</button>`
+          : `<button class="btn block lg" ${quantity < 1 ? 'disabled' : ''} data-act="save-log">✅ บันทึกในวันนี้</button>`
         }
       </div>
       ${isCustom ? `
@@ -1213,6 +1687,16 @@ function renderMealDetail() {
         </div>
       ` : ''}
       <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function qtyStepperHtml(key, value, min, max) {
+  return `
+    <div class="qty-stepper">
+      <button type="button" data-act="qty-dec" data-v="${key}" ${value <= min ? 'disabled' : ''} aria-label="ลด">−</button>
+      <span class="v">${value}</span>
+      <button type="button" data-act="qty-inc" data-v="${key}" ${value >= max ? 'disabled' : ''} aria-label="เพิ่ม">+</button>
     </div>
   `;
 }
@@ -1302,6 +1786,227 @@ function renderHistoryDay() {
   `;
 }
 
+function renderReports() {
+  const u = currentUser();
+  if (!u) return '';
+  const t = state.tmp;
+  const now = new Date();
+  const year = t.year != null ? t.year : now.getFullYear();
+  const monthIdx = t.monthIdx != null ? t.monthIdx : now.getMonth();
+  const agg = monthAggregate(u.id, year, monthIdx);
+  const calTarget = effectiveCalorieTarget(u.id);
+  const protTarget = proteinTarget(u);
+  const monthNames = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const monthLabel = `${monthNames[monthIdx]} ${year + 543}`;
+
+  const mStart = monthKeys(year, monthIdx)[0];
+  const mEnd = monthKeys(year, monthIdx).slice(-1)[0];
+  const monthWeights = (u.weights || []).filter(w => w.date >= mStart && w.date <= mEnd).sort((a, b) => a.date.localeCompare(b.date));
+  const wStart = monthWeights[0];
+  const wEnd = monthWeights[monthWeights.length - 1];
+  const wChange = (wStart && wEnd) ? (wEnd.weight_kg - wStart.weight_kg) : null;
+
+  const kcalGap = calTarget - agg.avg.calories;
+  const projKg = agg.loggedCount > 0 ? (kcalGap * 30) / KCAL_PER_KG_FAT : 0;
+
+  const proteinMetDays = agg.days.filter(d => d.logged && d.totals.protein_g >= protTarget).length;
+  const proteinGap = protTarget - agg.avg.protein_g;
+
+  const nextDate = new Date(year, monthIdx + 1, 1);
+  const prevDate = new Date(year, monthIdx - 1, 1);
+  const hasNext = nextDate <= new Date();
+
+  const isEmpty = agg.loggedCount === 0 && monthWeights.length === 0;
+
+  const recommendations = [];
+  if (u.goal === 'lose' && wChange !== null && wChange < 0) recommendations.push('✓ รักษาอัตราการลด');
+  if (u.goal === 'lose' && wChange !== null && wChange >= 0 && agg.loggedCount >= 7) recommendations.push('⚠️ น้ำหนักไม่ลด ลองลดแคลเฉลี่ย 200/วัน');
+  if (proteinGap > 5) recommendations.push(`✓ เพิ่มโปรตีนอีก ${fmt(proteinGap)} ก./วัน`);
+  if (agg.avg.sugar_g > SUGAR_DAILY_LIMIT_G) recommendations.push('⚠️ ลดน้ำตาลลงครึ่งหนึ่ง');
+  if (agg.loggedCount / agg.totalDays < 0.6 && agg.loggedCount > 0) recommendations.push('💡 บันทึกให้สม่ำเสมอขึ้น');
+  if (agg.streak >= 7) recommendations.push(`🏆 บันทึกต่อเนื่อง ${agg.streak} วัน!`);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <h1 style="flex:1">📊 รายงาน</h1>
+        <button class="icon-btn ghost" data-act="nav-weight" title="น้ำหนัก">⚖️</button>
+        <button class="icon-btn ghost" data-act="nav-history" title="ประวัติรายวัน">📅</button>
+      </div>
+
+      <div class="row between" style="margin-bottom:10px">
+        <button class="icon-btn" data-act="month-prev">← ${monthNames[prevDate.getMonth()].slice(0,3)}</button>
+        <div style="font-weight:600;font-size:17px">${monthLabel}</div>
+        <button class="icon-btn ${hasNext ? '' : 'ghost'}" ${hasNext ? '' : 'disabled'} data-act="month-next">${monthNames[nextDate.getMonth()].slice(0,3)} →</button>
+      </div>
+
+      ${isEmpty ? `
+        <div class="card empty"><div class="big">📊</div><div>ยังไม่มีข้อมูลเดือนนี้</div><div class="muted" style="font-size:14px;margin-top:4px">เริ่มบันทึกเพื่อดูรายงาน</div></div>
+      ` : ''}
+
+      ${monthWeights.length >= 1 ? `
+        <div class="stat-card">
+          <h3>⚖️ น้ำหนัก</h3>
+          <div class="stat-row"><span>เริ่มเดือน</span><b>${wStart.weight_kg.toFixed(1)} kg</b></div>
+          <div class="stat-row"><span>ล่าสุด</span><b>${wEnd.weight_kg.toFixed(1)} kg</b></div>
+          ${wChange !== null && monthWeights.length > 1 ? `
+            <div class="stat-row bold"><span>เปลี่ยนแปลง</span><b style="color:${wChange < 0 ? 'var(--green)' : wChange > 0 ? 'var(--red)' : ''}">${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg ${wChange < 0 ? '⬇️' : wChange > 0 ? '⬆️' : ''}</b></div>
+            <div class="chart-card mt">${svgLineChart(monthWeights, movingAverage(monthWeights, 7))}</div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      ${agg.loggedCount > 0 ? `
+        <div class="stat-card">
+          <h3>🔥 แคลอรี่ ${helpHtml('deficit')}</h3>
+          <div class="stat-row"><span>เฉลี่ย/วัน</span><b>${fmt(agg.avg.calories)} kcal</b></div>
+          <div class="stat-row"><span>เป้าหมาย</span><span>${fmt(calTarget)} kcal</span></div>
+          <div class="stat-row"><span>${kcalGap >= 0 ? 'ขาดดุล' : 'เกิน'}</span><b style="color:${kcalGap >= 0 ? 'var(--green)' : 'var(--red)'}">${kcalGap >= 0 ? '-' : '+'}${fmt(Math.abs(kcalGap))} kcal/วัน</b></div>
+          <div class="hint mt" style="font-size:13px;line-height:1.7">
+            💡 ${fmt(Math.abs(kcalGap))} × 30 ÷ ${KCAL_PER_KG_FAT} = ~${Math.abs(projKg).toFixed(2)} kg ที่ควรเปลี่ยนจากแคลอย่างเดียว
+          </div>
+          ${wChange !== null && Math.abs(wChange) > Math.abs(projKg) + 0.5 ? `
+            <div class="callout info mt">น้ำหนักเปลี่ยนจริง ${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg — ส่วนต่างจากที่คำนวณจากแคล = การออกกำลัง + น้ำในร่างกาย</div>
+          ` : ''}
+        </div>
+
+        <div class="stat-card">
+          <h3>🥩 โปรตีน</h3>
+          <div class="stat-row"><span>เฉลี่ย/วัน</span><b>${fmt(agg.avg.protein_g)} ก.</b></div>
+          <div class="stat-row"><span>เป้า</span><span>${fmt(protTarget)} ก.</span></div>
+          <div class="stat-row"><span>ผ่านเป้า</span><b>${proteinMetDays}/${agg.loggedCount} วัน (${Math.round((proteinMetDays / agg.loggedCount) * 100)}%)</b></div>
+          ${proteinGap > 3 ? `<div class="hint mt">💡 เพิ่ม: ไข่ต้ม 1 ฟอง = +6g / อกไก่ 50g = +15g</div>` : ''}
+        </div>
+
+        <div class="stat-card">
+          <h3>🍚 คาร์บ & น้ำตาล</h3>
+          <div class="stat-row"><span>คาร์บเฉลี่ย/วัน</span><b>${fmt(agg.avg.carbs_g)} ก.</b></div>
+          <div class="stat-row"><span>น้ำตาลเฉลี่ย/วัน</span><b style="color:${agg.avg.sugar_g > SUGAR_DAILY_LIMIT_G ? 'var(--red)' : agg.avg.sugar_g > SUGAR_WHO_RECOMMENDED_G ? 'var(--amber)' : 'var(--green)'}">${fmt(agg.avg.sugar_g, 1)} ก.</b></div>
+          <div class="hint mt">💡 WHO แนะนำ &lt;${SUGAR_WHO_RECOMMENDED_G}g/วัน</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>📝 การบันทึก</h3>
+          <div class="stat-row"><span>วันที่บันทึก</span><b>${agg.loggedCount}/${agg.totalDays} วัน (${Math.round((agg.loggedCount / agg.totalDays) * 100)}%)</b></div>
+          <div class="stat-row"><span>มื้อเฉลี่ย/วัน</span><b>${agg.avgMeals.toFixed(1)}</b></div>
+          ${agg.streak > 0 ? `<div class="stat-row"><span>streak ปัจจุบัน</span><b>${agg.streak} วันติดต่อ</b></div>` : ''}
+        </div>
+      ` : ''}
+
+      ${recommendations.length ? `
+        <div class="stat-card">
+          <h3>🎯 คำแนะนำ</h3>
+          ${recommendations.map(r => `<div class="stat-row" style="line-height:1.8">${r}</div>`).join('')}
+        </div>
+      ` : ''}
+
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('reports')}
+  `;
+}
+
+function renderWeightLog() {
+  const u = currentUser();
+  if (!u) return '';
+  const series30 = sortedWeights(u, 30);
+  const avgSeries = movingAverage(series30, 7);
+  const latest = latestWeight(u);
+  const c30 = weightChangeOver(u, 30);
+  const slope = weightTrend(u, 14);
+  const projections = slope != null ? {
+    week: slope * 7,
+    month: slope * 30,
+    threeMonths: slope * 90
+  } : null;
+
+  let healthFlag = '';
+  if (slope != null) {
+    const weeklyRate = slope * 7;
+    if (weeklyRate < -1) healthFlag = '⚠️ ลดเร็วเกินไป — อาจเสียมวลกล้ามเนื้อ<br>แนะนำ: เพิ่มแคล 200-300/วัน';
+    else if (weeklyRate < -0.3) healthFlag = '✅ อัตราการลดที่ปลอดภัย (0.3-1 kg/สัปดาห์)';
+    else if (u.goal === 'lose' && weeklyRate > 0.1) healthFlag = '⚠️ น้ำหนักไม่ลด — ตรวจสอบว่ากินเกินเป้าหรือไม่';
+    else if (u.goal === 'gain' && weeklyRate > 0.05 && weeklyRate < 0.5) healthFlag = '✅ เพิ่มน้ำหนักปลอดภัย';
+    else if (weeklyRate > 1) healthFlag = '⚠️ เพิ่มเร็วเกินไป — อาจได้ไขมันเยอะกว่ากล้ามเนื้อ';
+  }
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>⚖️ บันทึกน้ำหนัก</h1>
+      </div>
+
+      <div class="card">
+        <div class="row" style="gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label for="wt-input">น้ำหนักวันนี้ (กก.)</label>
+            <input id="wt-input" type="number" inputmode="decimal" class="input" placeholder="${latest ? latest.weight_kg.toFixed(1) : u.weight || '70'}" min="20" max="300" step="0.1">
+          </div>
+          <button class="btn" data-act="save-weight" style="min-height:52px">บันทึก</button>
+        </div>
+        <div class="hint">ชั่งตอนเช้าหลังตื่น (ก่อนกินอาหาร) ให้ผลแม่นที่สุด</div>
+      </div>
+
+      ${series30.length >= 2 ? `
+        <div class="card">
+          <div class="row between" style="margin-bottom:6px">
+            <h3 style="margin:0">📊 30 วันล่าสุด</h3>
+            <span class="muted" style="font-size:12px">${series30.length} จุด</span>
+          </div>
+          <div class="chart-card">${svgLineChart(series30, avgSeries)}</div>
+          <div class="hint" style="margin-top:6px">
+            <span style="color:#fde7c8">━</span> จุดรายวัน
+            &nbsp;&nbsp;
+            <span style="color:#b35d00">━</span> เฉลี่ย 7 วัน (smoother)
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="stat-row"><span>ล่าสุด</span><b>${latest.weight_kg.toFixed(1)} kg</b></div>
+          ${c30 !== null ? `<div class="stat-row"><span>เปลี่ยน 30 วัน</span><b style="color:${c30 < 0 ? 'var(--green)' : c30 > 0 ? 'var(--red)' : ''}">${c30 > 0 ? '+' : ''}${c30.toFixed(1)} kg</b></div>` : ''}
+          ${slope != null ? `
+            <div class="stat-row"><span>แนวโน้ม ${helpHtml('weight_trend')}</span><b>${slope > 0 ? '⬆️' : slope < 0 ? '⬇️' : '→'} ${slope >= 0 ? '+' : ''}${(slope * 1000).toFixed(0)} ก./วัน</b></div>
+            ${projections ? `
+              <div class="hint mt" style="font-size:13px;line-height:1.8">
+                💡 ในอัตรานี้:<br>
+                &nbsp;&nbsp;• 1 สัปดาห์ = ${projections.week >= 0 ? '+' : ''}${projections.week.toFixed(1)} kg<br>
+                &nbsp;&nbsp;• 1 เดือน = ${projections.month >= 0 ? '+' : ''}${projections.month.toFixed(1)} kg<br>
+                &nbsp;&nbsp;• 3 เดือน = ${projections.threeMonths >= 0 ? '+' : ''}${projections.threeMonths.toFixed(1)} kg
+              </div>
+            ` : ''}
+            ${healthFlag ? `<div class="callout mt">${healthFlag}</div>` : ''}
+          ` : ''}
+        </div>
+      ` : series30.length === 1 ? `
+        <div class="card empty"><div class="big">📈</div><div>บันทึกไว้ 1 จุด</div><div class="muted" style="font-size:14px;margin-top:6px">บันทึกเพิ่มอีกอย่างน้อย 1 จุดเพื่อดูแนวโน้ม</div></div>
+      ` : `
+        <div class="card empty"><div class="big">⚖️</div><div>ยังไม่มีข้อมูลน้ำหนัก</div><div class="muted" style="font-size:14px;margin-top:6px">บันทึกน้ำหนักวันนี้เพื่อเริ่มต้น</div></div>
+      `}
+
+      ${sortedWeights(u).length ? `
+        <h2>ประวัติทั้งหมด</h2>
+        ${sortedWeights(u).slice().reverse().slice(0, 60).map(w => `
+          <div class="card tight">
+            <div class="row between">
+              <div>
+                <div style="font-weight:500">${formatDateTH(w.date)}</div>
+                <div class="muted" style="font-size:12px">${w.date === todayKey() ? 'วันนี้' : ''}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <b style="font-size:17px">${w.weight_kg.toFixed(1)} kg</b>
+                <button class="icon-btn ghost" data-act="delete-weight" data-v="${w.date}" aria-label="ลบ">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      ` : ''}
+
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
 function renderUserSwitcher() {
   return `
     <div class="screen">
@@ -1385,12 +2090,47 @@ function renderSettings() {
       </div>
 
       <div class="card">
+        <h3 style="margin-top:0">⚖️ น้ำหนัก</h3>
+        ${(() => {
+          const latest = latestWeight(u);
+          const c30 = weightChangeOver(u, 30);
+          if (!latest) return `<div class="muted" style="font-size:14px;margin-bottom:8px">ยังไม่มีข้อมูลน้ำหนัก</div>`;
+          return `
+            <div class="stat-row"><span>ล่าสุด</span><b>${latest.weight_kg.toFixed(1)} kg · ${formatDateTH(latest.date)}</b></div>
+            ${c30 != null ? `<div class="stat-row"><span>เปลี่ยน 30 วัน</span><b style="color:${c30 < 0 ? 'var(--green)' : c30 > 0 ? 'var(--red)' : ''}">${c30 > 0 ? '+' : ''}${c30.toFixed(1)} kg</b></div>` : ''}
+          `;
+        })()}
+        <button class="btn secondary block mt" data-act="nav-weight">📈 เปิดหน้าน้ำหนัก</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">🎨 โหมดแสดงผล</h3>
+        <button class="mode-opt ${u.displayMode !== 'diabetic' ? 'on' : ''}" data-act="set-display-mode" data-v="normal">
+          <div class="mn">${u.displayMode !== 'diabetic' ? '●' : '○'} ปกติ</div>
+          <div class="md">เน้นแคลและโปรตีน สำหรับการลด/เพิ่มน้ำหนัก</div>
+        </button>
+        <button class="mode-opt ${u.displayMode === 'diabetic' ? 'on' : ''}" data-act="set-display-mode" data-v="diabetic">
+          <div class="mn">${u.displayMode === 'diabetic' ? '●' : '○'} เน้นคาร์บ/น้ำตาล</div>
+          <div class="md">สำหรับผู้เป็นเบาหวาน หรือต้องคุมน้ำตาล — หน้าหลักจะโชว์คาร์บและน้ำตาลเด่นแทนแคลอรี่</div>
+        </button>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0">👥 ผู้ใช้</h3>
         <button class="btn secondary block" data-act="nav-users">🔄 สลับผู้ใช้ (${state.users.length})</button>
       </div>
 
       <div class="card">
-        <h3 style="margin-top:0">💾 ข้อมูล</h3>
+        <h3 style="margin-top:0">📊 ส่งออกข้อมูล</h3>
+        <div class="muted" style="font-size:13px;margin-bottom:10px">สำหรับส่งให้หมอหรือโภชนากร — เปิดได้ใน Excel / Google Sheets</div>
+        <button class="btn secondary block" data-act="csv-30">📥 CSV 30 วัน</button>
+        <button class="btn secondary block mt" data-act="csv-90">📥 CSV 90 วัน</button>
+        <button class="btn secondary block mt" data-act="csv-all">📥 CSV ทั้งหมด</button>
+        <div class="hint" style="font-size:12px;margin-top:8px">🔒 ข้อมูลของคุณ download ลงเครื่องตรง ไม่ถูกส่งออกไปที่ไหน</div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">💾 สำรอง / ล้าง</h3>
         <button class="btn secondary block" data-act="export-data">⬇️ ดาวน์โหลดสำรอง (JSON)</button>
         <button class="btn ghost block mt" data-act="clear-today" style="color:var(--red)">🗑️ ล้างรายการวันนี้</button>
       </div>
@@ -1489,6 +2229,8 @@ function render() {
       case 'users': html = renderUserSwitcher(); break;
       case 'settings': html = renderSettings(); break;
       case 'profile-edit': html = renderProfileEdit(); break;
+      case 'reports': html = renderReports(); break;
+      case 'weight-log': html = renderWeightLog(); break;
       default: html = `<div class="screen"><h1>?</h1></div>`;
     }
   } catch (err) {
@@ -1511,13 +2253,73 @@ const actions = {
   'nav-history': () => go('history'),
   'nav-users': () => go('users'),
   'nav-settings': () => go('settings'),
+  'nav-reports': () => go('reports'),
+  'nav-weight': () => go('weight-log'),
+
+  'month-prev': () => {
+    const now = new Date();
+    const y = state.tmp.year != null ? state.tmp.year : now.getFullYear();
+    const m = state.tmp.monthIdx != null ? state.tmp.monthIdx : now.getMonth();
+    const d = new Date(y, m - 1, 1);
+    state.tmp.year = d.getFullYear();
+    state.tmp.monthIdx = d.getMonth();
+    render();
+  },
+  'month-next': () => {
+    const now = new Date();
+    const y = state.tmp.year != null ? state.tmp.year : now.getFullYear();
+    const m = state.tmp.monthIdx != null ? state.tmp.monthIdx : now.getMonth();
+    const d = new Date(y, m + 1, 1);
+    if (d > now) return;
+    state.tmp.year = d.getFullYear();
+    state.tmp.monthIdx = d.getMonth();
+    render();
+  },
+
+  'save-weight': () => {
+    const u = currentUser();
+    if (!u) return;
+    const v = parseFloat(document.getElementById('wt-input')?.value);
+    if (!v || v < 20 || v > 300) return toast('น้ำหนักไม่ถูกต้อง (20-300 kg)', true);
+    setWeight(u, todayKey(), Math.round(v * 10) / 10);
+    persist();
+    toast('บันทึกน้ำหนักแล้ว ✅');
+    render();
+  },
+  'delete-weight': (e, btn) => {
+    if (!confirm('ลบจุดนี้?')) return;
+    const u = currentUser();
+    removeWeight(u, btn.dataset.v);
+    persist();
+    render();
+    toast('ลบแล้ว');
+  },
+
+  'csv-30': () => downloadCSV(30),
+  'csv-90': () => downloadCSV(90),
+  'csv-all': () => downloadCSV(null),
+
+  'set-display-mode': (e, btn) => {
+    const u = currentUser();
+    if (!u) return;
+    u.displayMode = btn.dataset.v;
+    persist();
+    toast(btn.dataset.v === 'diabetic' ? 'เปลี่ยนเป็นโหมดเน้นน้ำตาล' : 'เปลี่ยนเป็นโหมดปกติ');
+    render();
+  },
+
+  'show-tip': (e, btn) => {
+    const key = btn.dataset.v;
+    const text = TOOLTIPS[key] || '';
+    if (text) alert(text);
+  },
 
   'set-cat': (e, btn) => { state.tmp.cat = btn.dataset.v; render(); },
   'pick-meal': (e, btn) => {
     const id = btn.dataset.id;
     const m = findMeal(id);
     if (!m) return;
-    go('meal-detail', { mealId: id, sizePct: 100, addons: [] });
+    go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {} });
   },
 
   'toggle-fav': (e, btn) => {
@@ -1535,22 +2337,41 @@ const actions = {
     render();
   },
 
-  'toggle-addon': (e, el) => {
-    const id = el.dataset.v;
-    state.tmp.addons = state.tmp.addons || [];
-    const i = state.tmp.addons.indexOf(id);
-    if (i >= 0) state.tmp.addons.splice(i, 1);
-    else state.tmp.addons.push(id);
+  'qty-inc': (e, btn) => {
+    const key = btn.dataset.v;
+    if (key === 'main') {
+      state.tmp.quantity = Math.min(5, (state.tmp.quantity == null ? 1 : state.tmp.quantity) + 1);
+    } else if (key.startsWith('addon_')) {
+      const id = key.slice(6);
+      state.tmp.addonCounts = state.tmp.addonCounts || {};
+      state.tmp.addonCounts[id] = Math.min(5, (state.tmp.addonCounts[id] || 0) + 1);
+    }
+    render();
+  },
+  'qty-dec': (e, btn) => {
+    const key = btn.dataset.v;
+    if (key === 'main') {
+      state.tmp.quantity = Math.max(0, (state.tmp.quantity == null ? 1 : state.tmp.quantity) - 1);
+    } else if (key.startsWith('addon_')) {
+      const id = key.slice(6);
+      state.tmp.addonCounts = state.tmp.addonCounts || {};
+      state.tmp.addonCounts[id] = Math.max(0, (state.tmp.addonCounts[id] || 0) - 1);
+    }
     render();
   },
 
   'save-log': () => {
     const meal = state.tmp.meal || findMeal(state.tmp.mealId);
     if (!meal) return toast('ไม่พบเมนู', true);
+    const qty = state.tmp.quantity == null ? 1 : state.tmp.quantity;
+    if (qty < 1) return toast('ตั้งจำนวนอย่างน้อย 1', true);
+    const counts = state.tmp.addonCounts || {};
+    const addons = Object.keys(counts).filter(k => counts[k] > 0).map(id => ({ id, count: counts[id] }));
     addLogEntry({
       mealId: meal.id,
       sizePct: state.tmp.sizePct || 100,
-      addons: state.tmp.addons || [],
+      quantity: qty,
+      addons,
       snapshot: state.tmp.meal ? { ...meal } : null
     });
     toast('บันทึกแล้ว ✅');
@@ -1559,10 +2380,15 @@ const actions = {
 
   'update-log': () => {
     const meal = findMeal(state.tmp.mealId);
-    if (!meal) return toast('ไม่พบเมนู', true);
+    if (!meal && !state.tmp.meal) return toast('ไม่พบเมนู', true);
+    const qty = state.tmp.quantity == null ? 1 : state.tmp.quantity;
+    if (qty < 1) return toast('ตั้งจำนวนอย่างน้อย 1', true);
+    const counts = state.tmp.addonCounts || {};
+    const addons = Object.keys(counts).filter(k => counts[k] > 0).map(id => ({ id, count: counts[id] }));
     updateLogEntry(state.tmp.editingEntryId, {
       sizePct: state.tmp.sizePct || 100,
-      addons: state.tmp.addons || []
+      quantity: qty,
+      addons
     });
     toast('อัปเดตแล้ว ✅');
     goHome();
@@ -1573,11 +2399,18 @@ const actions = {
     const entries = todayEntries();
     const entry = entries.find(x => x.id === id);
     if (!entry) return;
+    const counts = {};
+    (entry.addons || []).forEach(a => {
+      const aid = typeof a === 'string' ? a : a.id;
+      const c = typeof a === 'string' ? 1 : (a.count || 0);
+      if (c > 0) counts[aid] = c;
+    });
     go('meal-detail', {
       mealId: entry.mealId,
       meal: entry.snapshot || null,
       sizePct: entry.sizePct,
-      addons: entry.addons || [],
+      quantity: entry.quantity || 1,
+      addonCounts: counts,
       editingEntryId: id
     });
   },
@@ -1646,10 +2479,10 @@ const actions = {
     const snap = {
       id: mealId, name: r.name, emoji: '🍽️',
       baseCalories: r.calories, baseWeight_g: r.weight_g,
-      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: 0,
       category: 'custom'
     };
-    addLogEntry({ mealId, sizePct: 100, addons: [], snapshot: snap });
+    addLogEntry({ mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap });
     toast('เพิ่มในวันนี้แล้ว ✅');
     goHome();
   },
@@ -1660,13 +2493,13 @@ const actions = {
     const meal = {
       id: uid('c'), name: r.name, emoji: '🍽️',
       baseCalories: r.calories, baseWeight_g: r.weight_g,
-      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: 0,
       category: 'custom', source: 'ai'
     };
     state.customMeals.push(meal);
     persist();
     toast('บันทึกเมนูแล้ว 💾');
-    go('meal-detail', { mealId: meal.id, sizePct: 100, addons: [] });
+    go('meal-detail', { mealId: meal.id, sizePct: 100, quantity: 1, addonCounts: {} });
   },
 
   'ai-edit': () => {
@@ -1715,7 +2548,7 @@ const actions = {
       state.customMeals.push(meal);
     }
     persist();
-    addLogEntry({ mealId: meal.id, sizePct: 100, addons: [] });
+    addLogEntry({ mealId: meal.id, sizePct: 100, quantity: 1, addons: [] });
     toast('บันทึกแล้ว ✅');
     goHome();
   },
@@ -1905,10 +2738,11 @@ function collectManualDraft() {
   const p = Number(document.getElementById('mf-p')?.value) || 0;
   const c = Number(document.getElementById('mf-c')?.value) || 0;
   const f = Number(document.getElementById('mf-f')?.value) || 0;
+  const s = Math.min(c, Number(document.getElementById('mf-s')?.value) || 0);
   if (!name) { toast('กรอกชื่อเมนู', true); return null; }
   if (!cal || cal < 0) { toast('กรอกแคลอรี่', true); return null; }
   const emoji = state.tmp.draft?.emoji || '🍽️';
-  return { name, emoji, baseCalories: cal, baseWeight_g: wt, protein_g: p, carbs_g: c, fat_g: f };
+  return { name, emoji, baseCalories: cal, baseWeight_g: wt, protein_g: p, carbs_g: c, fat_g: f, sugar_g: s };
 }
 
 /* ========== EVENT DELEGATION ========== */
@@ -1949,6 +2783,28 @@ async function loadPreloadedMeals() {
   }
 }
 
+function migrateData() {
+  let changed = false;
+  state.users.forEach(u => {
+    if (!u.weights) { u.weights = []; changed = true; }
+    if (!u.displayMode) { u.displayMode = 'normal'; changed = true; }
+    if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
+  });
+  for (const userId in state.logs) {
+    for (const date in state.logs[userId]) {
+      const entries = state.logs[userId][date];
+      entries.forEach(e => {
+        if (e.quantity === undefined) { e.quantity = 1; changed = true; }
+        if (Array.isArray(e.addons) && e.addons.length > 0 && typeof e.addons[0] === 'string') {
+          e.addons = e.addons.map(id => ({ id, count: 1 }));
+          changed = true;
+        }
+      });
+    }
+  }
+  if (changed) persist();
+}
+
 function initFromStorage() {
   const s = loadStored();
   if (s) {
@@ -1959,6 +2815,7 @@ function initFromStorage() {
     state.logs = s.logs || {};
     state.dailyTargets = s.dailyTargets || {};
   }
+  migrateData();
 }
 
 async function main() {
