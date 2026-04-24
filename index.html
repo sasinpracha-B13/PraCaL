@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#d97706">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PraCaL">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23d97706'/><text x='96' y='130' font-size='120' text-anchor='middle' fill='white'>%F0%9F%8D%9A</text></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d97706'/><text x='50' y='72' font-size='64' text-anchor='middle' fill='white'>%F0%9F%8D%9A</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<title>PraCaL - นับแคลอาหารไทย</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #fefaf5;
+    --bg-2: #fdf3e4;
+    --card: #ffffff;
+    --ink: #2a1d10;
+    --ink-2: #5c4a38;
+    --muted: #8a7560;
+    --line: #ead9c2;
+    --primary: #d97706;
+    --primary-dark: #b35d00;
+    --primary-soft: #fde7c8;
+    --green: #16a34a;
+    --green-soft: #dcfce7;
+    --red: #dc2626;
+    --red-soft: #fee2e2;
+    --amber: #f59e0b;
+    --amber-soft: #fef3c7;
+    --shadow: 0 2px 6px rgba(120, 70, 0, 0.06), 0 1px 2px rgba(120, 70, 0, 0.08);
+    --shadow-lg: 0 8px 24px rgba(120, 70, 0, 0.12);
+    --radius: 14px;
+    --radius-lg: 20px;
+    --tap: 56px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Prompt', 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app { min-height: 100%; padding-top: var(--safe-top); padding-bottom: calc(72px + var(--safe-bottom)); }
+  button { font-family: inherit; font-size: inherit; cursor: pointer; border: 0; }
+  input, select, textarea { font-family: inherit; font-size: inherit; }
+  a { color: var(--primary-dark); }
+
+  /* ===== Layout ===== */
+  .screen { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+  .header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 4px 12px; position: sticky; top: 0;
+    background: linear-gradient(180deg, var(--bg) 70%, rgba(254,250,245,0));
+    z-index: 10;
+  }
+  .header h1 { font-size: 22px; margin: 0; font-weight: 600; flex: 1; }
+  .header .sub { color: var(--muted); font-size: 14px; margin-top: -2px; }
+  .icon-btn {
+    min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 12px;
+    background: transparent; color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 22px;
+  }
+  .icon-btn:active { background: var(--bg-2); }
+  .icon-btn.ghost { font-size: 16px; color: var(--ink-2); }
+
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px;
+  }
+  .card.tight { padding: 12px 14px; }
+
+  .btn {
+    min-height: var(--tap); padding: 0 20px; border-radius: 14px;
+    font-size: 18px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--primary); color: #fff;
+    transition: transform 60ms ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.block { width: 100%; }
+  .btn.secondary { background: #fff; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn.ghost { background: transparent; color: var(--ink-2); }
+  .btn.danger { background: var(--red); color: #fff; }
+  .btn.green { background: var(--green); color: #fff; }
+  .btn.sm { min-height: 40px; font-size: 15px; padding: 0 14px; border-radius: 10px; }
+  .btn.lg { min-height: 64px; font-size: 20px; }
+  .btn:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-row > .btn { flex: 1; }
+
+  /* Inputs */
+  label { display: block; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; font-size: 15px; }
+  .field { margin-bottom: 14px; }
+  .input, .select, .textarea {
+    width: 100%; min-height: 52px; padding: 12px 14px;
+    border-radius: 12px; border: 1.5px solid var(--line);
+    background: #fff; color: var(--ink); font-size: 17px;
+    -webkit-appearance: none;
+  }
+  .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .textarea { min-height: 90px; resize: vertical; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; }
+  .seg button {
+    flex: 1; min-width: 72px; min-height: 52px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: #fff; color: var(--ink);
+    font-weight: 500; font-size: 16px;
+  }
+  .seg button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* Dashboard ring */
+  .ring-wrap { display: flex; align-items: center; gap: 18px; }
+  .ring { width: 140px; height: 140px; flex-shrink: 0; position: relative; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring .num b { font-size: 28px; font-weight: 600; line-height: 1; }
+  .ring .num small { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .ring-labels { flex: 1; font-size: 15px; color: var(--ink-2); line-height: 1.8; }
+  .ring-labels .v { color: var(--ink); font-weight: 600; }
+
+  .bar-wrap { margin-top: 8px; }
+  .bar-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 15px; }
+  .bar-label .v { font-weight: 600; color: var(--ink); }
+  .bar { height: 14px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--green); border-radius: 999px; transition: width 200ms ease; }
+  .bar > i.warn { background: var(--amber); }
+  .bar > i.over { background: var(--red); }
+
+  /* Meal list */
+  .meal-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; background: #fff; border-radius: 12px;
+    margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer;
+  }
+  .meal-item .emo { font-size: 32px; line-height: 1; flex-shrink: 0; width: 44px; text-align: center; }
+  .meal-item .body { flex: 1; min-width: 0; }
+  .meal-item .name { font-weight: 500; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meal-item .sub { color: var(--muted); font-size: 13px; }
+  .meal-item .cal { font-weight: 600; color: var(--primary-dark); font-size: 16px; white-space: nowrap; }
+
+  .log-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 12px; background: #fff; border-radius: 12px;
+    margin-bottom: 8px; box-shadow: var(--shadow);
+  }
+  .log-item .emo { font-size: 28px; width: 36px; text-align: center; }
+  .log-item .body { flex: 1; min-width: 0; }
+  .log-item .name { font-weight: 500; font-size: 16px; }
+  .log-item .sub { color: var(--muted); font-size: 13px; }
+  .log-item .cal { font-weight: 600; color: var(--primary-dark); font-size: 17px; margin-right: 8px; }
+  .log-item .del { font-size: 20px; color: var(--muted); background: transparent; min-width: 36px; min-height: 36px; border-radius: 8px; }
+  .log-item .del:active { background: var(--red-soft); color: var(--red); }
+
+  /* Category tabs */
+  .tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    padding: 10px 14px; border-radius: 999px; border: 1.5px solid var(--line);
+    background: #fff; color: var(--ink-2); font-size: 15px; white-space: nowrap; font-weight: 500;
+  }
+  .tabs button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .search-box {
+    position: relative;
+  }
+  .search-box input { padding-left: 44px; }
+  .search-box .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 18px; pointer-events: none; }
+
+  /* Bottom nav */
+  .botnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: #fff; border-top: 1px solid var(--line);
+    padding: 8px 0 calc(8px + var(--safe-bottom));
+    display: flex; justify-content: space-around; max-width: 560px; margin: 0 auto;
+  }
+  .botnav button {
+    background: transparent; color: var(--muted); padding: 4px 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px;
+    min-width: 60px; min-height: 52px; border-radius: 10px;
+  }
+  .botnav button .i { font-size: 22px; line-height: 1; }
+  .botnav button.on { color: var(--primary); font-weight: 600; }
+
+  .fab {
+    position: fixed; right: 16px; bottom: calc(88px + var(--safe-bottom)); z-index: 15;
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-size: 32px;
+    box-shadow: var(--shadow-lg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab:active { transform: scale(0.95); }
+
+  /* Confidence chips */
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .chip.high { background: var(--green-soft); color: var(--green); }
+  .chip.medium { background: var(--amber-soft); color: #92400e; }
+  .chip.low { background: var(--red-soft); color: var(--red); }
+  .chip.goal { background: var(--primary-soft); color: var(--primary-dark); }
+
+  /* Callout */
+  .callout {
+    background: var(--primary-soft); border-radius: 12px; padding: 12px 14px;
+    font-size: 15px; color: #703a00; margin-bottom: 12px; line-height: 1.6;
+  }
+  .callout b { color: #5a2e00; }
+  .callout.info { background: #e0f2fe; color: #075985; }
+  .callout ul { margin: 6px 0 0; padding-left: 20px; }
+  .callout li { margin-bottom: 2px; }
+
+  /* Addon list */
+  .addon {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1.5px solid var(--line); border-radius: 12px; background: #fff;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .addon.on { border-color: var(--primary); background: var(--primary-soft); }
+  .addon .emo { font-size: 24px; width: 32px; text-align: center; }
+  .addon .n { flex: 1; font-size: 15px; font-weight: 500; }
+  .addon .c { color: var(--primary-dark); font-weight: 600; font-size: 14px; }
+  .addon .chk { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; }
+  .addon.on .chk { border-color: var(--primary); background: var(--primary); }
+
+  /* Activity list (radio-style options) */
+  .activity-list { display: flex; flex-direction: column; gap: 8px; }
+  .activity-opt {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-radius: 12px;
+    border: 1.5px solid var(--line); background: #fff;
+    text-align: left; width: 100%; font-family: inherit;
+    font-size: 16px; color: var(--ink);
+    min-height: 56px;
+  }
+  .activity-opt.on { border-color: var(--primary); background: var(--primary-soft); }
+  .activity-opt .radio { font-size: 20px; color: var(--muted); flex-shrink: 0; line-height: 1.4; width: 20px; text-align: center; }
+  .activity-opt.on .radio { color: var(--primary); }
+  .activity-opt .body { flex: 1; }
+  .activity-opt .n { font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .activity-opt .d { color: var(--muted); font-size: 13px; margin-top: 2px; line-height: 1.4; }
+
+  /* Size buttons */
+  .size-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .size-grid button {
+    min-height: 64px; border-radius: 12px; border: 1.5px solid var(--line);
+    background: #fff; font-size: 16px; font-weight: 500;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .size-grid button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-dark); }
+  .size-grid button .pct { font-size: 18px; font-weight: 700; }
+  .size-grid button .label { font-size: 12px; color: var(--muted); }
+  .size-grid button.on .label { color: var(--primary-dark); }
+
+  .slider-wrap { padding: 10px 0; }
+  .slider-wrap input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
+  .slider-wrap input[type=range]::-webkit-slider-runnable-track { height: 8px; background: var(--primary-soft); border-radius: 999px; }
+  .slider-wrap input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: var(--primary); margin-top: -9px; box-shadow: var(--shadow); }
+  .slider-wrap input[type=range]::-moz-range-track { height: 8px; background: var(--primary-soft); border-radius: 999px; }
+  .slider-wrap input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); border: 0; }
+
+  /* Nutrition facts row */
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin-top: 10px; }
+  .facts > div { background: var(--bg-2); padding: 8px; border-radius: 10px; }
+  .facts .v { font-weight: 700; color: var(--ink); font-size: 16px; }
+  .facts .l { color: var(--muted); font-size: 12px; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 32px 20px; color: var(--muted); }
+  .empty .big { font-size: 48px; margin-bottom: 8px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(96px + var(--safe-bottom)); transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 12px;
+    font-size: 15px; z-index: 50; box-shadow: var(--shadow-lg);
+    opacity: 0; pointer-events: none; transition: opacity 200ms, transform 200ms;
+    max-width: 80%;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, -8px); }
+  #toast.err { background: var(--red); }
+
+  /* Update banner */
+  #update-banner {
+    position: fixed; left: 12px; right: 12px; bottom: calc(96px + var(--safe-bottom));
+    background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 14px;
+    display: flex; align-items: center; gap: 12px; z-index: 40; box-shadow: var(--shadow-lg);
+    max-width: 536px; margin: 0 auto;
+  }
+  #update-banner b { color: #ffd18a; }
+  #update-banner button { background: var(--primary); color: #fff; padding: 8px 14px; border-radius: 10px; font-weight: 600; }
+
+  /* Spinner */
+  .spin { width: 36px; height: 36px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin 800ms linear infinite; margin: 24px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 60;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .modal {
+    background: #fff; border-radius: 20px 20px 0 0; width: 100%; max-width: 560px;
+    padding: 20px 20px calc(20px + var(--safe-bottom)); max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 14px; font-size: 20px; font-weight: 600; }
+
+  /* Misc */
+  h2 { font-size: 20px; font-weight: 600; margin: 18px 0 10px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 14px 0 8px; }
+  .hint { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .center { text-align: center; }
+  .mt { margin-top: 12px; }
+  .mt2 { margin-top: 20px; }
+  .mb { margin-bottom: 12px; }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row.between { justify-content: space-between; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-dark); font-size: 12px; font-weight: 600; }
+
+  @media (max-width: 360px) {
+    body { font-size: 16px; }
+    .btn { font-size: 17px; }
+    .ring { width: 120px; height: 120px; }
+    .ring .num b { font-size: 24px; }
+    .size-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="screen"><div class="spin"></div><div class="center muted">กำลังโหลด...</div></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="update-banner" hidden></div>
+<script>
+(() => {
+'use strict';
+
+/* ========== CONSTANTS ========== */
+const VERSION = 'v1.0.0';
+const STORAGE_KEY = 'pracal_v1';
+
+const CATEGORIES = [
+  { id: 'all', name: 'ทั้งหมด', emoji: '🍽️' },
+  { id: 'rice_dishes', name: 'ข้าว', emoji: '🍚' },
+  { id: 'noodles', name: 'เส้น', emoji: '🍜' },
+  { id: 'salads', name: 'ตำ/ยำ', emoji: '🥗' },
+  { id: 'mains', name: 'กับข้าว', emoji: '🍛' },
+  { id: 'drinks', name: 'เครื่องดื่ม', emoji: '🥤' },
+  { id: 'snacks', name: 'ขนม', emoji: '🍰' },
+  { id: 'fruits', name: 'ผลไม้', emoji: '🍎' },
+  { id: 'custom', name: 'ของฉัน', emoji: '⭐' }
+];
+
+const ADDONS = [
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 90, protein_g: 6, carbs_g: 0.5, fat_g: 7 },
+  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 150, protein_g: 10, carbs_g: 1, fat_g: 12 },
+  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 70, protein_g: 6, carbs_g: 0.5, fat_g: 5 },
+  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 250, protein_g: 5, carbs_g: 54, fat_g: 0.5 },
+  { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2 },
+  { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0 },
+  { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5 }
+];
+
+const SIZE_PRESETS = [
+  { pct: 75, label: 'ครึ่งเดียว' },
+  { pct: 100, label: 'ปกติ' },
+  { pct: 150, label: 'พิเศษ' },
+  { pct: 200, label: '2 เท่า' }
+];
+
+const AVATARS = ['🧑', '👩', '👨', '👵', '👴', '🧒', '👧', '👦', '🧔', '👩‍🦳'];
+
+const GOAL_LABELS = { lose: 'ลดน้ำหนัก', maintain: 'คงน้ำหนัก', gain: 'เพิ่มน้ำหนัก' };
+const GOAL_EMOJI = { lose: '📉', maintain: '⚖️', gain: '📈' };
+const GOAL_ADJUST = { lose: -400, maintain: 0, gain: 400 };
+
+const ACTIVITY_LABELS = {
+  none:      { name: 'ไม่ตั้ง',     desc: 'บวกเองทุกวัน',                bonus: 0 },
+  light:     { name: 'น้อย',        desc: 'อยู่บ้านเป็นหลัก เดินบ้าง',   bonus: 150 },
+  moderate:  { name: 'ปานกลาง',     desc: 'เดินทำงาน/เดินเยอะ',          bonus: 300 },
+  high:      { name: 'มาก',         desc: 'ออกกำลังเกือบทุกวัน',         bonus: 500 },
+  very_high: { name: 'มากที่สุด',    desc: 'ใช้แรงงาน/ฝึกเวท',            bonus: 700 }
+};
+
+const MEAL_CACHE_KEY = 'pracal_meal_cache_v1';
+const MEAL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const MEAL_CACHE_MAX_ENTRIES = 500;
+
+/* ========== STATE ========== */
+const state = {
+  ready: false,
+  view: 'loading',
+  stack: [],
+  modal: null,
+  users: [],
+  currentUserId: null,
+  customMeals: [],
+  preloadedMeals: [],
+  favorites: [],
+  logs: {},
+  dailyTargets: {},
+  tmp: {},
+  editingEntryId: null
+};
+
+/* ========== STORAGE ========== */
+function loadStored() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      users: state.users,
+      currentUserId: state.currentUserId,
+      customMeals: state.customMeals,
+      favorites: state.favorites,
+      logs: state.logs,
+      dailyTargets: state.dailyTargets
+    }));
+  } catch (e) {
+    toast('ไม่สามารถบันทึกข้อมูลได้', true);
+  }
+}
+
+/* ========== UTILS ========== */
+function uid(prefix = 'id') { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function todayKey() {
+  const d = new Date();
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+function formatDateTH(key) {
+  if (!key) return '';
+  const [y, m, d] = key.split('-').map(Number);
+  const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  return `${d} ${months[m - 1]} ${y + 543}`;
+}
+function fmt(n, digits = 0) {
+  if (typeof n !== 'number' || !isFinite(n)) return '0';
+  if (digits === 0) return Math.round(n).toLocaleString('en-US');
+  return n.toFixed(digits);
+}
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+const h = (s) => escapeHtml(s);
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('err', !!isError);
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ========== MEAL CACHE ========== */
+function normalizeCacheKey(name) {
+  return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function readCache() {
+  try { return JSON.parse(localStorage.getItem(MEAL_CACHE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function writeCache(cache) {
+  try { localStorage.setItem(MEAL_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function getCachedEstimate(name) {
+  const cache = readCache();
+  const k = normalizeCacheKey(name);
+  const entry = cache[k];
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > MEAL_CACHE_MAX_AGE_MS) {
+    delete cache[k];
+    writeCache(cache);
+    return null;
+  }
+  return entry.data;
+}
+function cacheEstimate(name, data) {
+  const cache = readCache();
+  const k = normalizeCacheKey(name);
+  cache[k] = { data, timestamp: Date.now() };
+  const keys = Object.keys(cache);
+  if (keys.length > MEAL_CACHE_MAX_ENTRIES) {
+    const sorted = keys.sort((a, b) => cache[a].timestamp - cache[b].timestamp);
+    sorted.slice(0, 50).forEach(key => delete cache[key]);
+  }
+  writeCache(cache);
+}
+function clearCacheEntry(name) {
+  const cache = readCache();
+  delete cache[normalizeCacheKey(name)];
+  writeCache(cache);
+}
+
+/* ========== CALCULATIONS ========== */
+function calcBMR(p) {
+  const w = Number(p.weight) || 0;
+  const hcm = Number(p.height) || 0;
+  const a = Number(p.age) || 0;
+  if (p.gender === 'male') return 10 * w + 6.25 * hcm - 5 * a + 5;
+  return 10 * w + 6.25 * hcm - 5 * a - 161;
+}
+function proteinTarget(p) {
+  const w = Number(p.weight) || 0;
+  const mult = p.goal === 'lose' ? 1.6 : p.goal === 'gain' ? 1.8 : 1.2;
+  return Math.round(w * mult);
+}
+function activityBonus(p) {
+  return ACTIVITY_LABELS[p.defaultActivity || 'none']?.bonus || 0;
+}
+function goalAdjust(p) {
+  return GOAL_ADJUST[p.goal] ?? 0;
+}
+function defaultCalorieTarget(p) {
+  return Math.round(calcBMR(p)) + activityBonus(p) + goalAdjust(p);
+}
+function targetBreakdown(p) {
+  const bmr = Math.round(calcBMR(p));
+  const act = activityBonus(p);
+  const g = goalAdjust(p);
+  return { bmr, activity: act, goal: g, total: bmr + act + g };
+}
+function breakdownText(u) {
+  const override = state.dailyTargets[u.id]?.calories;
+  if (override) return `💡 เป้าวันนี้: ${fmt(override)} kcal (ตั้งเอง)`;
+  const br = targetBreakdown(u);
+  const parts = [`BMR (${fmt(br.bmr)})`];
+  const actKey = u.defaultActivity || 'none';
+  if (br.activity) parts.push(`กิจกรรม${ACTIVITY_LABELS[actKey].name} (+${br.activity})`);
+  if (br.goal !== 0) parts.push(`เป้าหมาย${GOAL_LABELS[u.goal]} (${br.goal > 0 ? '+' : ''}${br.goal})`);
+  return `💡 คำนวณจาก: ${parts.join(' + ')}`;
+}
+function effectiveCalorieTarget(userId) {
+  const u = state.users.find(x => x.id === userId);
+  if (!u) return 2000;
+  const override = state.dailyTargets[userId];
+  if (override && override.calories) return override.calories;
+  return defaultCalorieTarget(u);
+}
+function currentUser() { return state.users.find(u => u.id === state.currentUserId); }
+
+/* ========== MEAL DATA ========== */
+function allMeals() { return [...state.preloadedMeals, ...state.customMeals]; }
+function findMeal(id) { return allMeals().find(m => m.id === id) || null; }
+
+function calcEntryTotals(entry) {
+  const m = entry.snapshot || findMeal(entry.mealId);
+  if (!m) return { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, weight_g: 0 };
+  const mult = (entry.sizePct || 100) / 100;
+  let calories = (m.baseCalories || 0) * mult;
+  let protein = (m.protein_g || 0) * mult;
+  let carbs = (m.carbs_g || 0) * mult;
+  let fat = (m.fat_g || 0) * mult;
+  let weight = (m.baseWeight_g || 0) * mult;
+  (entry.addons || []).forEach(id => {
+    const a = ADDONS.find(x => x.id === id);
+    if (a) {
+      calories += a.calories;
+      protein += a.protein_g;
+      carbs += a.carbs_g;
+      fat += a.fat_g;
+    }
+  });
+  return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, weight_g: weight };
+}
+
+function todayEntries(userId = state.currentUserId) {
+  const key = todayKey();
+  return ((state.logs[userId] || {})[key] || []).slice();
+}
+
+function sumEntries(entries) {
+  return entries.reduce((acc, e) => {
+    const t = calcEntryTotals(e);
+    acc.calories += t.calories;
+    acc.protein_g += t.protein_g;
+    acc.carbs_g += t.carbs_g;
+    acc.fat_g += t.fat_g;
+    return acc;
+  }, { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+}
+
+/* ========== LOGGING ========== */
+function addLogEntry(entry, dateKey = todayKey()) {
+  if (!state.logs[state.currentUserId]) state.logs[state.currentUserId] = {};
+  if (!state.logs[state.currentUserId][dateKey]) state.logs[state.currentUserId][dateKey] = [];
+  entry.id = entry.id || uid('e');
+  entry.dateKey = dateKey;
+  entry.loggedAt = Date.now();
+  state.logs[state.currentUserId][dateKey].push(entry);
+  persist();
+}
+function deleteLogEntry(entryId, dateKey = todayKey()) {
+  const arr = (state.logs[state.currentUserId] || {})[dateKey];
+  if (!arr) return;
+  const idx = arr.findIndex(e => e.id === entryId);
+  if (idx >= 0) { arr.splice(idx, 1); persist(); }
+}
+function updateLogEntry(entryId, patch, dateKey = todayKey()) {
+  const arr = (state.logs[state.currentUserId] || {})[dateKey];
+  if (!arr) return;
+  const e = arr.find(x => x.id === entryId);
+  if (e) { Object.assign(e, patch); persist(); }
+}
+
+/* ========== NAV ========== */
+function go(view, data) {
+  if (state.view !== 'loading') state.stack.push({ view: state.view, tmp: { ...state.tmp } });
+  state.view = view;
+  state.tmp = data || {};
+  state.modal = null;
+  render();
+  window.scrollTo(0, 0);
+}
+function replace(view, data) {
+  state.view = view;
+  state.tmp = data || {};
+  state.modal = null;
+  render();
+  window.scrollTo(0, 0);
+}
+function back() {
+  const prev = state.stack.pop();
+  if (prev) { state.view = prev.view; state.tmp = prev.tmp || {}; }
+  else { state.view = 'dashboard'; state.tmp = {}; }
+  state.modal = null;
+  render();
+}
+function goHome() {
+  state.stack = [];
+  state.view = 'dashboard';
+  state.tmp = {};
+  state.modal = null;
+  render();
+}
+
+/* ========== VIEWS ========== */
+function renderOnboarding() {
+  const t = state.tmp;
+  const step = t.step || 1;
+  if (step === 1) {
+    return `
+      <div class="screen">
+        <div style="padding-top:40px"></div>
+        <div class="center" style="margin-bottom:20px">
+          <div style="font-size:72px">🍚</div>
+          <h1 style="font-size:28px;margin:8px 0 4px">PraCaL</h1>
+          <div class="muted">นับแคลอรี่อาหาร ง่าย ๆ</div>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">ยินดีต้อนรับ</h3>
+          <p class="muted" style="margin:6px 0 0;font-size:15px">
+            แอปนี้ช่วยให้คุณและคนในครอบครัวติดตามแคลอรี่ที่กินในแต่ละวัน
+            มีเมนูไทยให้เลือก 85+ เมนู ค้นหา AI ได้ และเก็บข้อมูลไว้ในเครื่อง
+          </p>
+        </div>
+        <button class="btn block lg mt" data-act="onb-next">เริ่มใช้งาน →</button>
+        <div class="center mt muted" style="font-size:13px">เวอร์ชัน ${VERSION}</div>
+      </div>
+    `;
+  }
+  // step 2: create profile
+  const name = t.name || '';
+  const gender = t.gender || '';
+  const age = t.age || '';
+  const height = t.height || '';
+  const weight = t.weight || '';
+  const goal = t.goal || '';
+  const avatar = t.avatar || '🧑';
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="onb-back" aria-label="ย้อน">←</button>
+        <h1>สร้างโปรไฟล์</h1>
+      </div>
+      <form id="profile-form" autocomplete="off">
+        <div class="card">
+          <label>รูปโปรไฟล์</label>
+          <div class="seg" style="margin-bottom:4px">
+            ${AVATARS.map(a => `<button type="button" class="${a === avatar ? 'on' : ''}" data-act="pick-avatar" data-v="${a}" style="font-size:24px">${a}</button>`).join('')}
+          </div>
+
+          <div class="field">
+            <label for="pf-name">ชื่อ (ไว้เรียก)</label>
+            <input id="pf-name" class="input" placeholder="เช่น พ่อ, แม่, ฉัน" value="${h(name)}" maxlength="20">
+          </div>
+
+          <div class="field">
+            <label>เพศ</label>
+            <div class="seg">
+              <button type="button" class="${gender === 'male' ? 'on' : ''}" data-act="set-gender" data-v="male">ชาย</button>
+              <button type="button" class="${gender === 'female' ? 'on' : ''}" data-act="set-gender" data-v="female">หญิง</button>
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div class="field">
+              <label for="pf-age">อายุ (ปี)</label>
+              <input id="pf-age" type="number" inputmode="numeric" class="input" placeholder="35" value="${h(age)}" min="5" max="120">
+            </div>
+            <div class="field">
+              <label for="pf-height">ส่วนสูง (ซม.)</label>
+              <input id="pf-height" type="number" inputmode="numeric" class="input" placeholder="165" value="${h(height)}" min="80" max="230">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="pf-weight">น้ำหนัก (กก.)</label>
+            <input id="pf-weight" type="number" inputmode="decimal" class="input" placeholder="60" value="${h(weight)}" min="20" max="250" step="0.1">
+          </div>
+
+          <div class="field">
+            <label>เป้าหมาย</label>
+            <div class="seg">
+              <button type="button" class="${goal === 'lose' ? 'on' : ''}" data-act="set-goal" data-v="lose">📉 ลด</button>
+              <button type="button" class="${goal === 'maintain' ? 'on' : ''}" data-act="set-goal" data-v="maintain">⚖️ คง</button>
+              <button type="button" class="${goal === 'gain' ? 'on' : ''}" data-act="set-goal" data-v="gain">📈 เพิ่ม</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
+            <div class="hint" style="margin-bottom:8px">ถ้ากิจวัตรเหมือนกันทุกวัน ตั้งไว้ระบบจะบวกให้อัตโนมัติ</div>
+            ${activitySelectorHtml(t.defaultActivity || 'none', 'set-activity')}
+          </div>
+        </div>
+        <button type="button" class="btn block lg" data-act="onb-save">บันทึก</button>
+      </form>
+      <div style="height:20px"></div>
+    </div>
+  `;
+}
+
+function activitySelectorHtml(currentValue, actName) {
+  return `
+    <div class="activity-list">
+      ${Object.entries(ACTIVITY_LABELS).map(([id, info]) => {
+        const on = id === (currentValue || 'none');
+        return `
+          <button type="button" class="activity-opt ${on ? 'on' : ''}" data-act="${actName}" data-v="${id}">
+            <div class="radio">${on ? '●' : '○'}</div>
+            <div class="body">
+              <div class="n">${h(info.name)} ${info.bonus ? `<span class="badge">+${info.bonus} kcal</span>` : ''}</div>
+              <div class="d">${h(info.desc)}</div>
+            </div>
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderDashboard() {
+  const u = currentUser();
+  if (!u) return '';
+  const entries = todayEntries();
+  const totals = sumEntries(entries);
+  const calTarget = effectiveCalorieTarget(u.id);
+  const protTarget = proteinTarget(u);
+  const calPct = calTarget ? Math.min(100, (totals.calories / calTarget) * 100) : 0;
+  const calRemain = calTarget - totals.calories;
+  const calPctRing = Math.min(100, (totals.calories / calTarget) * 100);
+  const protPct = protTarget ? Math.min(100, (totals.protein_g / protTarget) * 100) : 0;
+  const protRemain = protTarget - totals.protein_g;
+
+  const ringC = 2 * Math.PI * 58;
+  const ringOffset = ringC - (calPctRing / 100) * ringC;
+  const ringColor = calPctRing >= 100 ? 'var(--red)' : calPctRing >= 85 ? 'var(--amber)' : 'var(--primary)';
+
+  const favsForUser = favoriteSuggestions(entries);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="nav-users" aria-label="สลับผู้ใช้" title="สลับผู้ใช้">
+          <span style="font-size:28px">${h(u.avatar || '🧑')}</span>
+        </button>
+        <div style="flex:1">
+          <h1 style="margin:0;font-size:20px">สวัสดี ${h(u.name)}</h1>
+          <div class="sub">${formatDateTH(todayKey())}</div>
+        </div>
+        <button class="icon-btn" data-act="nav-settings" aria-label="ตั้งค่า">⚙️</button>
+      </div>
+
+      <div class="card">
+        <div class="ring-wrap">
+          <div class="ring" aria-label="แคลอรี่วันนี้">
+            <svg width="140" height="140" viewBox="0 0 140 140">
+              <circle cx="70" cy="70" r="58" fill="none" stroke="var(--bg-2)" stroke-width="14"/>
+              <circle cx="70" cy="70" r="58" fill="none" stroke="${ringColor}" stroke-width="14"
+                stroke-dasharray="${ringC.toFixed(2)}" stroke-dashoffset="${ringOffset.toFixed(2)}"
+                stroke-linecap="round"/>
+            </svg>
+            <div class="num">
+              <b>${fmt(totals.calories)}</b>
+              <small>จาก ${fmt(calTarget)} kcal</small>
+            </div>
+          </div>
+          <div class="ring-labels">
+            <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
+            <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
+            <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
+          </div>
+        </div>
+
+        <div class="bar-wrap mt">
+          <div class="bar-label">
+            <span>🥩 โปรตีน</span>
+            <span><span class="v">${fmt(totals.protein_g)}</span> / ${fmt(protTarget)} ก.</span>
+          </div>
+          <div class="bar"><i class="${protPct >= 100 ? '' : protPct >= 60 ? 'warn' : 'over'}" style="width:${protPct.toFixed(1)}%"></i></div>
+          <div class="hint">
+            ${protRemain > 0 ? `เหลือ <b>${fmt(protRemain)} ก.</b> — พยายามกินเพิ่ม` : `ครบแล้ว 🎉`}
+          </div>
+        </div>
+
+        <div class="facts">
+          <div><div class="v">${fmt(totals.carbs_g)} ก.</div><div class="l">คาร์บ</div></div>
+          <div><div class="v">${fmt(totals.fat_g)} ก.</div><div class="l">ไขมัน</div></div>
+          <div><div class="v">${entries.length}</div><div class="l">รายการ</div></div>
+        </div>
+        <div class="hint" style="margin-top:10px;font-size:13px">${breakdownText(u)}</div>
+      </div>
+
+      ${favsForUser.length ? `
+        <h2>💡 เมนูแนะนำ</h2>
+        <div>${favsForUser.map(m => mealItemHtml(m, { action: 'pick-meal', id: m.id })).join('')}</div>
+      ` : ''}
+
+      <h2>🍽️ วันนี้กินอะไรไปบ้าง</h2>
+      ${entries.length === 0 ? `
+        <div class="card empty">
+          <div class="big">🥣</div>
+          <div>ยังไม่ได้บันทึก</div>
+          <div class="muted" style="font-size:14px;margin-top:4px">กดปุ่ม + เพื่อเพิ่มเมนู</div>
+        </div>
+      ` : entries.map(e => logEntryHtml(e)).join('')}
+
+      <div style="height:30px"></div>
+    </div>
+
+    <button class="fab" data-act="nav-add" aria-label="เพิ่มเมนู">+</button>
+
+    ${bottomNavHtml('home')}
+  `;
+}
+
+function favoriteSuggestions(todayEntries) {
+  const loggedIds = new Set(todayEntries.map(e => e.mealId));
+  const favs = state.favorites
+    .map(id => findMeal(id))
+    .filter(m => m && !loggedIds.has(m.id));
+  return favs.slice(0, 3);
+}
+
+function mealItemHtml(meal, opts = {}) {
+  const act = opts.action || 'pick-meal';
+  return `
+    <div class="meal-item" data-act="${act}" data-id="${meal.id}">
+      <div class="emo">${meal.emoji || '🍽️'}</div>
+      <div class="body">
+        <div class="name">${h(meal.name)}</div>
+        <div class="sub">${fmt(meal.baseCalories)} kcal · ${fmt(meal.baseWeight_g)}g · โปรตีน ${fmt(meal.protein_g, 0)}g</div>
+      </div>
+      <div class="cal">${fmt(meal.baseCalories)}</div>
+    </div>
+  `;
+}
+
+function logEntryHtml(entry) {
+  const m = entry.snapshot || findMeal(entry.mealId);
+  const t = calcEntryTotals(entry);
+  const pct = entry.sizePct || 100;
+  const addonList = (entry.addons || []).map(id => {
+    const a = ADDONS.find(x => x.id === id);
+    return a ? a.name : '';
+  }).filter(Boolean).join(', ');
+  return `
+    <div class="log-item" data-act="edit-entry" data-id="${entry.id}">
+      <div class="emo">${m ? (m.emoji || '🍽️') : '🍽️'}</div>
+      <div class="body">
+        <div class="name">${h(m ? m.name : 'ไม่พบเมนู')}</div>
+        <div class="sub">${pct}% ${addonList ? '· + ' + h(addonList) : ''}</div>
+      </div>
+      <div class="cal">${fmt(t.calories)} kcal</div>
+      <button class="del" data-act="delete-entry" data-id="${entry.id}" aria-label="ลบ">🗑️</button>
+    </div>
+  `;
+}
+
+function bottomNavHtml(active) {
+  return `
+    <nav class="botnav">
+      <button class="${active === 'home' ? 'on' : ''}" data-act="nav-home"><span class="i">🏠</span><span>หน้าหลัก</span></button>
+      <button class="${active === 'fav' ? 'on' : ''}" data-act="nav-fav"><span class="i">⭐</span><span>เมนูประจำ</span></button>
+      <button class="${active === 'history' ? 'on' : ''}" data-act="nav-history"><span class="i">📅</span><span>ย้อนหลัง</span></button>
+      <button class="${active === 'settings' ? 'on' : ''}" data-act="nav-settings"><span class="i">⚙️</span><span>ตั้งค่า</span></button>
+    </nav>
+  `;
+}
+
+function renderAddChoose() {
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>เพิ่มเมนู</h1>
+      </div>
+      <div class="card tight" data-act="nav-library" style="cursor:pointer">
+        <div class="row"><div style="font-size:40px">📚</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">จากเมนูในระบบ</div>
+            <div class="muted" style="font-size:14px">เลือกจาก 85+ เมนูไทยที่มีให้แล้ว</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-online" style="cursor:pointer">
+        <div class="row"><div style="font-size:40px">🔎</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">ค้นหาออนไลน์ <span class="badge">AI</span></div>
+            <div class="muted" style="font-size:14px">พิมพ์ชื่อเมนูให้ AI ประเมินแคลอรี่</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-manual" style="cursor:pointer">
+        <div class="row"><div style="font-size:40px">✍️</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">พิมพ์เอง</div>
+            <div class="muted" style="font-size:14px">เมนูที่ไม่มีในระบบ กรอกแคลอรี่เอง</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLibrary() {
+  const t = state.tmp;
+  const cat = t.cat || 'all';
+  const query = (t.query || '').trim().toLowerCase();
+  let meals = allMeals();
+  if (cat === 'custom') {
+    meals = state.customMeals;
+  } else if (cat !== 'all') {
+    meals = meals.filter(m => m.category === cat);
+  }
+  if (query) {
+    meals = meals.filter(m => m.name.toLowerCase().includes(query));
+  }
+  meals = meals.slice(0, 300);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>เลือกเมนู</h1>
+      </div>
+      <div class="search-box mb">
+        <span class="icon">🔍</span>
+        <input id="lib-search" class="input" placeholder="ค้นหา เช่น ข้าวผัด" value="${h(t.query || '')}">
+      </div>
+      <div class="tabs">
+        ${CATEGORIES.map(c => `<button class="${c.id === cat ? 'on' : ''}" data-act="set-cat" data-v="${c.id}">${c.emoji} ${h(c.name)}</button>`).join('')}
+      </div>
+      ${meals.length === 0 ? `
+        <div class="card empty"><div class="big">🔍</div><div>ไม่พบเมนู</div>
+        <div class="muted" style="font-size:14px;margin-top:6px">ลองค้นหาออนไลน์ด้วย AI</div>
+        <button class="btn secondary sm mt" data-act="nav-online-from-library">🔎 ค้นหาออนไลน์</button>
+        </div>
+      ` : meals.map(m => mealItemHtml(m)).join('')}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
+  `;
+}
+
+function renderOnlineSearch() {
+  const t = state.tmp;
+  const q = t.query || '';
+  const loading = !!t.loading;
+  const err = t.error || '';
+  const result = t.result || null;
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>ค้นหาออนไลน์</h1>
+      </div>
+
+      <div class="callout">
+        <b>🔎 ค้นหาด้วย AI</b><br>
+        พิมพ์ชื่ออาหาร AI จะประเมินแคลอรี่ให้ จะได้ผลดีสำหรับ<b>อาหารไทย</b>
+      </div>
+
+      <form id="online-form" autocomplete="off">
+        <div class="search-box mb">
+          <span class="icon">🔍</span>
+          <input id="online-q" class="input" placeholder="เช่น ข้าวหน้าเป็ด, ต้มยำไก่" value="${h(q)}" ${loading ? 'disabled' : ''} autofocus>
+        </div>
+        <button type="button" class="btn block lg" data-act="online-search" ${loading ? 'disabled' : ''}>
+          ${loading ? 'กำลังค้นหา...' : '🔎 ค้นหา'}
+        </button>
+      </form>
+
+      ${loading ? `
+        <div class="card center">
+          <div class="spin"></div>
+          <div class="muted">AI กำลังประเมินแคลอรี่...</div>
+        </div>
+      ` : ''}
+
+      ${err ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">${h(err)}</div>` : ''}
+
+      ${result ? renderAiResultCard(result) : ''}
+
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
+  `;
+}
+
+function renderAiResultCard(r) {
+  const confLabel = r.confidence === 'high' ? '🟢 สูง' : r.confidence === 'medium' ? '🟡 ปานกลาง' : '🔴 ต่ำ';
+  const notes = r.notes;
+  return `
+    <div class="card">
+      <h3 style="margin-top:0">🍚 ${h(r.name)}</h3>
+      <div class="row between"><span class="muted">แคลอรี่</span><b>${fmt(r.calories)} kcal</b></div>
+      <div class="row between"><span class="muted">น้ำหนัก</span><b>~${fmt(r.weight_g)} ก.</b></div>
+      <div class="row between"><span class="muted">โปรตีน</span><b>${fmt(r.protein_g, 1)} ก.</b></div>
+      <div class="row between"><span class="muted">คาร์บ</span><b>${fmt(r.carbs_g, 1)} ก.</b></div>
+      <div class="row between"><span class="muted">ไขมัน</span><b>${fmt(r.fat_g, 1)} ก.</b></div>
+      <div class="row between mt"><span class="muted">ความแม่นยำ</span><span class="chip ${r.confidence}">${confLabel}</span></div>
+      ${notes ? `<div class="callout mt">💡 ${h(notes)}</div>` : ''}
+      ${r.confidence === 'low' ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">⚠️ ความแม่นยำต่ำ ควรปรับแก้ค่าก่อนบันทึก</div>` : ''}
+      <div class="btn-row mt">
+        <button class="btn green" data-act="ai-log-today">✅ เพิ่มในวันนี้</button>
+        <button class="btn secondary" data-act="ai-save-library">💾 บันทึกเมนู</button>
+      </div>
+      <button class="btn ghost block sm mt" data-act="ai-edit">✏️ ปรับแก้ค่าก่อนใช้</button>
+      ${r.fromCache ? `
+        <div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+          <span class="muted" style="font-size:13px">💾 จากข้อมูลที่เคยค้นหา</span>
+          <button class="btn ghost sm" data-act="online-refresh" style="font-size:13px;min-height:36px">🔄 ค้นหาใหม่</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderManual() {
+  const t = state.tmp;
+  const d = t.draft || { name: '', emoji: '🍽️', baseCalories: '', baseWeight_g: '', protein_g: '', carbs_g: '', fat_g: '', category: 'custom' };
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>${t.editMode ? 'แก้ไขเมนู' : 'พิมพ์เอง'}</h1>
+      </div>
+      <form id="manual-form" autocomplete="off">
+        <div class="card">
+          <div class="field">
+            <label for="mf-name">ชื่อเมนู *</label>
+            <input id="mf-name" class="input" placeholder="เช่น แกงฮังเล" value="${h(d.name)}" maxlength="60">
+          </div>
+          <div class="field">
+            <label>อีโมจิ (ไม่จำเป็น)</label>
+            <div class="seg" style="flex-wrap:wrap">
+              ${['🍽️','🍚','🍛','🍜','🍲','🥗','🍳','🍖','🍗','🐟','🦐','🥦','🍰','🥤','🍎','🥣'].map(e =>
+                `<button type="button" class="${d.emoji === e ? 'on' : ''}" data-act="pick-emoji" data-v="${e}" style="font-size:22px;min-width:44px">${e}</button>`
+              ).join('')}
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="mf-cal">แคลอรี่ (kcal) *</label>
+              <input id="mf-cal" type="number" inputmode="decimal" class="input" placeholder="500" value="${h(d.baseCalories)}" min="0" max="5000">
+            </div>
+            <div class="field">
+              <label for="mf-wt">น้ำหนัก (ก.)</label>
+              <input id="mf-wt" type="number" inputmode="decimal" class="input" placeholder="300" value="${h(d.baseWeight_g)}" min="0" max="5000">
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="mf-p">โปรตีน (ก.)</label>
+              <input id="mf-p" type="number" inputmode="decimal" class="input" placeholder="25" value="${h(d.protein_g)}" min="0" max="500" step="0.1">
+            </div>
+            <div class="field">
+              <label for="mf-c">คาร์บ (ก.)</label>
+              <input id="mf-c" type="number" inputmode="decimal" class="input" placeholder="60" value="${h(d.carbs_g)}" min="0" max="500" step="0.1">
+            </div>
+          </div>
+          <div class="field">
+            <label for="mf-f">ไขมัน (ก.)</label>
+            <input id="mf-f" type="number" inputmode="decimal" class="input" placeholder="20" value="${h(d.fat_g)}" min="0" max="500" step="0.1">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn secondary" data-act="manual-save-only">💾 บันทึกเมนู</button>
+          <button type="button" class="btn" data-act="manual-save-log">✅ บันทึก + วันนี้</button>
+        </div>
+      </form>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderMealDetail() {
+  const t = state.tmp;
+  const meal = t.meal || findMeal(t.mealId);
+  if (!meal) {
+    return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>ไม่พบเมนู</h1></div></div>`;
+  }
+  const sizePct = t.sizePct || 100;
+  const addons = t.addons || [];
+  const mult = sizePct / 100;
+  const cal = meal.baseCalories * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.calories || 0), 0);
+  const prot = meal.protein_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.protein_g || 0), 0);
+  const carb = meal.carbs_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.carbs_g || 0), 0);
+  const fat = meal.fat_g * mult + addons.reduce((s, id) => s + (ADDONS.find(a => a.id === id)?.fat_g || 0), 0);
+  const wt = meal.baseWeight_g * mult;
+  const isFav = state.favorites.includes(meal.id);
+  const editing = !!t.editingEntryId;
+  const isCustom = state.customMeals.some(m => m.id === meal.id);
+  const presetOn = SIZE_PRESETS.find(p => p.pct === sizePct);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">${meal.emoji || '🍽️'} ${h(meal.name)}</h1>
+        <button class="icon-btn" data-act="toggle-fav" data-id="${meal.id}" aria-label="เมนูประจำ" title="เมนูประจำ">${isFav ? '⭐' : '☆'}</button>
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <div class="muted">แคลอรี่</div>
+          <div style="font-size:24px;font-weight:700;color:var(--primary-dark)">${fmt(cal)} kcal</div>
+        </div>
+        <div class="facts">
+          <div><div class="v">${fmt(prot, 1)} ก.</div><div class="l">โปรตีน</div></div>
+          <div><div class="v">${fmt(carb, 1)} ก.</div><div class="l">คาร์บ</div></div>
+          <div><div class="v">${fmt(fat, 1)} ก.</div><div class="l">ไขมัน</div></div>
+        </div>
+        <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก.</div>
+      </div>
+
+      <h2>ขนาด</h2>
+      <div class="size-grid">
+        ${SIZE_PRESETS.map(p => `
+          <button type="button" class="${p.pct === sizePct && presetOn ? 'on' : ''}" data-act="set-size" data-v="${p.pct}">
+            <span class="pct">${p.pct}%</span>
+            <span class="label">${h(p.label)}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="card tight mt">
+        <div class="row between"><span class="muted">ปรับขนาดเอง</span><b>${sizePct}%</b></div>
+        <div class="slider-wrap">
+          <input type="range" id="size-slider" min="25" max="300" step="5" value="${sizePct}">
+        </div>
+      </div>
+
+      <h2>เพิ่มเติม (ไม่จำเป็น)</h2>
+      ${ADDONS.map(a => `
+        <div class="addon ${addons.includes(a.id) ? 'on' : ''}" data-act="toggle-addon" data-v="${a.id}">
+          <div class="emo">${a.emoji}</div>
+          <div class="n">${h(a.name)}</div>
+          <div class="c">+${fmt(a.calories)}</div>
+          <div class="chk">${addons.includes(a.id) ? '✓' : ''}</div>
+        </div>
+      `).join('')}
+
+      <div class="btn-row mt2">
+        ${editing
+          ? `<button class="btn block lg" data-act="update-log">✅ บันทึกการแก้ไข</button>`
+          : `<button class="btn block lg" data-act="save-log">✅ บันทึกในวันนี้</button>`
+        }
+      </div>
+      ${isCustom ? `
+        <div class="btn-row mt">
+          <button class="btn secondary sm" data-act="edit-custom-meal" data-id="${meal.id}">✏️ แก้ไขเมนู</button>
+          <button class="btn ghost sm" data-act="delete-custom-meal" data-id="${meal.id}" style="color:var(--red)">🗑️ ลบเมนู</button>
+        </div>
+      ` : ''}
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderFavorites() {
+  const favs = state.favorites.map(id => findMeal(id)).filter(Boolean);
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>⭐ เมนูประจำ</h1>
+      </div>
+      ${favs.length === 0 ? `
+        <div class="card empty">
+          <div class="big">⭐</div>
+          <div>ยังไม่มีเมนูประจำ</div>
+          <div class="muted" style="font-size:14px;margin-top:4px">เลือกเมนูแล้วกด ☆ เพื่อเพิ่ม</div>
+          <button class="btn sm mt" data-act="nav-library">📚 เลือกเมนู</button>
+        </div>
+      ` : favs.map(m => mealItemHtml(m)).join('')}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('fav')}
+  `;
+}
+
+function renderHistory() {
+  const userLogs = state.logs[state.currentUserId] || {};
+  const dates = Object.keys(userLogs).sort().reverse().slice(0, 60);
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>📅 ย้อนหลัง</h1>
+      </div>
+      ${dates.length === 0 ? `
+        <div class="card empty"><div class="big">📅</div><div>ยังไม่มีประวัติ</div></div>
+      ` : dates.map(d => {
+        const entries = userLogs[d] || [];
+        const totals = sumEntries(entries);
+        const target = effectiveCalorieTarget(state.currentUserId);
+        const pct = target ? Math.round((totals.calories / target) * 100) : 0;
+        return `
+          <div class="card tight" data-act="view-history-day" data-v="${d}" style="cursor:pointer">
+            <div class="row between">
+              <div>
+                <div style="font-weight:600">${formatDateTH(d)}${d === todayKey() ? ' <span class="badge">วันนี้</span>' : ''}</div>
+                <div class="muted" style="font-size:13px">${entries.length} รายการ · โปรตีน ${fmt(totals.protein_g)}g</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-weight:700;color:var(--primary-dark);font-size:17px">${fmt(totals.calories)}</div>
+                <div class="muted" style="font-size:12px">${pct}% ของเป้า</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('history')}
+  `;
+}
+
+function renderHistoryDay() {
+  const date = state.tmp.date;
+  const entries = ((state.logs[state.currentUserId] || {})[date] || []).slice();
+  const totals = sumEntries(entries);
+  const target = effectiveCalorieTarget(state.currentUserId);
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">${formatDateTH(date)}</h1>
+      </div>
+      <div class="card">
+        <div class="row between"><span>แคลอรี่รวม</span><b style="color:var(--primary-dark);font-size:20px">${fmt(totals.calories)} kcal</b></div>
+        <div class="row between"><span class="muted">เป้า</span><span>${fmt(target)} kcal</span></div>
+        <div class="facts">
+          <div><div class="v">${fmt(totals.protein_g, 1)} ก.</div><div class="l">โปรตีน</div></div>
+          <div><div class="v">${fmt(totals.carbs_g, 1)} ก.</div><div class="l">คาร์บ</div></div>
+          <div><div class="v">${fmt(totals.fat_g, 1)} ก.</div><div class="l">ไขมัน</div></div>
+        </div>
+      </div>
+      ${entries.length === 0 ? `<div class="empty muted">ไม่มีรายการ</div>` : entries.map(e => logEntryHtml(e)).join('')}
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderUserSwitcher() {
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>ผู้ใช้</h1>
+      </div>
+      <div class="callout">เลือกผู้ใช้ที่จะบันทึกข้อมูล</div>
+      ${state.users.map(u => {
+        const bmr = Math.round(calcBMR(u));
+        const tgt = effectiveCalorieTarget(u.id);
+        return `
+          <div class="card tight" data-act="switch-user" data-id="${u.id}" style="cursor:pointer;${u.id === state.currentUserId ? 'border:2px solid var(--primary)' : ''}">
+            <div class="row">
+              <div style="font-size:36px">${h(u.avatar || '🧑')}</div>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:17px">${h(u.name)} ${u.id === state.currentUserId ? '<span class="badge">ปัจจุบัน</span>' : ''}</div>
+                <div class="muted" style="font-size:14px">BMR ${fmt(bmr)} · เป้า ${fmt(tgt)} kcal · ${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]}</div>
+              </div>
+              <div class="muted" style="font-size:22px">›</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+      ${state.users.length < 3 ? `
+        <button class="btn secondary block mt" data-act="add-user">+ เพิ่มผู้ใช้</button>
+      ` : `<div class="hint center">สูงสุด 3 ผู้ใช้ต่อเครื่อง</div>`}
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  const u = currentUser();
+  const bmr = Math.round(calcBMR(u));
+  const tgt = effectiveCalorieTarget(u.id);
+  const overriden = state.dailyTargets[u.id]?.calories;
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>⚙️ ตั้งค่า</h1>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div style="font-size:40px">${h(u.avatar || '🧑')}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">${h(u.name)}</div>
+            <div class="muted" style="font-size:14px">${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]} · ${u.gender === 'male' ? 'ชาย' : 'หญิง'} อายุ ${u.age}</div>
+          </div>
+        </div>
+        <div class="facts mt">
+          <div><div class="v">${fmt(bmr)}</div><div class="l">BMR</div></div>
+          <div><div class="v">${fmt(tgt)}</div><div class="l">เป้า/วัน</div></div>
+          <div><div class="v">${fmt(proteinTarget(u))}</div><div class="l">โปรตีน/วัน</div></div>
+        </div>
+        <button class="btn secondary block mt" data-act="edit-profile">✏️ แก้ไขโปรไฟล์</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">📊 เป้าแคลอรี่/วัน</h3>
+        <div style="background:var(--bg-2);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.9">
+          <div class="row between"><span>BMR (ขั้นต่ำ)</span><b>${fmt(bmr)}</b></div>
+          <div class="row between"><span>กิจกรรมประจำ</span><b>${activityBonus(u) ? '+' + fmt(activityBonus(u)) : '0'}</b></div>
+          <div class="row between"><span>เป้าหมาย (${GOAL_LABELS[u.goal]})</span><b>${goalAdjust(u) >= 0 ? '+' : ''}${fmt(goalAdjust(u))}</b></div>
+          <hr style="border:0;border-top:1px solid var(--line);margin:8px 0">
+          <div class="row between" style="font-size:17px"><span>รวม</span><b style="color:var(--primary-dark)">${fmt(targetBreakdown(u).total)} kcal</b></div>
+        </div>
+        <button class="btn secondary block sm mt" data-act="edit-profile">✏️ แก้ไขกิจกรรมในโปรไฟล์</button>
+
+        <div class="field mt2">
+          <label>ปรับเป้าหมายวันนี้ (ไม่จำเป็น)</label>
+          <div class="hint" style="margin-bottom:6px">ใช้เมื่อวันนี้ต่างจากปกติ เช่น ออกกำลังหนักเป็นพิเศษ</div>
+          <input id="custom-target" type="number" inputmode="numeric" class="input" placeholder="${fmt(targetBreakdown(u).total)}" value="${overriden || ''}" min="800" max="5000">
+          <div class="btn-row mt">
+            <button class="btn sm" data-act="save-custom-target">บันทึก</button>
+            ${overriden ? `<button class="btn secondary sm" data-act="set-target-preset" data-v="default">รีเซ็ต</button>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">👥 ผู้ใช้</h3>
+        <button class="btn secondary block" data-act="nav-users">🔄 สลับผู้ใช้ (${state.users.length})</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">💾 ข้อมูล</h3>
+        <button class="btn secondary block" data-act="export-data">⬇️ ดาวน์โหลดสำรอง (JSON)</button>
+        <button class="btn ghost block mt" data-act="clear-today" style="color:var(--red)">🗑️ ล้างรายการวันนี้</button>
+      </div>
+
+      <div class="card center">
+        <div class="muted" style="font-size:13px">PraCaL ${VERSION}</div>
+        <div class="muted" style="font-size:12px;margin-top:4px">ข้อมูลเก็บในเครื่องเท่านั้น ไม่มีการส่งขึ้นคลาวด์</div>
+      </div>
+
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('settings')}
+  `;
+}
+
+function renderProfileEdit() {
+  const u = state.tmp.user || currentUser();
+  const isNew = !!state.tmp.isNew;
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>${isNew ? 'เพิ่มผู้ใช้' : 'แก้ไขโปรไฟล์'}</h1>
+      </div>
+      <form id="edit-form" autocomplete="off">
+        <div class="card">
+          <label>รูปโปรไฟล์</label>
+          <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
+            ${AVATARS.map(a => `<button type="button" class="${a === (state.tmp.avatar || u.avatar) ? 'on' : ''}" data-act="edit-avatar" data-v="${a}" style="font-size:24px;min-width:52px">${a}</button>`).join('')}
+          </div>
+          <div class="field">
+            <label for="ef-name">ชื่อ</label>
+            <input id="ef-name" class="input" value="${h(state.tmp.name ?? u.name)}" maxlength="20">
+          </div>
+          <div class="field">
+            <label>เพศ</label>
+            <div class="seg">
+              <button type="button" class="${(state.tmp.gender ?? u.gender) === 'male' ? 'on' : ''}" data-act="edit-gender" data-v="male">ชาย</button>
+              <button type="button" class="${(state.tmp.gender ?? u.gender) === 'female' ? 'on' : ''}" data-act="edit-gender" data-v="female">หญิง</button>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="ef-age">อายุ</label>
+              <input id="ef-age" type="number" inputmode="numeric" class="input" value="${h(state.tmp.age ?? u.age)}" min="5" max="120">
+            </div>
+            <div class="field">
+              <label for="ef-h">ส่วนสูง (ซม.)</label>
+              <input id="ef-h" type="number" inputmode="numeric" class="input" value="${h(state.tmp.height ?? u.height)}" min="80" max="230">
+            </div>
+          </div>
+          <div class="field">
+            <label for="ef-w">น้ำหนัก (กก.)</label>
+            <input id="ef-w" type="number" inputmode="decimal" class="input" value="${h(state.tmp.weight ?? u.weight)}" min="20" max="250" step="0.1">
+          </div>
+          <div class="field">
+            <label>เป้าหมาย</label>
+            <div class="seg">
+              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'lose' ? 'on' : ''}" data-act="edit-goal" data-v="lose">📉 ลด</button>
+              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'maintain' ? 'on' : ''}" data-act="edit-goal" data-v="maintain">⚖️ คง</button>
+              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'gain' ? 'on' : ''}" data-act="edit-goal" data-v="gain">📈 เพิ่ม</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
+            <div class="hint" style="margin-bottom:8px">ระบบจะบวกให้อัตโนมัติ ไม่ต้องกดทุกวัน</div>
+            ${activitySelectorHtml(state.tmp.defaultActivity ?? u.defaultActivity ?? 'none', 'edit-activity')}
+          </div>
+        </div>
+        <button type="button" class="btn block lg" data-act="save-profile">บันทึก</button>
+        ${!isNew && state.users.length > 1 ? `<button type="button" class="btn ghost block mt" data-act="delete-user" style="color:var(--red)">🗑️ ลบผู้ใช้นี้</button>` : ''}
+      </form>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+/* ========== ROUTER ========== */
+function render() {
+  const root = document.getElementById('app');
+  let html = '';
+  try {
+    switch (state.view) {
+      case 'loading': html = `<div class="screen"><div class="spin"></div></div>`; break;
+      case 'onboarding': html = renderOnboarding(); break;
+      case 'dashboard': html = renderDashboard(); break;
+      case 'add': html = renderAddChoose(); break;
+      case 'library': html = renderLibrary(); break;
+      case 'online': html = renderOnlineSearch(); break;
+      case 'manual': html = renderManual(); break;
+      case 'meal-detail': html = renderMealDetail(); break;
+      case 'history': html = renderHistory(); break;
+      case 'history-day': html = renderHistoryDay(); break;
+      case 'favorites': html = renderFavorites(); break;
+      case 'users': html = renderUserSwitcher(); break;
+      case 'settings': html = renderSettings(); break;
+      case 'profile-edit': html = renderProfileEdit(); break;
+      default: html = `<div class="screen"><h1>?</h1></div>`;
+    }
+  } catch (err) {
+    console.error(err);
+    html = `<div class="screen"><div class="card"><h3>เกิดข้อผิดพลาด</h3><pre style="white-space:pre-wrap;font-size:12px">${h(err.message)}</pre><button class="btn" data-act="nav-home">กลับหน้าหลัก</button></div></div>`;
+  }
+  root.innerHTML = html;
+}
+
+/* ========== ACTIONS ========== */
+const actions = {
+  back: () => back(),
+  'nav-home': () => goHome(),
+  'nav-add': () => go('add'),
+  'nav-library': () => go('library', { cat: 'all', query: '' }),
+  'nav-online': () => go('online'),
+  'nav-online-from-library': () => replace('online', { query: state.tmp.query || '' }),
+  'nav-manual': () => go('manual'),
+  'nav-fav': () => go('favorites'),
+  'nav-history': () => go('history'),
+  'nav-users': () => go('users'),
+  'nav-settings': () => go('settings'),
+
+  'set-cat': (e, btn) => { state.tmp.cat = btn.dataset.v; render(); },
+  'pick-meal': (e, btn) => {
+    const id = btn.dataset.id;
+    const m = findMeal(id);
+    if (!m) return;
+    go('meal-detail', { mealId: id, sizePct: 100, addons: [] });
+  },
+
+  'toggle-fav': (e, btn) => {
+    const id = btn.dataset.id;
+    const i = state.favorites.indexOf(id);
+    if (i >= 0) state.favorites.splice(i, 1);
+    else state.favorites.unshift(id);
+    persist();
+    render();
+    toast(i >= 0 ? 'เอาออกจากเมนูประจำแล้ว' : 'เพิ่มในเมนูประจำแล้ว ⭐');
+  },
+
+  'set-size': (e, btn) => {
+    state.tmp.sizePct = Number(btn.dataset.v);
+    render();
+  },
+
+  'toggle-addon': (e, el) => {
+    const id = el.dataset.v;
+    state.tmp.addons = state.tmp.addons || [];
+    const i = state.tmp.addons.indexOf(id);
+    if (i >= 0) state.tmp.addons.splice(i, 1);
+    else state.tmp.addons.push(id);
+    render();
+  },
+
+  'save-log': () => {
+    const meal = state.tmp.meal || findMeal(state.tmp.mealId);
+    if (!meal) return toast('ไม่พบเมนู', true);
+    addLogEntry({
+      mealId: meal.id,
+      sizePct: state.tmp.sizePct || 100,
+      addons: state.tmp.addons || [],
+      snapshot: state.tmp.meal ? { ...meal } : null
+    });
+    toast('บันทึกแล้ว ✅');
+    goHome();
+  },
+
+  'update-log': () => {
+    const meal = findMeal(state.tmp.mealId);
+    if (!meal) return toast('ไม่พบเมนู', true);
+    updateLogEntry(state.tmp.editingEntryId, {
+      sizePct: state.tmp.sizePct || 100,
+      addons: state.tmp.addons || []
+    });
+    toast('อัปเดตแล้ว ✅');
+    goHome();
+  },
+
+  'edit-entry': (e, el) => {
+    const id = el.dataset.id;
+    const entries = todayEntries();
+    const entry = entries.find(x => x.id === id);
+    if (!entry) return;
+    go('meal-detail', {
+      mealId: entry.mealId,
+      meal: entry.snapshot || null,
+      sizePct: entry.sizePct,
+      addons: entry.addons || [],
+      editingEntryId: id
+    });
+  },
+
+  'delete-entry': (e, el) => {
+    e.stopPropagation();
+    const id = el.dataset.id;
+    if (!confirm('ลบรายการนี้?')) return;
+    deleteLogEntry(id);
+    render();
+    toast('ลบแล้ว');
+  },
+
+  'online-search': async () => {
+    const input = document.getElementById('online-q');
+    const typed = (input?.value || '').trim();
+    const q = typed || state.tmp.query || '';
+    if (q.length < 2) { toast('พิมพ์ชื่อเมนูก่อน', true); return; }
+    state.tmp.query = q;
+    state.tmp.error = '';
+    state.tmp.result = null;
+
+    if (!state.tmp.bypassCache) {
+      const cached = getCachedEstimate(q);
+      if (cached) {
+        state.tmp.result = { ...cached, fromCache: true };
+        render();
+        return;
+      }
+    }
+    state.tmp.bypassCache = false;
+    state.tmp.loading = true;
+    render();
+    try {
+      const res = await fetch('/api/estimate-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mealName: q })
+      });
+      const data = await res.json();
+      state.tmp.loading = false;
+      if (!res.ok) {
+        state.tmp.error = data.error || 'ค้นหาไม่สำเร็จ';
+      } else {
+        cacheEstimate(q, data);
+        state.tmp.result = { ...data, fromCache: false };
+      }
+    } catch (err) {
+      state.tmp.loading = false;
+      state.tmp.error = 'เชื่อมต่อไม่ได้ ลองใหม่';
+    }
+    render();
+  },
+
+  'online-refresh': () => {
+    clearCacheEntry(state.tmp.query);
+    state.tmp.bypassCache = true;
+    state.tmp.result = null;
+    actions['online-search']();
+  },
+
+  'ai-log-today': () => {
+    const r = state.tmp.result;
+    if (!r) return;
+    const mealId = uid('ai');
+    const snap = {
+      id: mealId, name: r.name, emoji: '🍽️',
+      baseCalories: r.calories, baseWeight_g: r.weight_g,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g,
+      category: 'custom'
+    };
+    addLogEntry({ mealId, sizePct: 100, addons: [], snapshot: snap });
+    toast('เพิ่มในวันนี้แล้ว ✅');
+    goHome();
+  },
+
+  'ai-save-library': () => {
+    const r = state.tmp.result;
+    if (!r) return;
+    const meal = {
+      id: uid('c'), name: r.name, emoji: '🍽️',
+      baseCalories: r.calories, baseWeight_g: r.weight_g,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g,
+      category: 'custom', source: 'ai'
+    };
+    state.customMeals.push(meal);
+    persist();
+    toast('บันทึกเมนูแล้ว 💾');
+    go('meal-detail', { mealId: meal.id, sizePct: 100, addons: [] });
+  },
+
+  'ai-edit': () => {
+    const r = state.tmp.result;
+    if (!r) return;
+    go('manual', {
+      draft: {
+        name: r.name, emoji: '🍽️', category: 'custom',
+        baseCalories: r.calories, baseWeight_g: r.weight_g,
+        protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g
+      }
+    });
+  },
+
+  'pick-emoji': (e, btn) => {
+    const d = state.tmp.draft || {};
+    d.emoji = btn.dataset.v;
+    state.tmp.draft = d;
+    render();
+  },
+
+  'manual-save-only': () => {
+    const d = collectManualDraft();
+    if (!d) return;
+    let meal;
+    if (state.tmp.editMode && state.tmp.editId) {
+      meal = state.customMeals.find(m => m.id === state.tmp.editId);
+      if (meal) Object.assign(meal, d);
+    } else {
+      meal = { id: uid('c'), category: 'custom', ...d };
+      state.customMeals.push(meal);
+    }
+    persist();
+    toast('บันทึกเมนูแล้ว 💾');
+    back();
+  },
+  'manual-save-log': () => {
+    const d = collectManualDraft();
+    if (!d) return;
+    let meal;
+    if (state.tmp.editMode && state.tmp.editId) {
+      meal = state.customMeals.find(m => m.id === state.tmp.editId);
+      if (meal) Object.assign(meal, d);
+    } else {
+      meal = { id: uid('c'), category: 'custom', ...d };
+      state.customMeals.push(meal);
+    }
+    persist();
+    addLogEntry({ mealId: meal.id, sizePct: 100, addons: [] });
+    toast('บันทึกแล้ว ✅');
+    goHome();
+  },
+
+  'edit-custom-meal': (e, el) => {
+    const m = state.customMeals.find(x => x.id === el.dataset.id);
+    if (!m) return;
+    go('manual', { draft: { ...m }, editMode: true, editId: m.id });
+  },
+  'delete-custom-meal': (e, el) => {
+    const id = el.dataset.id;
+    if (!confirm('ลบเมนูนี้? (ไม่กระทบรายการที่บันทึกไว้แล้ว)')) return;
+    const i = state.customMeals.findIndex(m => m.id === id);
+    if (i >= 0) state.customMeals.splice(i, 1);
+    const fi = state.favorites.indexOf(id);
+    if (fi >= 0) state.favorites.splice(fi, 1);
+    persist();
+    toast('ลบแล้ว');
+    back();
+  },
+
+  // onboarding
+  'onb-next': () => { state.tmp.step = 2; render(); },
+  'onb-back': () => {
+    if (state.tmp.step === 2 && state.users.length === 0) { state.tmp.step = 1; render(); }
+    else back();
+  },
+  'set-gender': (e, btn) => { state.tmp.gender = btn.dataset.v; render(); },
+  'set-goal': (e, btn) => { state.tmp.goal = btn.dataset.v; render(); },
+  'set-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
+  'pick-avatar': (e, btn) => { state.tmp.avatar = btn.dataset.v; render(); },
+  'onb-save': () => {
+    const name = document.getElementById('pf-name')?.value.trim();
+    const age = Number(document.getElementById('pf-age')?.value);
+    const height = Number(document.getElementById('pf-height')?.value);
+    const weight = Number(document.getElementById('pf-weight')?.value);
+    if (!name) return toast('กรอกชื่อก่อน', true);
+    if (!state.tmp.gender) return toast('เลือกเพศ', true);
+    if (!state.tmp.goal) return toast('เลือกเป้าหมาย', true);
+    if (!age || age < 5 || age > 120) return toast('อายุไม่ถูกต้อง', true);
+    if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
+    if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
+
+    const u = {
+      id: uid('u'),
+      name, gender: state.tmp.gender, goal: state.tmp.goal,
+      age, height, weight, avatar: state.tmp.avatar || '🧑',
+      defaultActivity: state.tmp.defaultActivity || 'none',
+      createdAt: Date.now()
+    };
+    state.users.push(u);
+    state.currentUserId = u.id;
+    persist();
+    toast('ยินดีต้อนรับ! ' + u.name);
+    goHome();
+  },
+
+  // user mgmt
+  'switch-user': (e, el) => {
+    const id = el.dataset.id;
+    if (!state.users.find(u => u.id === id)) return;
+    state.currentUserId = id;
+    persist();
+    toast('เปลี่ยนผู้ใช้แล้ว');
+    goHome();
+  },
+  'add-user': () => {
+    if (state.users.length >= 3) return toast('สูงสุด 3 ผู้ใช้', true);
+    go('profile-edit', { isNew: true, user: {}, gender: '', goal: '', avatar: '🧑' });
+  },
+  'edit-profile': () => go('profile-edit', { isNew: false, user: currentUser() }),
+  'edit-avatar': (e, btn) => { state.tmp.avatar = btn.dataset.v; render(); },
+  'edit-gender': (e, btn) => { state.tmp.gender = btn.dataset.v; render(); },
+  'edit-goal': (e, btn) => { state.tmp.goal = btn.dataset.v; render(); },
+  'edit-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
+
+  'save-profile': () => {
+    const name = document.getElementById('ef-name')?.value.trim();
+    const age = Number(document.getElementById('ef-age')?.value);
+    const height = Number(document.getElementById('ef-h')?.value);
+    const weight = Number(document.getElementById('ef-w')?.value);
+    const isNew = !!state.tmp.isNew;
+    const u = isNew ? {} : (state.tmp.user || currentUser());
+    const gender = state.tmp.gender ?? u.gender;
+    const goal = state.tmp.goal ?? u.goal;
+    const avatar = state.tmp.avatar ?? u.avatar ?? '🧑';
+    const defaultActivity = state.tmp.defaultActivity ?? u.defaultActivity ?? 'none';
+    if (!name) return toast('กรอกชื่อ', true);
+    if (!gender) return toast('เลือกเพศ', true);
+    if (!goal) return toast('เลือกเป้าหมาย', true);
+    if (!age || age < 5 || age > 120) return toast('อายุไม่ถูกต้อง', true);
+    if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
+    if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
+    if (isNew) {
+      const nu = { id: uid('u'), name, gender, goal, age, height, weight, avatar, defaultActivity, createdAt: Date.now() };
+      state.users.push(nu);
+      state.currentUserId = nu.id;
+    } else {
+      Object.assign(u, { name, gender, goal, age, height, weight, avatar, defaultActivity });
+    }
+    persist();
+    toast('บันทึกแล้ว ✅');
+    back();
+  },
+
+  'delete-user': () => {
+    if (state.users.length <= 1) return toast('ต้องมีอย่างน้อย 1 ผู้ใช้', true);
+    const u = state.tmp.user;
+    if (!u || !confirm(`ลบ "${u.name}" และประวัติทั้งหมด?`)) return;
+    const idx = state.users.findIndex(x => x.id === u.id);
+    if (idx >= 0) state.users.splice(idx, 1);
+    delete state.logs[u.id];
+    delete state.dailyTargets[u.id];
+    if (state.currentUserId === u.id) state.currentUserId = state.users[0].id;
+    persist();
+    toast('ลบแล้ว');
+    goHome();
+  },
+
+  'set-target-preset': (e, btn) => {
+    const v = btn.dataset.v;
+    const u = currentUser();
+    if (v === 'default') delete state.dailyTargets[u.id];
+    else {
+      state.dailyTargets[u.id] = { calories: Number(v) };
+    }
+    persist();
+    toast('บันทึกเป้าแล้ว');
+    render();
+  },
+  'save-custom-target': () => {
+    const input = document.getElementById('custom-target');
+    const u = currentUser();
+    const v = Number(input?.value);
+    if (!v) { delete state.dailyTargets[u.id]; }
+    else if (v < 800 || v > 5000) { return toast('ค่าควรอยู่ระหว่าง 800-5000', true); }
+    else state.dailyTargets[u.id] = { calories: v };
+    persist();
+    toast('บันทึกเป้าแล้ว');
+    render();
+  },
+
+  'export-data': () => {
+    const blob = new Blob([JSON.stringify({
+      version: VERSION, exportedAt: new Date().toISOString(),
+      users: state.users, currentUserId: state.currentUserId,
+      customMeals: state.customMeals, favorites: state.favorites,
+      logs: state.logs, dailyTargets: state.dailyTargets
+    }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pracal-backup-${todayKey()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('ดาวน์โหลดแล้ว');
+  },
+
+  'clear-today': () => {
+    if (!confirm('ลบรายการอาหารของวันนี้ทั้งหมด?')) return;
+    const k = todayKey();
+    if (state.logs[state.currentUserId]) delete state.logs[state.currentUserId][k];
+    persist();
+    toast('ล้างแล้ว');
+    goHome();
+  },
+
+  'view-history-day': (e, el) => go('history-day', { date: el.dataset.v }),
+
+  'update-app': () => {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg?.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      });
+    }
+    setTimeout(() => location.reload(), 200);
+  },
+  'dismiss-update': () => {
+    document.getElementById('update-banner').hidden = true;
+  }
+};
+
+function collectManualDraft() {
+  const name = document.getElementById('mf-name')?.value.trim();
+  const cal = Number(document.getElementById('mf-cal')?.value);
+  const wt = Number(document.getElementById('mf-wt')?.value) || 0;
+  const p = Number(document.getElementById('mf-p')?.value) || 0;
+  const c = Number(document.getElementById('mf-c')?.value) || 0;
+  const f = Number(document.getElementById('mf-f')?.value) || 0;
+  if (!name) { toast('กรอกชื่อเมนู', true); return null; }
+  if (!cal || cal < 0) { toast('กรอกแคลอรี่', true); return null; }
+  const emoji = state.tmp.draft?.emoji || '🍽️';
+  return { name, emoji, baseCalories: cal, baseWeight_g: wt, protein_g: p, carbs_g: c, fat_g: f };
+}
+
+/* ========== EVENT DELEGATION ========== */
+document.addEventListener('click', (e) => {
+  const target = e.target.closest('[data-act]');
+  if (!target) return;
+  const act = target.dataset.act;
+  const fn = actions[act];
+  if (fn) {
+    e.preventDefault();
+    fn(e, target);
+  }
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'lib-search') {
+    state.tmp.query = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 120);
+  }
+  if (e.target.id === 'size-slider') {
+    state.tmp.sizePct = Number(e.target.value);
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 50);
+  }
+});
+
+/* ========== INIT ========== */
+async function loadPreloadedMeals() {
+  try {
+    const res = await fetch('./meals.json');
+    const data = await res.json();
+    state.preloadedMeals = data.meals || [];
+  } catch (err) {
+    console.error('ไม่สามารถโหลด meals.json', err);
+    state.preloadedMeals = [];
+    toast('โหลดเมนูไม่ได้', true);
+  }
+}
+
+function initFromStorage() {
+  const s = loadStored();
+  if (s) {
+    state.users = s.users || [];
+    state.currentUserId = s.currentUserId || (state.users[0]?.id ?? null);
+    state.customMeals = s.customMeals || [];
+    state.favorites = s.favorites || [];
+    state.logs = s.logs || {};
+    state.dailyTargets = s.dailyTargets || {};
+  }
+}
+
+async function main() {
+  initFromStorage();
+  await loadPreloadedMeals();
+  state.ready = true;
+  if (state.users.length === 0) {
+    state.view = 'onboarding';
+    state.tmp = { step: 1 };
+  } else {
+    state.view = 'dashboard';
+    state.tmp = {};
+  }
+  render();
+
+  // Service worker
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register('./service-worker.js');
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('SW registration failed', err);
+    }
+  }
+}
+
+function showUpdateBanner() {
+  const el = document.getElementById('update-banner');
+  el.innerHTML = `
+    <div style="flex:1"><b>🎉 มีเวอร์ชันใหม่</b><br><span style="font-size:13px;color:#ddd">แตะ "อัปเดต" เพื่อรีเฟรชแอป</span></div>
+    <button data-act="update-app">อัปเดต</button>
+    <button data-act="dismiss-update" style="background:transparent;color:#ddd;padding:6px">✕</button>
+  `;
+  el.hidden = false;
+}
+
+// Browser back button
+window.addEventListener('popstate', () => {
+  if (state.stack.length > 0) back();
+});
+
+main();
+
+})();
+</script>
+</body>
+</html>
