@@ -291,6 +291,33 @@
   #toast.show { opacity: 1; transform: translate(-50%, -8px); }
   #toast.err { background: var(--red); }
 
+  /* Update banner (created dynamically only when needed) */
+  #update-banner {
+    position: fixed; left: 12px; right: 12px;
+    top: calc(var(--safe-top) + 10px);
+    background: var(--ink); color: #fff;
+    padding: 12px 14px; border-radius: 14px;
+    display: flex; align-items: center; gap: 10px;
+    z-index: 100; box-shadow: var(--shadow-lg);
+    max-width: 536px; margin: 0 auto;
+    animation: slideDown 260ms ease;
+  }
+  #update-banner b { color: #ffd18a; }
+  #update-banner .btn-up {
+    background: var(--primary); color: #fff; padding: 8px 14px;
+    border-radius: 10px; font-weight: 600; font-size: 14px;
+    border: 0; cursor: pointer; white-space: nowrap;
+  }
+  #update-banner .btn-x {
+    background: transparent; color: #ddd;
+    width: 32px; height: 32px; border-radius: 8px;
+    font-size: 18px; border: 0; cursor: pointer;
+  }
+  @keyframes slideDown {
+    from { transform: translateY(-120%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
   /* Spinner */
   .spin { width: 36px; height: 36px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: spin 800ms linear infinite; margin: 24px auto; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -411,7 +438,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.1.1';
+const VERSION = 'v1.1.2';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -636,6 +663,13 @@ function effectiveCalorieTarget(userId) {
   const override = state.dailyTargets[userId];
   if (override && override.calories) return override.calories;
   return defaultCalorieTarget(u);
+}
+function effectiveProteinTarget(userId) {
+  const u = state.users.find(x => x.id === userId);
+  if (!u) return 0;
+  const override = state.dailyTargets[userId]?.protein;
+  if (override && override > 0) return override;
+  return proteinTarget(u);
 }
 function currentUser() { return state.users.find(u => u.id === state.currentUserId); }
 
@@ -1172,7 +1206,7 @@ function renderDashboard() {
   const entries = todayEntries();
   const totals = sumEntries(entries);
   const calTarget = effectiveCalorieTarget(u.id);
-  const protTarget = proteinTarget(u);
+  const protTarget = effectiveProteinTarget(u.id);
   const carbsTarget = Math.round(calTarget * 0.5 / 4);
   const sugarLimit = SUGAR_DAILY_LIMIT_G;
   const calRemain = calTarget - totals.calories;
@@ -1774,7 +1808,7 @@ function renderReports() {
   const monthIdx = t.monthIdx != null ? t.monthIdx : now.getMonth();
   const agg = monthAggregate(u.id, year, monthIdx);
   const calTarget = effectiveCalorieTarget(u.id);
-  const protTarget = proteinTarget(u);
+  const protTarget = effectiveProteinTarget(u.id);
   const monthNames = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const monthLabel = `${monthNames[monthIdx]} ${year + 543}`;
 
@@ -2041,7 +2075,7 @@ function renderSettings() {
         <div class="facts mt">
           <div><div class="v">${fmt(bmr)}</div><div class="l">BMR</div></div>
           <div><div class="v">${fmt(tgt)}</div><div class="l">เป้า/วัน</div></div>
-          <div><div class="v">${fmt(proteinTarget(u))}</div><div class="l">โปรตีน/วัน</div></div>
+          <div><div class="v">${fmt(effectiveProteinTarget(u.id))}</div><div class="l">โปรตีน/วัน</div></div>
         </div>
         <button class="btn secondary block mt" data-act="edit-profile">✏️ แก้ไขโปรไฟล์</button>
       </div>
@@ -2067,6 +2101,31 @@ function renderSettings() {
           </div>
         </div>
       </div>
+
+      ${(() => {
+        const protDefault = proteinTarget(u);
+        const protOverride = state.dailyTargets[u.id]?.protein;
+        const protCurrent = effectiveProteinTarget(u.id);
+        return `
+          <div class="card">
+            <h3 style="margin-top:0">🥩 เป้าโปรตีน/วัน ${helpHtml('protein')}</h3>
+            <div style="background:var(--bg-2);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.9">
+              <div class="row between"><span class="muted">คำนวณอัตโนมัติ</span><b>${fmt(protDefault)} ก.</b></div>
+              <div class="row between"><span class="muted">น้ำหนัก × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}</span><span style="color:var(--muted);font-size:13px">${u.weight}kg × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}g</span></div>
+              <div class="row between" style="font-size:17px;font-weight:600;color:var(--primary-dark);border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><span>ใช้งาน</span><b>${fmt(protCurrent)} ก.${protOverride ? ' (ตั้งเอง)' : ''}</b></div>
+            </div>
+            <div class="field mt2">
+              <label>ตั้งเอง (ไม่จำเป็น)</label>
+              <div class="hint" style="margin-bottom:6px">ใช้เมื่ออยากกินโปรตีนสูงกว่าสูตร เช่น นักกีฬา 2.0-2.2 × น้ำหนัก</div>
+              <input id="custom-protein" type="number" inputmode="numeric" class="input" placeholder="${fmt(protDefault)}" value="${protOverride || ''}" min="20" max="400">
+              <div class="btn-row mt">
+                <button class="btn sm" data-act="save-custom-protein">บันทึก</button>
+                ${protOverride ? `<button class="btn secondary sm" data-act="reset-custom-protein">รีเซ็ต</button>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      })()}
 
       <div class="card">
         <h3 style="margin-top:0">⚖️ น้ำหนัก</h3>
@@ -2629,21 +2688,44 @@ const actions = {
   'set-target-preset': (e, btn) => {
     const v = btn.dataset.v;
     const u = currentUser();
-    if (v === 'default') delete state.dailyTargets[u.id];
-    else {
-      state.dailyTargets[u.id] = { calories: Number(v) };
-    }
+    state.dailyTargets[u.id] = state.dailyTargets[u.id] || {};
+    if (v === 'default') delete state.dailyTargets[u.id].calories;
+    else state.dailyTargets[u.id].calories = Number(v);
     persist();
     toast('บันทึกเป้าแล้ว');
     render();
   },
+  'save-custom-protein': () => {
+    const u = currentUser();
+    if (!u) return;
+    const v = Number(document.getElementById('custom-protein')?.value);
+    state.dailyTargets[u.id] = state.dailyTargets[u.id] || {};
+    if (!v) { delete state.dailyTargets[u.id].protein; }
+    else if (v < 20 || v > 400) { return toast('ค่าควรอยู่ระหว่าง 20-400 ก.', true); }
+    else { state.dailyTargets[u.id].protein = v; }
+    persist();
+    toast('บันทึกเป้าโปรตีนแล้ว');
+    render();
+  },
+  'reset-custom-protein': () => {
+    const u = currentUser();
+    if (!u) return;
+    if (state.dailyTargets[u.id]) delete state.dailyTargets[u.id].protein;
+    persist();
+    toast('รีเซ็ตเป้าโปรตีนแล้ว');
+    render();
+  },
+
   'save-custom-target': () => {
     const input = document.getElementById('custom-target');
     const u = currentUser();
     const v = Number(input?.value);
-    if (!v) { delete state.dailyTargets[u.id]; }
+    state.dailyTargets[u.id] = state.dailyTargets[u.id] || {};
+    if (!v) {
+      delete state.dailyTargets[u.id].calories;
+    }
     else if (v < 800 || v > 5000) { return toast('ค่าควรอยู่ระหว่าง 800-5000', true); }
-    else state.dailyTargets[u.id] = { calories: v };
+    else state.dailyTargets[u.id].calories = v;
     persist();
     toast('บันทึกเป้าแล้ว');
     render();
@@ -2674,7 +2756,15 @@ const actions = {
     goHome();
   },
 
-  'view-history-day': (e, el) => go('history-day', { date: el.dataset.v })
+  'view-history-day': (e, el) => go('history-day', { date: el.dataset.v }),
+
+  'update-app': () => {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg?.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(() => location.reload(), 200);
+    }).catch(() => location.reload());
+  },
+  'dismiss-update': () => hideUpdateBanner()
 };
 
 function collectManualDraft() {
@@ -2777,7 +2867,7 @@ async function main() {
   }
   render();
 
-  // Service worker - silent auto-update
+  // Service worker
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('./service-worker.js');
@@ -2786,20 +2876,35 @@ async function main() {
         if (!nw) return;
         nw.addEventListener('statechange', () => {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            nw.postMessage({ type: 'SKIP_WAITING' });
+            showUpdateBanner();
           }
         });
       });
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        location.reload();
-      });
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showUpdateBanner();
+      }
     } catch (err) {
       console.warn('SW registration failed', err);
     }
   }
+}
+
+function showUpdateBanner() {
+  if (document.getElementById('update-banner')) return;
+  const el = document.createElement('div');
+  el.id = 'update-banner';
+  el.innerHTML = `
+    <div style="flex:1;line-height:1.4">
+      <b>🎉 มีเวอร์ชันใหม่</b>
+      <div style="font-size:13px;color:#ddd">แตะเพื่อรีเฟรชแอป</div>
+    </div>
+    <button class="btn-up" type="button" data-act="update-app">อัปเดต</button>
+    <button class="btn-x" type="button" data-act="dismiss-update" aria-label="ปิด">✕</button>
+  `;
+  document.body.appendChild(el);
+}
+function hideUpdateBanner() {
+  document.getElementById('update-banner')?.remove();
 }
 
 // Browser back button
