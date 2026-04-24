@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
   "meals": [
-    { "id": "r01", "name": "ข้าวกะเพราไก่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 850, "baseWeight_g": 350, "protein_g": 35, "carbs_g": 95, "fat_g": 38 },
-    { "id": "r02", "name": "ข้าวกะเพราหมู", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 820, "baseWeight_g": 350, "protein_g": 32, "carbs_g": 95, "fat_g": 40 },
-    { "id": "r03", "name": "ข้าวกะเพราเนื้อ", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 900, "baseWeight_g": 350, "protein_g": 38, "carbs_g": 95, "fat_g": 42 },
+    { "id": "r01", "name": "ข้าวกะเพราไก่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 750, "baseWeight_g": 350, "protein_g": 28, "carbs_g": 85, "fat_g": 32 },
+    { "id": "r02", "name": "ข้าวกะเพราหมู", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 820, "baseWeight_g": 350, "protein_g": 27, "carbs_g": 85, "fat_g": 41 },
+    { "id": "r03", "name": "ข้าวกะเพราเนื้อ", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 870, "baseWeight_g": 350, "protein_g": 33, "carbs_g": 85, "fat_g": 43 },
     { "id": "r04", "name": "ข้าวมันไก่", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 650, "baseWeight_g": 400, "protein_g": 32, "carbs_g": 75, "fat_g": 22 },
     { "id": "r05", "name": "ข้าวหมูแดง", "emoji": "🍖", "category": "rice_dishes", "baseCalories": 700, "baseWeight_g": 400, "protein_g": 35, "carbs_g": 85, "fat_g": 25 },
     { "id": "r06", "name": "ข้าวหมูกรอบ", "emoji": "🥓", "category": "rice_dishes", "baseCalories": 850, "baseWeight_g": 400, "protein_g": 28, "carbs_g": 80, "fat_g": 48 },
