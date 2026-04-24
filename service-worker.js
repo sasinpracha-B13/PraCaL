@@ -1,11 +1,12 @@
-const VERSION = 'v1.1.3';
+const VERSION = 'v1.3.0';
 const CACHE_NAME = `pracal-${VERSION}`;
 
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './meals.json'
+  './meals.json',
+  './branded_products.json'
 ];
 
 self.addEventListener('install', (event) => {

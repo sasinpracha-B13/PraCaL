@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" defer></script>
 <title>PraCaL - นับแคลอาหารไทย</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
@@ -291,6 +292,48 @@
   #toast.show { opacity: 1; transform: translate(-50%, -8px); }
   #toast.err { background: var(--red); }
 
+  /* Barcode scanner view */
+  .scan-frame {
+    position: relative; border-radius: 16px; overflow: hidden;
+    background: #000; aspect-ratio: 4/3; max-height: 60vh;
+    margin: 0 auto; width: 100%;
+  }
+  .scan-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-frame .overlay {
+    position: absolute; inset: 18% 12%;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    border-radius: 12px; pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  }
+  .scan-frame .laser {
+    position: absolute; left: 12%; right: 12%; top: 50%;
+    height: 2px; background: #ff4d4d; box-shadow: 0 0 8px #ff4d4d;
+    animation: laserScan 1.8s ease-in-out infinite;
+  }
+  @keyframes laserScan {
+    0%, 100% { top: 22%; }
+    50% { top: 78%; }
+  }
+  .scan-status {
+    text-align: center; padding: 10px 14px; border-radius: 12px;
+    background: var(--bg-2); color: var(--ink-2);
+    font-size: 14px; margin: 10px 0;
+  }
+
+  /* OCR preview */
+  .ocr-preview {
+    width: 100%; max-height: 280px; object-fit: contain;
+    border-radius: 12px; background: #000;
+  }
+
+  /* Label row for OCR review fields */
+  .kv-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .kv-row:last-child { border-bottom: 0; }
+  .kv-row .k { font-size: 14px; color: var(--ink-2); }
+  .kv-row input { width: 110px; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 8px; text-align: right; font-size: 15px; font-weight: 600; color: var(--ink); background: #fff; -webkit-appearance: none; }
+  .kv-row input:focus { outline: none; border-color: var(--primary); }
+  .kv-row input.w-full { width: 100%; text-align: left; }
+
   /* Update banner (created dynamically only when needed) */
   #update-banner {
     position: fixed; left: 12px; right: 12px;
@@ -438,11 +481,12 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.1.3';
+const VERSION = 'v1.3.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
   { id: 'all', name: 'ทั้งหมด', emoji: '🍽️' },
+  { id: 'branded', name: 'ยี่ห้อ', emoji: '🏷️' },
   { id: 'rice_dishes', name: 'ข้าว', emoji: '🍚' },
   { id: 'noodles', name: 'เส้น', emoji: '🍜' },
   { id: 'salads', name: 'ตำ/ยำ', emoji: '🥗' },
@@ -452,6 +496,18 @@ const CATEGORIES = [
   { id: 'fruits', name: 'ผลไม้', emoji: '🍎' },
   { id: 'custom', name: 'ของฉัน', emoji: '⭐' }
 ];
+
+const BRANDED_SUB_CATEGORY = {
+  protein_drinks: 'drinks',
+  milk_drinks: 'drinks',
+  coffee_drinks: 'drinks',
+  packaged_drinks: 'drinks',
+  yogurt: 'snacks',
+  snacks: 'snacks',
+  bakery: 'snacks',
+  convenience: 'rice_dishes',
+  other: 'custom'
+};
 
 const ADDONS = [
   { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 90, protein_g: 6, carbs_g: 0.5, fat_g: 7, sugar_g: 0 },
@@ -512,11 +568,13 @@ const state = {
   currentUserId: null,
   customMeals: [],
   preloadedMeals: [],
+  brandedProducts: [],
   favorites: [],
   logs: {},
   dailyTargets: {},
   tmp: {},
-  editingEntryId: null
+  editingEntryId: null,
+  scanner: null
 };
 
 /* ========== STORAGE ========== */
@@ -674,7 +732,32 @@ function effectiveProteinTarget(userId) {
 function currentUser() { return state.users.find(u => u.id === state.currentUserId); }
 
 /* ========== MEAL DATA ========== */
-function allMeals() { return [...state.preloadedMeals, ...state.customMeals]; }
+function normalizeBrandedAsMeal(p, sourceTag) {
+  const thaiCat = BRANDED_SUB_CATEGORY[p.category] || 'custom';
+  return {
+    id: p.id,
+    name: (p.nameThai && p.nameThai !== p.name) ? p.nameThai : p.name,
+    emoji: p.emoji || '🏷️',
+    category: thaiCat,
+    subcategory: p.category,
+    baseCalories: p.calories,
+    baseWeight_g: p.servingSize,
+    servingUnit: p.servingUnit || 'g',
+    protein_g: p.protein_g,
+    carbs_g: p.carbs_g,
+    fat_g: p.fat_g,
+    sugar_g: p.sugar_g || 0,
+    brand: p.brand || null,
+    barcode: p.barcode || null,
+    source: sourceTag || 'branded'
+  };
+}
+function allBrandedAsMeals() { return state.brandedProducts.map(p => normalizeBrandedAsMeal(p, 'branded')); }
+function userScannedAsMeals() {
+  const u = currentUser();
+  return (u?.scannedProducts || []).map(p => normalizeBrandedAsMeal(p, 'scanned'));
+}
+function allMeals() { return [...state.preloadedMeals, ...allBrandedAsMeals(), ...userScannedAsMeals(), ...state.customMeals]; }
 function findMeal(id) { return allMeals().find(m => m.id === id) || null; }
 
 function calcEntryTotals(entry) {
@@ -1381,11 +1464,29 @@ function renderAddChoose() {
         <button class="icon-btn" data-act="back">←</button>
         <h1>เพิ่มเมนู</h1>
       </div>
+      <div class="card tight" data-act="nav-scan" style="cursor:pointer">
+        <div class="row"><div style="font-size:40px">📷</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">สแกนบาร์โค้ด <span class="badge">NEW</span></div>
+            <div class="muted" style="font-size:14px">สแกนสินค้ามีแบรนด์ — โปรตีน นม โค้ก ฯลฯ</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-ocr" style="cursor:pointer">
+        <div class="row"><div style="font-size:40px">📸</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">ถ่ายรูป label <span class="badge">AI</span></div>
+            <div class="muted" style="font-size:14px">ถ่ายรูปฉลากโภชนาการ AI อ่านให้</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
       <div class="card tight" data-act="nav-library" style="cursor:pointer">
         <div class="row"><div style="font-size:40px">📚</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:17px">จากเมนูในระบบ</div>
-            <div class="muted" style="font-size:14px">เลือกจาก 85+ เมนูไทยที่มีให้แล้ว</div>
+            <div class="muted" style="font-size:14px">85 เมนูไทย + 88 สินค้ามีแบรนด์</div>
           </div>
           <div class="muted" style="font-size:22px">›</div>
         </div>
@@ -1412,6 +1513,161 @@ function renderAddChoose() {
   `;
 }
 
+function renderScan() {
+  const t = state.tmp;
+  const err = t.error;
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">📷 สแกนบาร์โค้ด</h1>
+      </div>
+      ${err ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">${h(err)}</div>` : ''}
+      <div class="scan-frame">
+        <video id="scan-video" playsinline muted autoplay></video>
+        <div class="overlay"></div>
+        <div class="laser"></div>
+      </div>
+      <div class="scan-status">💡 เล็งบาร์โค้ดให้อยู่ในกรอบ — จะอ่านอัตโนมัติ</div>
+      <button class="btn secondary block" data-act="nav-ocr">📸 ถ่ายรูป label แทน</button>
+      <button class="btn ghost block mt" data-act="back">ยกเลิก</button>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderScanNotFound() {
+  const bc = state.tmp.barcode || '';
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">ไม่พบสินค้า</h1>
+      </div>
+      <div class="card">
+        <div style="font-size:48px;text-align:center;margin-bottom:8px">🔍</div>
+        <div class="muted center">บาร์โค้ด <b>${h(bc)}</b> ยังไม่อยู่ในระบบ</div>
+      </div>
+      <div class="card tight" data-act="nav-ocr-with-barcode" style="cursor:pointer">
+        <div class="row"><div style="font-size:36px">📸</div>
+          <div style="flex:1">
+            <div style="font-weight:600">ถ่ายรูป nutrition label</div>
+            <div class="muted" style="font-size:14px">AI จะอ่านข้อมูลให้ และเก็บคู่บาร์โค้ดนี้</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-manual-scan" style="cursor:pointer">
+        <div class="row"><div style="font-size:36px">✏️</div>
+          <div style="flex:1">
+            <div style="font-weight:600">กรอกข้อมูลเอง</div>
+            <div class="muted" style="font-size:14px">พิมพ์ค่าโภชนาการตามฉลาก</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-scan" style="cursor:pointer">
+        <div class="row"><div style="font-size:36px">🔄</div>
+          <div style="flex:1">
+            <div style="font-weight:600">สแกนใหม่</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOcr() {
+  const t = state.tmp;
+  const loading = !!t.loading;
+  const err = t.error;
+  const result = t.result;
+  const preview = t.preview;
+
+  if (loading) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1>📸 อ่านฉลาก</h1>
+        </div>
+        ${preview ? `<img class="ocr-preview" src="${preview}" alt="preview">` : ''}
+        <div class="card center">
+          <div class="spin"></div>
+          <div class="muted">AI กำลังอ่านข้อมูลจากฉลาก...</div>
+          <div class="hint" style="margin-top:6px">ปกติใช้เวลา 3-5 วินาที</div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (err) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1>📸 อ่านฉลาก</h1>
+        </div>
+        <div class="callout" style="background:var(--red-soft);color:var(--red)">${h(err)}</div>
+        <button class="btn block" data-act="nav-ocr">📷 ถ่ายรูปใหม่</button>
+        <button class="btn ghost block mt" data-act="back">ยกเลิก</button>
+      </div>
+    `;
+  }
+
+  if (!result) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1>📸 ถ่ายรูป label</h1>
+        </div>
+        <div class="callout info">
+          <b>💡 เคล็ดลับถ่ายรูปให้ชัด:</b>
+          <ul>
+            <li>เล็งให้ได้ตารางโภชนาการเต็ม</li>
+            <li>ไฟสว่างเพียงพอ</li>
+            <li>กล้องไม่สั่น ตัวอักษรอ่านออก</li>
+          </ul>
+        </div>
+        <button class="btn block lg" data-act="ocr-pick">📷 เปิดกล้อง / เลือกรูป</button>
+        <button class="btn ghost block mt" data-act="back">ยกเลิก</button>
+      </div>
+    `;
+  }
+
+  const confLabel = result.confidence === 'high' ? '🟢 สูง' : result.confidence === 'medium' ? '🟡 ปานกลาง' : '🔴 ต่ำ';
+  const unit = result.servingUnit === 'ml' ? 'มล.' : 'ก.';
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">📸 ผลการอ่าน</h1>
+        <span class="chip ${result.confidence}">${confLabel}</span>
+      </div>
+      ${preview ? `<img class="ocr-preview" src="${preview}" alt="preview">` : ''}
+      <div class="card mt">
+        <div class="kv-row"><div class="k">ชื่อสินค้า</div><input class="w-full" id="ocr-name" value="${h(result.productName)}" maxlength="100" style="grid-column:1/3"></div>
+        <div class="kv-row"><div class="k">แบรนด์</div><input class="w-full" id="ocr-brand" value="${h(result.brand || '')}" placeholder="ไม่ระบุ" maxlength="60" style="grid-column:1/3"></div>
+        <div class="kv-row"><div class="k">ขนาด 1 เสิร์ฟ</div><div><input id="ocr-size" type="number" inputmode="decimal" value="${result.servingSize}" min="1" max="5000" step="1" style="width:70px"> <span class="muted">${unit}</span></div></div>
+        <div class="kv-row"><div class="k">แคลอรี่</div><input id="ocr-cal" type="number" inputmode="decimal" value="${result.calories}" min="0" max="5000" step="1"></div>
+        <div class="kv-row"><div class="k">โปรตีน (ก.)</div><input id="ocr-prot" type="number" inputmode="decimal" value="${result.protein_g}" min="0" max="500" step="0.1"></div>
+        <div class="kv-row"><div class="k">คาร์บ (ก.)</div><input id="ocr-carb" type="number" inputmode="decimal" value="${result.carbs_g}" min="0" max="500" step="0.1"></div>
+        <div class="kv-row"><div class="k">น้ำตาล (ก.)</div><input id="ocr-sugar" type="number" inputmode="decimal" value="${result.sugar_g}" min="0" max="500" step="0.1"></div>
+        <div class="kv-row"><div class="k">ไขมัน (ก.)</div><input id="ocr-fat" type="number" inputmode="decimal" value="${result.fat_g}" min="0" max="500" step="0.1"></div>
+      </div>
+      ${result.notes ? `<div class="callout">💡 ${h(result.notes)}</div>` : ''}
+      ${result.confidence === 'low' ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">⚠️ ความแม่นยำต่ำ ควรปรับแก้ค่าก่อนบันทึก</div>` : ''}
+      <div class="btn-row mt">
+        <button class="btn green" data-act="ocr-log-today">✅ เพิ่มในวันนี้</button>
+        <button class="btn secondary" data-act="ocr-save-library">💾 บันทึกเมนู</button>
+      </div>
+      <button class="btn ghost block sm mt" data-act="nav-ocr">🔄 ถ่ายใหม่</button>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
 function renderLibrary() {
   const t = state.tmp;
   const cat = t.cat || 'all';
@@ -1419,6 +1675,8 @@ function renderLibrary() {
   let meals = allMeals();
   if (cat === 'custom') {
     meals = state.customMeals;
+  } else if (cat === 'branded') {
+    meals = meals.filter(m => m.source === 'branded' || m.source === 'scanned');
   } else if (cat !== 'all') {
     meals = meals.filter(m => m.category === cat);
   }
@@ -2144,6 +2402,26 @@ function renderSettings() {
       </div>
 
       <div class="card">
+        <h3 style="margin-top:0">📦 สินค้าของคุณ (${(u.scannedProducts || []).length})</h3>
+        <div class="muted" style="font-size:13px;margin-bottom:10px">สินค้าที่สแกนบาร์โค้ด / ถ่ายรูปฉลาก — เก็บเฉพาะเครื่องนี้</div>
+        ${(u.scannedProducts || []).length === 0 ? `
+          <div class="hint center" style="padding:10px 0">ยังไม่มีสินค้า — ลองสแกนบาร์โค้ดหรือถ่ายรูปฉลาก</div>
+        ` : (u.scannedProducts || []).slice().reverse().slice(0, 20).map(p => `
+          <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--line)">
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.emoji || '🏷️'} ${h(p.name)}</div>
+              <div class="muted" style="font-size:12px">${fmt(p.calories)} kcal · ${fmt(p.protein_g, 1)}g P · ${p.servingSize}${p.servingUnit}${p.barcode ? ' · ' + p.barcode : ''}</div>
+            </div>
+            <button class="icon-btn ghost" data-act="delete-scanned" data-id="${p.id}" aria-label="ลบ">🗑️</button>
+          </div>
+        `).join('')}
+        <div class="btn-row mt">
+          <button class="btn secondary sm" data-act="nav-scan">📷 สแกน</button>
+          <button class="btn secondary sm" data-act="nav-ocr">📸 ถ่ายรูป</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0">👥 ผู้ใช้</h3>
         <button class="btn secondary block" data-act="nav-users">🔄 สลับผู้ใช้ (${state.users.length})</button>
       </div>
@@ -2238,7 +2516,15 @@ function renderProfileEdit() {
 }
 
 /* ========== ROUTER ========== */
+function stopScanner() {
+  if (state.scanner) {
+    try { state.scanner.reset(); } catch {}
+    state.scanner = null;
+  }
+}
+
 function render() {
+  if (state.view !== 'scan' && state.scanner) stopScanner();
   const root = document.getElementById('app');
   let html = '';
   try {
@@ -2259,6 +2545,9 @@ function render() {
       case 'profile-edit': html = renderProfileEdit(); break;
       case 'reports': html = renderReports(); break;
       case 'weight-log': html = renderWeightLog(); break;
+      case 'scan': html = renderScan(); break;
+      case 'scan-not-found': html = renderScanNotFound(); break;
+      case 'ocr': html = renderOcr(); break;
       default: html = `<div class="screen"><h1>?</h1></div>`;
     }
   } catch (err) {
@@ -2266,6 +2555,164 @@ function render() {
     html = `<div class="screen"><div class="card"><h3>เกิดข้อผิดพลาด</h3><pre style="white-space:pre-wrap;font-size:12px">${h(err.message)}</pre><button class="btn" data-act="nav-home">กลับหน้าหลัก</button></div></div>`;
   }
   root.innerHTML = html;
+  if (state.view === 'scan' && !state.scanner) {
+    setTimeout(() => {
+      const v = document.getElementById('scan-video');
+      if (v) startBarcodeScan(v);
+    }, 120);
+  }
+}
+
+async function startBarcodeScan(videoEl) {
+  if (!window.ZXing) {
+    state.tmp.error = 'ไลบรารี scanner ยังโหลดไม่เสร็จ ลองอีกครั้ง';
+    render();
+    return;
+  }
+  try {
+    const reader = new ZXing.BrowserMultiFormatReader();
+    state.scanner = reader;
+    let deviceId = null;
+    try {
+      const devices = await reader.listVideoInputDevices();
+      const back = devices.find(d => /back|rear|environment/i.test(d.label || ''));
+      deviceId = (back || devices[devices.length - 1] || devices[0])?.deviceId || null;
+    } catch {}
+    await reader.decodeFromVideoDevice(deviceId, videoEl, (result, errInner) => {
+      if (result && state.view === 'scan') {
+        try { navigator.vibrate?.(80); } catch {}
+        const code = result.getText();
+        stopScanner();
+        handleBarcodeFound(code);
+      }
+    });
+  } catch (err) {
+    state.tmp.error = 'ไม่สามารถเปิดกล้องได้ — อนุญาตสิทธิ์กล้องในเบราว์เซอร์';
+    stopScanner();
+    render();
+  }
+}
+
+function handleBarcodeFound(barcode) {
+  const inPreloaded = state.brandedProducts.find(p => p.barcode === barcode);
+  if (inPreloaded) {
+    const meal = normalizeBrandedAsMeal(inPreloaded, 'branded');
+    toast('พบสินค้า: ' + meal.name);
+    go('meal-detail', { mealId: meal.id, meal, sizePct: 100, quantity: 1, addonCounts: {} });
+    return;
+  }
+  const u = currentUser();
+  const inScanned = (u?.scannedProducts || []).find(p => p.barcode === barcode);
+  if (inScanned) {
+    const meal = normalizeBrandedAsMeal(inScanned, 'scanned');
+    toast('พบสินค้าที่เคยสแกน: ' + meal.name);
+    go('meal-detail', { mealId: meal.id, meal, sizePct: 100, quantity: 1, addonCounts: {} });
+    return;
+  }
+  go('scan-not-found', { barcode });
+}
+
+function compressImage(file, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        let w = img.width, hh = img.height;
+        if (w > maxWidth) { hh = (maxWidth / w) * hh; w = maxWidth; }
+        canvas.width = w; canvas.height = hh;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, hh);
+        canvas.toBlob(b => {
+          URL.revokeObjectURL(url);
+          b ? resolve(b) : reject(new Error('Compression failed'));
+        }, 'image/jpeg', quality);
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
+function fileToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function processOcr(file, attachedBarcode) {
+  state.tmp.loading = true;
+  state.tmp.error = '';
+  state.tmp.result = null;
+  if (state.tmp.preview) { try { URL.revokeObjectURL(state.tmp.preview); } catch {} }
+  state.tmp.preview = URL.createObjectURL(file);
+  render();
+  try {
+    const compressed = await compressImage(file, 1200, 0.85);
+    const base64 = await fileToBase64(compressed);
+    const res = await fetch('/api/extract-nutrition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: base64, barcode: attachedBarcode || null })
+    });
+    const data = await res.json();
+    state.tmp.loading = false;
+    if (!res.ok) {
+      state.tmp.error = data.error || 'อ่านข้อมูลไม่สำเร็จ';
+    } else {
+      state.tmp.result = data;
+    }
+  } catch (err) {
+    state.tmp.loading = false;
+    state.tmp.error = 'เชื่อมต่อไม่ได้ ลองใหม่';
+  }
+  render();
+}
+
+function collectOcrEdits() {
+  const r = state.tmp.result || {};
+  const num = id => { const v = Number(document.getElementById(id)?.value); return isFinite(v) ? v : 0; };
+  const getStr = id => String(document.getElementById(id)?.value || '').trim();
+  const carbs = Math.max(0, num('ocr-carb'));
+  const sugar = Math.min(carbs, Math.max(0, num('ocr-sugar')));
+  return {
+    productName: getStr('ocr-name') || r.productName || 'สินค้า',
+    brand: getStr('ocr-brand') || r.brand || null,
+    category: r.category || 'other',
+    servingSize: Math.max(1, num('ocr-size')),
+    servingUnit: r.servingUnit || 'g',
+    calories: Math.max(0, num('ocr-cal')),
+    protein_g: Math.max(0, num('ocr-prot')),
+    carbs_g: carbs,
+    sugar_g: sugar,
+    fat_g: Math.max(0, num('ocr-fat')),
+    barcode: r.barcode || null
+  };
+}
+
+function makeScannedProduct(edits, source) {
+  return {
+    id: uid('scan'),
+    barcode: edits.barcode || null,
+    name: edits.productName,
+    nameThai: edits.productName,
+    brand: edits.brand,
+    category: edits.category,
+    servingSize: edits.servingSize,
+    servingUnit: edits.servingUnit,
+    calories: edits.calories,
+    protein_g: edits.protein_g,
+    carbs_g: edits.carbs_g,
+    sugar_g: edits.sugar_g,
+    fat_g: edits.fat_g,
+    emoji: '🏷️',
+    source: source || 'ocr',
+    createdAt: Date.now()
+  };
 }
 
 /* ========== ACTIONS ========== */
@@ -2283,6 +2730,70 @@ const actions = {
   'nav-settings': () => go('settings'),
   'nav-reports': () => go('reports'),
   'nav-weight': () => go('weight-log'),
+  'nav-scan': () => go('scan', { error: '' }),
+  'nav-ocr': () => go('ocr', {}),
+  'nav-ocr-with-barcode': () => replace('ocr', { barcode: state.tmp.barcode || null }),
+  'nav-manual-scan': () => replace('manual', { draft: { name: '', emoji: '🏷️', category: 'custom' }, barcodeHint: state.tmp.barcode }),
+
+  'ocr-pick': () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      processOcr(file, state.tmp.barcode || null);
+    };
+    input.click();
+  },
+
+  'ocr-save-library': () => {
+    const edits = collectOcrEdits();
+    if (!edits.productName) return toast('ระบุชื่อสินค้า', true);
+    if (edits.calories < 0) return toast('แคลอรี่ไม่ถูกต้อง', true);
+    const u = currentUser();
+    if (!u) return;
+    u.scannedProducts = u.scannedProducts || [];
+    const prod = makeScannedProduct(edits, edits.barcode ? 'barcode+ocr' : 'ocr');
+    u.scannedProducts.push(prod);
+    persist();
+    toast('บันทึกสินค้าแล้ว 💾');
+    const meal = normalizeBrandedAsMeal(prod, 'scanned');
+    go('meal-detail', { mealId: meal.id, meal, sizePct: 100, quantity: 1, addonCounts: {} });
+  },
+
+  'ocr-log-today': () => {
+    const edits = collectOcrEdits();
+    if (!edits.productName) return toast('ระบุชื่อสินค้า', true);
+    const u = currentUser();
+    if (!u) return;
+    u.scannedProducts = u.scannedProducts || [];
+    const prod = makeScannedProduct(edits, edits.barcode ? 'barcode+ocr' : 'ocr');
+    u.scannedProducts.push(prod);
+    const meal = normalizeBrandedAsMeal(prod, 'scanned');
+    addLogEntry({
+      mealId: meal.id,
+      sizePct: 100,
+      quantity: 1,
+      addons: [],
+      snapshot: { ...meal }
+    });
+    toast('เพิ่มในวันนี้แล้ว ✅');
+    goHome();
+  },
+
+  'delete-scanned': (e, btn) => {
+    if (!confirm('ลบสินค้านี้? (ไม่กระทบรายการที่บันทึกไว้แล้ว)')) return;
+    const id = btn.dataset.id;
+    const u = currentUser();
+    if (!u || !u.scannedProducts) return;
+    const i = u.scannedProducts.findIndex(p => p.id === id);
+    if (i >= 0) u.scannedProducts.splice(i, 1);
+    persist();
+    toast('ลบแล้ว');
+    render();
+  },
 
   'month-prev': () => {
     const now = new Date();
@@ -2821,12 +3332,24 @@ async function loadPreloadedMeals() {
   }
 }
 
+async function loadBrandedProducts() {
+  try {
+    const res = await fetch('./branded_products.json');
+    const data = await res.json();
+    state.brandedProducts = data.products || [];
+  } catch (err) {
+    console.error('ไม่สามารถโหลด branded_products.json', err);
+    state.brandedProducts = [];
+  }
+}
+
 function migrateData() {
   let changed = false;
   state.users.forEach(u => {
     if (!u.weights) { u.weights = []; changed = true; }
     if (!u.displayMode) { u.displayMode = 'normal'; changed = true; }
     if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
+    if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
   });
   for (const userId in state.logs) {
     for (const date in state.logs[userId]) {
@@ -2858,7 +3381,7 @@ function initFromStorage() {
 
 async function main() {
   initFromStorage();
-  await loadPreloadedMeals();
+  await Promise.all([loadPreloadedMeals(), loadBrandedProducts()]);
   state.ready = true;
   if (state.users.length === 0) {
     state.view = 'onboarding';
