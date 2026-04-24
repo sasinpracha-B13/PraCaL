@@ -438,7 +438,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.1.2';
+const VERSION = 'v1.1.3';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1501,13 +1501,15 @@ function renderOnlineSearch() {
 function renderAiResultCard(r) {
   const confLabel = r.confidence === 'high' ? '🟢 สูง' : r.confidence === 'medium' ? '🟡 ปานกลาง' : '🔴 ต่ำ';
   const notes = r.notes;
+  const sugar = r.sugar_g || 0;
   return `
     <div class="card">
-      <h3 style="margin-top:0">🍚 ${h(r.name)}</h3>
+      <h3 style="margin-top:0">🍽️ ${h(r.name)}</h3>
       <div class="row between"><span class="muted">แคลอรี่</span><b>${fmt(r.calories)} kcal</b></div>
-      <div class="row between"><span class="muted">น้ำหนัก</span><b>~${fmt(r.weight_g)} ก.</b></div>
+      <div class="row between"><span class="muted">ขนาด/ปริมาตร</span><b>~${fmt(r.weight_g)} ก./มล.</b></div>
       <div class="row between"><span class="muted">โปรตีน</span><b>${fmt(r.protein_g, 1)} ก.</b></div>
       <div class="row between"><span class="muted">คาร์บ</span><b>${fmt(r.carbs_g, 1)} ก.</b></div>
+      <div class="row between"><span class="muted">น้ำตาล</span><b style="color:${sugar > 25 ? 'var(--red)' : sugar > 10 ? 'var(--amber)' : 'var(--ink)'}">${fmt(sugar, 1)} ก.${sugar > 0 ? ` (≈${Math.round(sugar / 4)} ช้อนชา)` : ''}</b></div>
       <div class="row between"><span class="muted">ไขมัน</span><b>${fmt(r.fat_g, 1)} ก.</b></div>
       <div class="row between mt"><span class="muted">ความแม่นยำ</span><span class="chip ${r.confidence}">${confLabel}</span></div>
       ${notes ? `<div class="callout mt">💡 ${h(notes)}</div>` : ''}
@@ -2496,7 +2498,7 @@ const actions = {
     const snap = {
       id: mealId, name: r.name, emoji: '🍽️',
       baseCalories: r.calories, baseWeight_g: r.weight_g,
-      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: 0,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: r.sugar_g || 0,
       category: 'custom'
     };
     addLogEntry({ mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap });
@@ -2510,7 +2512,7 @@ const actions = {
     const meal = {
       id: uid('c'), name: r.name, emoji: '🍽️',
       baseCalories: r.calories, baseWeight_g: r.weight_g,
-      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: 0,
+      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: r.sugar_g || 0,
       category: 'custom', source: 'ai'
     };
     state.customMeals.push(meal);
@@ -2526,7 +2528,7 @@ const actions = {
       draft: {
         name: r.name, emoji: '🍽️', category: 'custom',
         baseCalories: r.calories, baseWeight_g: r.weight_g,
-        protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g
+        protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, sugar_g: r.sugar_g || 0
       }
     });
   },
