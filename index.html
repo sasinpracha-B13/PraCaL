@@ -481,7 +481,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.3.1';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1516,6 +1516,8 @@ function renderAddChoose() {
 function renderScan() {
   const t = state.tmp;
   const err = t.error;
+  const u = currentUser();
+  const savedCount = (u?.scannedProducts || []).length;
   return `
     <div class="screen">
       <div class="header">
@@ -1529,7 +1531,11 @@ function renderScan() {
         <div class="laser"></div>
       </div>
       <div class="scan-status">💡 เล็งบาร์โค้ดให้อยู่ในกรอบ — จะอ่านอัตโนมัติ</div>
-      <button class="btn secondary block" data-act="nav-ocr">📸 ถ่ายรูป label แทน</button>
+      <div class="callout info">
+        <b>📌 ครั้งแรกสแกนต้องถ่ายรูปฉลากด้วย</b><br>
+        AI จะอ่านข้อมูล + จำคู่กับบาร์โค้ด ครั้งถัดไปสแกนได้ทันที${savedCount > 0 ? ` · ตอนนี้มี ${savedCount} สินค้าในคลัง` : ''}
+      </div>
+      <button class="btn secondary block" data-act="nav-ocr">📸 ถ่ายรูป label อย่างเดียว</button>
       <button class="btn ghost block mt" data-act="back">ยกเลิก</button>
       <div style="height:30px"></div>
     </div>
@@ -1542,37 +1548,26 @@ function renderScanNotFound() {
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1 style="flex:1">ไม่พบสินค้า</h1>
+        <h1 style="flex:1">สแกนเจอแล้ว 🎯</h1>
       </div>
-      <div class="card">
-        <div style="font-size:48px;text-align:center;margin-bottom:8px">🔍</div>
-        <div class="muted center">บาร์โค้ด <b>${h(bc)}</b> ยังไม่อยู่ในระบบ</div>
-      </div>
-      <div class="card tight" data-act="nav-ocr-with-barcode" style="cursor:pointer">
-        <div class="row"><div style="font-size:36px">📸</div>
-          <div style="flex:1">
-            <div style="font-weight:600">ถ่ายรูป nutrition label</div>
-            <div class="muted" style="font-size:14px">AI จะอ่านข้อมูลให้ และเก็บคู่บาร์โค้ดนี้</div>
-          </div>
-          <div class="muted" style="font-size:22px">›</div>
+      <div class="card center">
+        <div style="font-size:44px;margin-bottom:6px">📦</div>
+        <div style="font-weight:600;font-size:17px">บาร์โค้ด: ${h(bc)}</div>
+        <div class="muted" style="font-size:14px;margin-top:6px;line-height:1.5">
+          สินค้านี้ยังไม่เคยสแกน<br>
+          <b>ถ่ายรูปฉลากครั้งเดียว</b> — ครั้งหน้าสแกนได้ทันที
         </div>
       </div>
-      <div class="card tight" data-act="nav-manual-scan" style="cursor:pointer">
-        <div class="row"><div style="font-size:36px">✏️</div>
-          <div style="flex:1">
-            <div style="font-weight:600">กรอกข้อมูลเอง</div>
-            <div class="muted" style="font-size:14px">พิมพ์ค่าโภชนาการตามฉลาก</div>
-          </div>
-          <div class="muted" style="font-size:22px">›</div>
-        </div>
+      <button class="btn block lg" data-act="ocr-pick-with-barcode">📸 ถ่ายรูปฉลากเพื่อบันทึก</button>
+      <div class="btn-row mt">
+        <button class="btn secondary sm" data-act="nav-manual-scan">✏️ กรอกเอง</button>
+        <button class="btn ghost sm" data-act="nav-scan">🔄 สแกนใหม่</button>
       </div>
-      <div class="card tight" data-act="nav-scan" style="cursor:pointer">
-        <div class="row"><div style="font-size:36px">🔄</div>
-          <div style="flex:1">
-            <div style="font-weight:600">สแกนใหม่</div>
-          </div>
-        </div>
+      <div class="hint mt" style="font-size:13px;text-align:center">
+        💡 ตอนนี้ฐานข้อมูลบาร์โค้ดยังว่าง — แต่ละคนค่อยๆ เติมเอง<br>
+        Sunshine / Vitaday / 7-11 ที่พิมพ์ชื่อหาในเมนูได้แล้ว ใช้ <b>"จากเมนูในระบบ"</b> ได้ทันที
       </div>
+      <div style="height:30px"></div>
     </div>
   `;
 }
@@ -2609,6 +2604,7 @@ function handleBarcodeFound(barcode) {
     go('meal-detail', { mealId: meal.id, meal, sizePct: 100, quantity: 1, addonCounts: {} });
     return;
   }
+  toast('อ่านบาร์โค้ดได้ ✓ ครั้งแรก — ถ่ายรูปฉลากต่อ');
   go('scan-not-found', { barcode });
 }
 
@@ -2744,6 +2740,21 @@ const actions = {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       processOcr(file, state.tmp.barcode || null);
+    };
+    input.click();
+  },
+
+  'ocr-pick-with-barcode': () => {
+    const barcode = state.tmp.barcode || null;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      go('ocr', { barcode });
+      processOcr(file, barcode);
     };
     input.click();
   },
