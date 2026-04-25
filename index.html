@@ -663,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.5';
+const VERSION = 'v1.8.6';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1230,8 +1230,6 @@ function targetBreakdown(p) {
   return { bmr, multiplier: mult, tdee, activity: tdee - bmr, goal: g, total, flooredAt };
 }
 function breakdownText(u) {
-  const override = state.dailyTargets[u.id]?.calories;
-  if (override) return `💡 เป้าวันนี้: ${fmt(override)} kcal (ตั้งเอง)`;
   const br = targetBreakdown(u);
   const actKey = normalizeActivityLevel(u.defaultActivity);
   const actName = ACTIVITY_LABELS[actKey].name;
@@ -1243,8 +1241,6 @@ function breakdownText(u) {
 function effectiveCalorieTarget(userId) {
   const u = state.users.find(x => x.id === userId);
   if (!u) return 2000;
-  const override = state.dailyTargets[userId];
-  if (override && override.calories) return override.calories;
   return defaultCalorieTarget(u);
 }
 function effectiveProteinTarget(userId) {
@@ -4055,7 +4051,6 @@ function renderSettings() {
   const u = currentUser();
   const bmr = Math.round(calcBMR(u));
   const tgt = effectiveCalorieTarget(u.id);
-  const overriden = state.dailyTargets[u.id]?.calories;
   return `
     <div class="screen">
       <div class="header">
@@ -4091,15 +4086,6 @@ function renderSettings() {
         </div>
         <button class="btn secondary block sm mt" data-act="edit-profile">✏️ แก้ไขกิจกรรมในโปรไฟล์</button>
 
-        <div class="field mt2">
-          <label>ปรับเป้าหมายวันนี้ (ไม่จำเป็น)</label>
-          <div class="hint" style="margin-bottom:6px">ใช้เมื่อวันนี้ต่างจากปกติ เช่น ออกกำลังหนักเป็นพิเศษ</div>
-          <input id="custom-target" type="number" inputmode="numeric" class="input" placeholder="${fmt(targetBreakdown(u).total)}" value="${overriden || ''}" min="800" max="5000">
-          <div class="btn-row mt">
-            <button class="btn sm" data-act="save-custom-target">บันทึก</button>
-            ${overriden ? `<button class="btn secondary sm" data-act="set-target-preset" data-v="default">รีเซ็ต</button>` : ''}
-          </div>
-        </div>
       </div>
 
       ${(() => {
@@ -5482,16 +5468,6 @@ const actions = {
     goHome();
   },
 
-  'set-target-preset': (e, btn) => {
-    const v = btn.dataset.v;
-    const u = currentUser();
-    state.dailyTargets[u.id] = state.dailyTargets[u.id] || {};
-    if (v === 'default') delete state.dailyTargets[u.id].calories;
-    else state.dailyTargets[u.id].calories = Number(v);
-    persist();
-    toast('บันทึกเป้าแล้ว');
-    render();
-  },
   'save-custom-protein': () => {
     const u = currentUser();
     if (!u) return;
@@ -5510,21 +5486,6 @@ const actions = {
     if (state.dailyTargets[u.id]) delete state.dailyTargets[u.id].protein;
     persist();
     toast('รีเซ็ตเป้าโปรตีนแล้ว');
-    render();
-  },
-
-  'save-custom-target': () => {
-    const input = document.getElementById('custom-target');
-    const u = currentUser();
-    const v = Number(input?.value);
-    state.dailyTargets[u.id] = state.dailyTargets[u.id] || {};
-    if (!v) {
-      delete state.dailyTargets[u.id].calories;
-    }
-    else if (v < 800 || v > 5000) { return toast('ค่าควรอยู่ระหว่าง 800-5000', true); }
-    else state.dailyTargets[u.id].calories = v;
-    persist();
-    toast('บันทึกเป้าแล้ว');
     render();
   },
 
