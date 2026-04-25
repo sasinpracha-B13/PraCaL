@@ -606,7 +606,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.7.1';
+const VERSION = 'v1.7.2';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -637,7 +637,7 @@ const BRANDED_SUB_CATEGORY = {
 
 const ADDONS = [
   { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 110, protein_g: 8, carbs_g: 1, fat_g: 8, sugar_g: 0 },
-  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 230, protein_g: 16, carbs_g: 3, fat_g: 17, sugar_g: 1 },
+  { id: 'egg_omelet', name: 'ไข่เจียว (1 ฟอง)', emoji: '🍳', calories: 130, protein_g: 8, carbs_g: 2, fat_g: 10, sugar_g: 1 },
   { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 },
   { id: 'cheese', name: 'ชีส', emoji: '🧀', calories: 110, protein_g: 6, carbs_g: 1, fat_g: 9, sugar_g: 1 },
   { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 210, protein_g: 4, carbs_g: 45, fat_g: 0.5, sugar_g: 0 },
@@ -1769,13 +1769,13 @@ function renderOnbActivity() {
       </div>
       <div class="card">
         <div class="muted" style="font-size:14px;margin-bottom:8px">วันปกติของคุณใช้พลังงาน:</div>
-        ${Object.entries(ACTIVITY_LABELS).filter(([id]) => id !== 'none').map(([id, info]) => {
+        ${Object.entries(ACTIVITY_LABELS).map(([id, info]) => {
           const on = id === activity;
           return `
             <button type="button" class="activity-opt ${on ? 'on' : ''}" data-act="onb-set-activity" data-v="${id}">
               <div class="radio">${on ? '●' : '○'}</div>
               <div class="body">
-                <div class="n">${h(info.name)} <span class="badge">+${info.bonus} kcal</span></div>
+                <div class="n">${h(info.name)} ${info.bonus ? `<span class="badge">+${info.bonus} kcal</span>` : `<span class="badge" style="background:var(--bg-2);color:var(--muted)">บวกเอง</span>`}</div>
                 <div class="d">${h(info.desc)}</div>
               </div>
             </button>
@@ -4487,7 +4487,7 @@ const actions = {
     state.tmp.age = age;
     state.tmp.height = height;
     state.tmp.weight = weight;
-    if (!state.tmp.defaultActivity || state.tmp.defaultActivity === 'none') state.tmp.defaultActivity = 'moderate';
+    if (!state.tmp.defaultActivity) state.tmp.defaultActivity = 'moderate';
     state.tmp.step = 4;
     render();
   },

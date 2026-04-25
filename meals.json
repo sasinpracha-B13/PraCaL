@@ -70,7 +70,7 @@
     { "id": "m09", "name": "ไก่ย่าง (1/4 ตัว)", "emoji": "🍗", "category": "mains", "baseCalories": 340, "baseWeight_g": 200, "protein_g": 38, "carbs_g": 3, "fat_g": 20, "sugar_g": 1 },
     { "id": "m10", "name": "หมูปิ้ง (3 ไม้)", "emoji": "🍢", "category": "mains", "baseCalories": 280, "baseWeight_g": 150, "protein_g": 28, "carbs_g": 9, "fat_g": 15, "sugar_g": 5 },
     { "id": "m11", "name": "ไข่ดาว (1 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 110, "baseWeight_g": 55, "protein_g": 8, "carbs_g": 1, "fat_g": 8, "sugar_g": 0 },
-    { "id": "m12", "name": "ไข่เจียว (2 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 230, "baseWeight_g": 100, "protein_g": 16, "carbs_g": 3, "fat_g": 17, "sugar_g": 1 },
+    { "id": "m12", "name": "ไข่เจียว (1 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 130, "baseWeight_g": 55, "protein_g": 8, "carbs_g": 2, "fat_g": 10, "sugar_g": 1 },
     { "id": "m13", "name": "ผัดผักรวม", "emoji": "🥬", "category": "mains", "baseCalories": 180, "baseWeight_g": 220, "protein_g": 6, "carbs_g": 14, "fat_g": 12, "sugar_g": 4 },
     { "id": "m14", "name": "ผัดกะเพราหมูสับ", "emoji": "🌶️", "category": "mains", "baseCalories": 480, "baseWeight_g": 200, "protein_g": 28, "carbs_g": 10, "fat_g": 36, "sugar_g": 5 },
     { "id": "m15", "name": "ต้มเลือดหมู", "emoji": "🍲", "category": "mains", "baseCalories": 220, "baseWeight_g": 400, "protein_g": 22, "carbs_g": 10, "fat_g": 10, "sugar_g": 2 },
