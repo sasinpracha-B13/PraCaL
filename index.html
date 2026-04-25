@@ -481,7 +481,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.3.1';
+const VERSION = 'v1.5.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -510,13 +510,69 @@ const BRANDED_SUB_CATEGORY = {
 };
 
 const ADDONS = [
-  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 90, protein_g: 6, carbs_g: 0.5, fat_g: 7, sugar_g: 0 },
-  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 150, protein_g: 10, carbs_g: 1, fat_g: 12, sugar_g: 1 },
-  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 70, protein_g: 6, carbs_g: 0.5, fat_g: 5, sugar_g: 0 },
-  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 250, protein_g: 5, carbs_g: 54, fat_g: 0.5, sugar_g: 0 },
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 110, protein_g: 8, carbs_g: 1, fat_g: 8, sugar_g: 0 },
+  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 230, protein_g: 16, carbs_g: 3, fat_g: 17, sugar_g: 1 },
+  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 },
+  { id: 'cheese', name: 'ชีส', emoji: '🧀', calories: 110, protein_g: 6, carbs_g: 1, fat_g: 9, sugar_g: 1 },
+  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 210, protein_g: 4, carbs_g: 45, fat_g: 0.5, sugar_g: 0 },
+  { id: 'sticky_rice', name: 'ข้าวเหนียว', emoji: '🍙', calories: 200, protein_g: 4, carbs_g: 44, fat_g: 0.5, sugar_g: 0 },
+  { id: 'no_rice', name: 'ไม่ใส่ข้าว', emoji: '❌', calories: -250, protein_g: -5, carbs_g: -55, fat_g: -1, sugar_g: 0 },
   { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2, sugar_g: 1 },
   { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0, sugar_g: 1 },
   { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5, sugar_g: 10 }
+];
+
+const SPECIAL_MEAL_PRESETS = {
+  shabu_malaa:    { name: 'ชาบู / หม่าล่า', emoji: '🍲', sizes: [
+    { id: 'taste',    label: 'ลิ้มรส',     cal: 500,  protein_g: 40, carbs_g: 30,  fat_g: 20, sugar_g: 5 },
+    { id: 'normal',   label: 'ปกติ',       cal: 900,  protein_g: 60, carbs_g: 60,  fat_g: 45, sugar_g: 8 },
+    { id: 'full',     label: 'เต็มที่',    cal: 1300, protein_g: 80, carbs_g: 90,  fat_g: 65, sugar_g: 10 },
+    { id: 'serious',  label: 'กินจริงจัง', cal: 1800, protein_g: 100,carbs_g: 120, fat_g: 95, sugar_g: 15 }
+  ]},
+  thai_multi_dish: { name: 'ร้านอาหาร (3-5 จาน)', emoji: '🥘', sizes: [
+    { id: 'small',  label: 'แชร์น้อย',  cal: 600,  protein_g: 30, carbs_g: 70,  fat_g: 25, sugar_g: 8 },
+    { id: 'normal', label: 'ปกติ',       cal: 1000, protein_g: 50, carbs_g: 110, fat_g: 40, sugar_g: 12 },
+    { id: 'full',   label: 'อิ่มมาก',    cal: 1400, protein_g: 70, carbs_g: 150, fat_g: 55, sugar_g: 15 }
+  ]},
+  fast_food: { name: 'ฟาสต์ฟู้ด (KFC, McD, Pizza)', emoji: '🍕', sizes: [
+    { id: 'one',    label: 'น้อย (1 เมนู)',  cal: 600,  protein_g: 25, carbs_g: 60,  fat_g: 30, sugar_g: 15 },
+    { id: 'normal', label: 'ปกติ',            cal: 900,  protein_g: 35, carbs_g: 90,  fat_g: 45, sugar_g: 25 },
+    { id: 'combo',  label: 'เยอะ (combo+)',   cal: 1300, protein_g: 50, carbs_g: 130, fat_g: 65, sugar_g: 40 }
+  ]},
+  buffet: { name: 'บุฟเฟ่อาหาร', emoji: '🍱', sizes: [
+    { id: 'control', label: 'ควบคุมตัวเอง',   cal: 1200, protein_g: 70,  carbs_g: 100, fat_g: 50,  sugar_g: 20 },
+    { id: 'normal',  label: 'ปกติ',            cal: 1700, protein_g: 90,  carbs_g: 140, fat_g: 70,  sugar_g: 30 },
+    { id: 'value',   label: 'คุ้มค่าเต็มที่', cal: 2300, protein_g: 110, carbs_g: 180, fat_g: 100, sugar_g: 45 }
+  ]},
+  drinking: { name: 'ดื่มเบียร์ + อาหาร', emoji: '🍺', sizes: [
+    { id: 'light',  label: '2-3 แก้ว + กับแกล้ม',     cal: 700,  protein_g: 20, carbs_g: 50,  fat_g: 30, sugar_g: 5 },
+    { id: 'normal', label: 'ปกติ + อาหารเต็มมื้อ',     cal: 1200, protein_g: 40, carbs_g: 90,  fat_g: 55, sugar_g: 10 },
+    { id: 'heavy',  label: 'ดื่มหนัก + อาหารเยอะ',     cal: 1800, protein_g: 55, carbs_g: 140, fat_g: 80, sugar_g: 18 }
+  ]},
+  celebration: { name: 'มื้อฉลอง (เค้ก/ขนม)', emoji: '🎂', sizes: [
+    { id: 'taste',  label: 'ชิมเล็กน้อย',     cal: 400,  protein_g: 8,  carbs_g: 55,  fat_g: 15, sugar_g: 35 },
+    { id: 'normal', label: 'ปกติ',             cal: 700,  protein_g: 12, carbs_g: 90,  fat_g: 30, sugar_g: 55 },
+    { id: 'full',   label: 'อิ่มของหวาน',     cal: 1100, protein_g: 18, carbs_g: 140, fat_g: 50, sugar_g: 85 }
+  ]},
+  order_food: { name: 'ก๋วยเตี๋ยว / ตามสั่ง', emoji: '🍜', sizes: [
+    { id: 'one',     label: '1 จาน',                 cal: 700,  protein_g: 35, carbs_g: 80,  fat_g: 24, sugar_g: 6 },
+    { id: 'plus',    label: '1 จาน + เครื่องดื่ม',  cal: 900,  protein_g: 35, carbs_g: 100, fat_g: 26, sugar_g: 28 },
+    { id: 'two',     label: '2 จาน / พิเศษ',         cal: 1300, protein_g: 55, carbs_g: 150, fat_g: 42, sugar_g: 12 }
+  ]},
+  other: { name: 'อื่น ๆ', emoji: '🌮', sizes: [
+    { id: 'light',  label: 'เบา (~500)',   cal: 500,  protein_g: 25, carbs_g: 50,  fat_g: 20, sugar_g: 8 },
+    { id: 'normal', label: 'ปกติ (~900)',  cal: 900,  protein_g: 40, carbs_g: 90,  fat_g: 40, sugar_g: 15 },
+    { id: 'big',    label: 'เยอะ (~1400)', cal: 1400, protein_g: 60, carbs_g: 140, fat_g: 60, sugar_g: 22 }
+  ]}
+};
+
+const SPECIAL_MEAL_ADDONS = [
+  { id: 'soda',       name: 'น้ำอัดลม / ชานม',     emoji: '🥤', cal: 150, protein_g: 0, carbs_g: 38, fat_g: 0, sugar_g: 35 },
+  { id: 'dessert',    name: 'ของหวานตอนจบ',         emoji: '🍮', cal: 250, protein_g: 4, carbs_g: 40, fat_g: 8, sugar_g: 25 },
+  { id: 'beer_1_2',   name: 'เบียร์ 1-2 แก้ว',      emoji: '🍺', cal: 300, protein_g: 2, carbs_g: 25, fat_g: 0, sugar_g: 0 },
+  { id: 'beer_3plus', name: 'เบียร์ 3+ แก้ว',       emoji: '🍻', cal: 600, protein_g: 4, carbs_g: 50, fat_g: 0, sugar_g: 0 },
+  { id: 'extra_rice', name: 'ข้าวเพิ่ม',             emoji: '🍚', cal: 210, protein_g: 4, carbs_g: 45, fat_g: 0, sugar_g: 0 },
+  { id: 'ice_cream',  name: 'ไอศครีม 1 ลูก',         emoji: '🍨', cal: 220, protein_g: 4, carbs_g: 28, fat_g: 12, sugar_g: 22 }
 ];
 
 const SUGAR_DAILY_LIMIT_G = 50;
@@ -627,6 +683,22 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 const h = (s) => escapeHtml(s);
+
+function coachingToast(specialMealCal) {
+  const u = currentUser();
+  if (!u) { toast('บันทึกแล้ว ✅'); return; }
+  const target = effectiveCalorieTarget(u.id);
+  const todayTotals = sumEntries(todayEntries());
+  const projected = todayTotals.calories;
+  const over = projected - target;
+  if (over > 500) {
+    toast(`✅ บันทึกแล้ว · เกินเป้า ${fmt(over)} kcal — ไม่เป็นไร พรุ่งนี้ลด 200 จะ balance 🎉`);
+  } else if (over > 0) {
+    toast(`✅ บันทึกแล้ว · เกินเป้าเล็กน้อย ${fmt(over)} kcal`);
+  } else {
+    toast(`✅ บันทึกมื้อพิเศษแล้ว 🎉`);
+  }
+}
 
 function toast(msg, isError = false) {
   const el = document.getElementById('toast');
@@ -1380,6 +1452,8 @@ function renderDashboard() {
         <div>${favsForUser.map(m => mealItemHtml(m, { action: 'pick-meal', id: m.id })).join('')}</div>
       ` : ''}
 
+      <button class="btn block" data-act="nav-special" style="background:linear-gradient(135deg,#fde7c8,#fbcb8d);color:#5a2e00;font-weight:700;border:1.5px solid #e8a766;height:64px;font-size:18px;margin-top:8px">🎉 บันทึกมื้อพิเศษ <span style="font-weight:400;font-size:14px;opacity:0.85">— ชาบู / บุฟเฟ่ / ร้านอาหาร</span></button>
+
       <h2>🍽️ วันนี้กินอะไรไปบ้าง</h2>
       ${entries.length === 0 ? `
         <div class="card empty">
@@ -1425,6 +1499,7 @@ function logEntryHtml(entry) {
   const t = calcEntryTotals(entry);
   const pct = entry.sizePct || 100;
   const qty = entry.quantity || 1;
+  const isSpecial = !!entry.special;
   const addonList = (entry.addons || []).map(a => {
     const id = typeof a === 'string' ? a : a.id;
     const count = typeof a === 'string' ? 1 : (a.count || 0);
@@ -1433,6 +1508,23 @@ function logEntryHtml(entry) {
     if (!def) return '';
     return count > 1 ? `${count}×${def.name}` : def.name;
   }).filter(Boolean).join(', ');
+  if (isSpecial) {
+    const sp = entry.special;
+    const subText = sp.method === 'detailed'
+      ? (sp.itemSummary ? sp.itemSummary.slice(0, 40) + (sp.itemSummary.length > 40 ? '...' : '') : `${sp.items?.length || 0} รายการ`)
+      : `Quick · ${pct === 100 ? '' : pct + '% '}${sp.addons?.length ? '+' + sp.addons.length + ' add-on' : ''}`;
+    return `
+      <div class="log-item" style="border-left:4px solid #d97706">
+        <div class="emo">${m ? (m.emoji || '🎉') : '🎉'}</div>
+        <div class="body">
+          <div class="name"><span class="badge" style="margin-right:6px">🎉 พิเศษ</span>${h(m ? m.name : '?')}</div>
+          <div class="sub">${h(subText)}</div>
+        </div>
+        <div class="cal">${fmt(t.calories)} kcal</div>
+        <button class="del" data-act="delete-entry" data-id="${entry.id}" aria-label="ลบ">🗑️</button>
+      </div>
+    `;
+  }
   return `
     <div class="log-item" data-act="edit-entry" data-id="${entry.id}">
       <div class="emo">${qty > 1 ? `<span style="font-size:14px;background:var(--primary);color:#fff;padding:2px 6px;border-radius:8px;font-weight:700">${qty}×</span>` : (m ? (m.emoji || '🍽️') : '🍽️')}</div>
@@ -1509,6 +1601,261 @@ function renderAddChoose() {
           <div class="muted" style="font-size:22px">›</div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderSpecialChoose() {
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>🎉 บันทึกมื้อพิเศษ</h1>
+      </div>
+      <div class="callout info">
+        มื้อพิเศษ = ชาบู / บุฟเฟ่ / ร้านอาหาร / ฟาสต์ฟู้ด<br>
+        สำหรับมื้อที่ไม่ใช่อาหารจานเดียวปกติ
+      </div>
+      <div class="card tight" data-act="nav-special-quick" style="cursor:pointer">
+        <div class="row">
+          <div style="font-size:40px">⚡</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">Quick — ใช้ 10 วินาที</div>
+            <div class="muted" style="font-size:14px">เลือกประเภท + ขนาด เสร็จ</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+      <div class="card tight" data-act="nav-special-detail" style="cursor:pointer">
+        <div class="row">
+          <div style="font-size:40px">📝</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:17px">รายละเอียด — 2 นาที</div>
+            <div class="muted" style="font-size:14px">เลือกหลายจาน + แชร์กี่คน</div>
+          </div>
+          <div class="muted" style="font-size:22px">›</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSpecialQuick() {
+  const t = state.tmp;
+  const cat = t.specialCat || null;
+  const sizeId = t.specialSizeId || null;
+  const addons = t.specialAddons || [];
+  const preset = cat ? SPECIAL_MEAL_PRESETS[cat] : null;
+  const size = (preset && sizeId) ? preset.sizes.find(s => s.id === sizeId) : null;
+
+  if (!cat) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1>⚡ Quick — เลือกประเภท</h1>
+        </div>
+        ${Object.entries(SPECIAL_MEAL_PRESETS).map(([id, p]) => `
+          <div class="card tight" data-act="set-special-cat" data-v="${id}" style="cursor:pointer">
+            <div class="row">
+              <div style="font-size:36px">${p.emoji}</div>
+              <div style="flex:1;font-weight:500;font-size:16px">${h(p.name)}</div>
+              <div class="muted" style="font-size:22px">›</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  let totalCal = 0, totalP = 0, totalC = 0, totalF = 0, totalS = 0;
+  if (size) {
+    totalCal = size.cal; totalP = size.protein_g; totalC = size.carbs_g; totalF = size.fat_g; totalS = size.sugar_g;
+  }
+  addons.forEach(id => {
+    const a = SPECIAL_MEAL_ADDONS.find(x => x.id === id);
+    if (a) { totalCal += a.cal; totalP += a.protein_g || 0; totalC += a.carbs_g || 0; totalF += a.fat_g || 0; totalS += a.sugar_g || 0; }
+  });
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="reset-special-cat">←</button>
+        <h1 style="flex:1">${preset.emoji} ${h(preset.name)}</h1>
+      </div>
+
+      <h2>ขนาดที่กิน</h2>
+      ${preset.sizes.map(s => `
+        <div class="addon-q ${sizeId === s.id ? 'on' : ''}" data-act="set-special-size" data-v="${s.id}" style="cursor:pointer">
+          <div class="emo" style="font-size:18px">${sizeId === s.id ? '●' : '○'}</div>
+          <div class="n">${h(s.label)}<small>โปรตีน ${s.protein_g}g · คาร์บ ${s.carbs_g}g · ไขมัน ${s.fat_g}g</small></div>
+          <div class="c">${fmt(s.cal)} kcal</div>
+        </div>
+      `).join('')}
+
+      ${size ? `
+        <h2>เพิ่มเติม (ไม่จำเป็น)</h2>
+        ${SPECIAL_MEAL_ADDONS.map(a => {
+          const on = addons.includes(a.id);
+          return `
+            <div class="addon ${on ? 'on' : ''}" data-act="toggle-special-addon" data-v="${a.id}">
+              <div class="emo">${a.emoji}</div>
+              <div class="n">${h(a.name)}</div>
+              <div class="c">+${fmt(a.cal)} kcal</div>
+              <div class="chk">${on ? '✓' : ''}</div>
+            </div>
+          `;
+        }).join('')}
+
+        <div class="card mt">
+          <div class="row between"><span class="muted">รวม</span><b style="font-size:22px;color:var(--primary-dark)">${fmt(totalCal)} kcal</b></div>
+          <div class="facts mt">
+            <div><div class="v">${fmt(totalP)} ก.</div><div class="l">โปรตีน</div></div>
+            <div><div class="v">${fmt(totalC)} ก.</div><div class="l">คาร์บ</div></div>
+            <div><div class="v">${fmt(totalF)} ก.</div><div class="l">ไขมัน</div></div>
+          </div>
+          <div class="hint mt">น้ำตาล ${fmt(totalS, 1)} ก.${totalS > 0 ? ` ≈ ${Math.round(totalS / 4)} ช้อนชา` : ''}</div>
+        </div>
+
+        <button class="btn block lg mt" data-act="save-special-quick">✅ บันทึกมื้อพิเศษ</button>
+      ` : ''}
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderSpecialDetail() {
+  const t = state.tmp;
+  const sd = t.specialDetail || { customName: '', category: 'thai_multi_dish', items: [] };
+  const items = sd.items || [];
+
+  let totalCal = 0, totalP = 0, totalC = 0, totalF = 0, totalS = 0;
+  items.forEach(it => {
+    totalCal += it.perPersonCal || 0;
+    totalP += it.perPersonProtein || 0;
+    totalC += it.perPersonCarbs || 0;
+    totalF += it.perPersonFat || 0;
+    totalS += it.perPersonSugar || 0;
+  });
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>📝 รายละเอียดมื้อพิเศษ</h1>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label for="sd-name">ชื่อมื้อ (ไม่จำเป็น)</label>
+          <input id="sd-name" class="input" placeholder="เช่น ร้านกะพงทอด ตลาดเย็น" value="${h(sd.customName || '')}" maxlength="60">
+        </div>
+        <div class="field">
+          <label>ประเภท</label>
+          <div class="seg" style="flex-wrap:wrap">
+            ${Object.entries(SPECIAL_MEAL_PRESETS).map(([id, p]) => `
+              <button type="button" class="${sd.category === id ? 'on' : ''}" data-act="set-sd-category" data-v="${id}" style="font-size:13px;min-width:auto">${p.emoji} ${h(p.name.split('(')[0].trim())}</button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <h2>รายการที่กิน (${items.length})</h2>
+      ${items.length === 0 ? `
+        <div class="card empty"><div class="big">🍽️</div><div>ยังไม่มีรายการ</div><div class="muted" style="font-size:14px;margin-top:4px">กดปุ่มด้านล่างเพื่อเพิ่มเมนู</div></div>
+      ` : items.map((it, idx) => `
+        <div class="card tight">
+          <div class="row" style="gap:8px">
+            <div style="font-size:24px">${it.emoji || '🍽️'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:500">${h(it.name)}</div>
+              <div class="muted" style="font-size:13px">${it.sizePct}% × ${it.quantity} จาน · แชร์ ${it.sharedBy} คน</div>
+              <div style="color:var(--primary-dark);font-size:14px;font-weight:600;margin-top:2px">${fmt(it.perPersonCal)} kcal/คน</div>
+            </div>
+            <button class="icon-btn ghost" data-act="sd-remove-item" data-v="${idx}" aria-label="ลบ">🗑️</button>
+          </div>
+        </div>
+      `).join('')}
+
+      <button class="btn secondary block mt" data-act="sd-add-item">+ เพิ่มเมนู</button>
+
+      ${items.length > 0 ? `
+        <div class="card mt">
+          <div class="row between"><span class="muted">รวมที่คุณได้กิน</span><b style="font-size:22px;color:var(--primary-dark)">${fmt(totalCal)} kcal</b></div>
+          <div class="facts mt">
+            <div><div class="v">${fmt(totalP, 1)} ก.</div><div class="l">โปรตีน</div></div>
+            <div><div class="v">${fmt(totalC, 1)} ก.</div><div class="l">คาร์บ</div></div>
+            <div><div class="v">${fmt(totalF, 1)} ก.</div><div class="l">ไขมัน</div></div>
+          </div>
+          <div class="hint mt">น้ำตาล ${fmt(totalS, 1)} ก.</div>
+        </div>
+        <button class="btn block lg mt" data-act="save-special-detail">✅ บันทึกมื้อพิเศษ</button>
+      ` : ''}
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderSpecialAddConfig() {
+  const t = state.tmp;
+  const meal = t.sdItemDraft?.meal;
+  if (!meal) {
+    return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>เลือกเมนูก่อน</h1></div></div>`;
+  }
+  const sizePct = t.sdItemDraft.sizePct || 100;
+  const quantity = t.sdItemDraft.quantity || 1;
+  const sharedBy = t.sdItemDraft.sharedBy || 1;
+  const factor = (sizePct / 100) * quantity / sharedBy;
+  const totalCal = (meal.baseCalories || 0) * factor;
+  const totalP = (meal.protein_g || 0) * factor;
+  const totalC = (meal.carbs_g || 0) * factor;
+  const totalF = (meal.fat_g || 0) * factor;
+  const presetOn = SIZE_PRESETS.find(p => p.pct === sizePct);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">${meal.emoji || '🍽️'} ${h(meal.name)}</h1>
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <span class="muted">คุณได้กิน</span>
+          <b style="font-size:22px;color:var(--primary-dark)">${fmt(totalCal)} kcal</b>
+        </div>
+        <div class="hint">โปรตีน ${fmt(totalP, 1)} · คาร์บ ${fmt(totalC, 1)} · ไขมัน ${fmt(totalF, 1)} ก.</div>
+      </div>
+
+      <h2>ขนาดจาน</h2>
+      <div class="size-grid">
+        ${SIZE_PRESETS.map(p => `
+          <button type="button" class="${p.pct === sizePct && presetOn ? 'on' : ''}" data-act="sd-set-size" data-v="${p.pct}">
+            <span class="pct">${p.pct}%</span>
+            <span class="label">${h(p.label)}</span>
+          </button>
+        `).join('')}
+      </div>
+
+      <h2>จำนวน (กี่จาน)</h2>
+      <div class="card tight">
+        <div class="row between">
+          <div class="muted">จำนวนจานที่สั่ง</div>
+          ${qtyStepperHtml('sd_qty', quantity, 1, 10)}
+        </div>
+      </div>
+
+      <h2>แชร์จานนี้</h2>
+      <div class="seg" style="flex-wrap:wrap">
+        ${[1, 2, 3, 4, 5].map(n => `
+          <button type="button" class="${sharedBy === n ? 'on' : ''}" data-act="sd-set-share" data-v="${n}">${n === 1 ? 'ไม่แชร์' : n + ' คน'}</button>
+        `).join('')}
+        <button type="button" class="${sharedBy >= 6 ? 'on' : ''}" data-act="sd-set-share" data-v="6">6+ คน</button>
+      </div>
+      <div class="hint mt">${sharedBy === 1 ? 'กินคนเดียว' : `แบ่ง ${sharedBy} คน — คุณได้ ${fmt(totalCal)} kcal`}</div>
+
+      <button class="btn block lg mt2" data-act="sd-confirm-item">✅ เพิ่มในรายการ</button>
+      <div style="height:30px"></div>
     </div>
   `;
 }
@@ -2436,6 +2783,25 @@ function renderSettings() {
         <button class="btn ghost block mt" data-act="clear-today" style="color:var(--red)">🗑️ ล้างรายการวันนี้</button>
       </div>
 
+      <div class="card">
+        <h3 style="margin-top:0">📊 เกี่ยวกับค่าแคลอรี่</h3>
+        <div style="font-size:14px;line-height:1.7;color:var(--ink-2)">
+          ค่าที่แสดงเป็น <b>"ค่าประมาณตามร้านอาหาร / สตรีทฟู้ดในไทย"</b> ซึ่งมักใส่น้ำมัน น้ำตาล และกะทิเยอะกว่าทำกินที่บ้าน
+        </div>
+        <div class="callout info mt">
+          <b>💡 ถ้าทำเองและ:</b>
+          <ul>
+            <li>ลดน้ำมัน → ลบ 15-20%</li>
+            <li>ไม่ใส่กะทิ → ลบ 25-30%</li>
+            <li>ย่าง/นึ่งแทนทอด → ลบ 20%</li>
+          </ul>
+        </div>
+        <div class="hint" style="margin-top:8px;font-size:13px;line-height:1.6">
+          ค่าที่แสดง = <b>worst case realistic</b><br>
+          "มองโลกในแง่ร้าย" เพื่อไม่ประมาท ช่วยคุมน้ำหนักได้แม่นกว่า
+        </div>
+      </div>
+
       <div class="card center">
         <div class="muted" style="font-size:13px">PraCaL ${VERSION}</div>
         <div class="muted" style="font-size:12px;margin-top:4px">ข้อมูลเก็บในเครื่องเท่านั้น ไม่มีการส่งขึ้นคลาวด์</div>
@@ -2543,6 +2909,10 @@ function render() {
       case 'scan': html = renderScan(); break;
       case 'scan-not-found': html = renderScanNotFound(); break;
       case 'ocr': html = renderOcr(); break;
+      case 'special-choose': html = renderSpecialChoose(); break;
+      case 'special-quick': html = renderSpecialQuick(); break;
+      case 'special-detail': html = renderSpecialDetail(); break;
+      case 'special-add-config': html = renderSpecialAddConfig(); break;
       default: html = `<div class="screen"><h1>?</h1></div>`;
     }
   } catch (err) {
@@ -2728,6 +3098,127 @@ const actions = {
   'nav-weight': () => go('weight-log'),
   'nav-scan': () => go('scan', { error: '' }),
   'nav-ocr': () => go('ocr', {}),
+  'nav-special': () => go('special-choose'),
+  'nav-special-quick': () => go('special-quick', { specialCat: null, specialSizeId: null, specialAddons: [] }),
+  'nav-special-detail': () => go('special-detail', { specialDetail: { customName: '', category: 'thai_multi_dish', items: [] } }),
+
+  'set-special-cat': (e, btn) => { state.tmp.specialCat = btn.dataset.v; state.tmp.specialSizeId = null; state.tmp.specialAddons = []; render(); },
+  'reset-special-cat': () => { state.tmp.specialCat = null; state.tmp.specialSizeId = null; state.tmp.specialAddons = []; render(); },
+  'set-special-size': (e, btn) => { state.tmp.specialSizeId = btn.dataset.v; render(); },
+  'toggle-special-addon': (e, btn) => {
+    const id = btn.dataset.v;
+    state.tmp.specialAddons = state.tmp.specialAddons || [];
+    const i = state.tmp.specialAddons.indexOf(id);
+    if (i >= 0) state.tmp.specialAddons.splice(i, 1);
+    else state.tmp.specialAddons.push(id);
+    render();
+  },
+
+  'save-special-quick': () => {
+    const cat = state.tmp.specialCat;
+    const sizeId = state.tmp.specialSizeId;
+    if (!cat || !sizeId) return toast('เลือกประเภท + ขนาดก่อน', true);
+    const preset = SPECIAL_MEAL_PRESETS[cat];
+    const size = preset.sizes.find(s => s.id === sizeId);
+    const addons = state.tmp.specialAddons || [];
+    let totalCal = size.cal, totalP = size.protein_g, totalC = size.carbs_g, totalF = size.fat_g, totalS = size.sugar_g;
+    addons.forEach(id => {
+      const a = SPECIAL_MEAL_ADDONS.find(x => x.id === id);
+      if (a) { totalCal += a.cal; totalP += a.protein_g || 0; totalC += a.carbs_g || 0; totalF += a.fat_g || 0; totalS += a.sugar_g || 0; }
+    });
+    const mealId = uid('sp');
+    const addonNames = addons.map(id => SPECIAL_MEAL_ADDONS.find(x => x.id === id)?.name).filter(Boolean);
+    const name = `${preset.name} (${size.label})${addonNames.length ? ' +' + addonNames.join(',') : ''}`;
+    const snap = {
+      id: mealId, name, emoji: preset.emoji,
+      baseCalories: totalCal, baseWeight_g: 0,
+      protein_g: totalP, carbs_g: totalC, fat_g: totalF, sugar_g: totalS,
+      category: 'special'
+    };
+    addLogEntry({
+      mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap,
+      special: { method: 'quick', category: cat, sizeId, addons: addons.slice() }
+    });
+    coachingToast(totalCal);
+    goHome();
+  },
+
+  'set-sd-category': (e, btn) => {
+    state.tmp.specialDetail = state.tmp.specialDetail || { customName: '', category: 'thai_multi_dish', items: [] };
+    state.tmp.specialDetail.category = btn.dataset.v;
+    render();
+  },
+  'sd-add-item': () => {
+    const nameInput = document.getElementById('sd-name');
+    if (nameInput) state.tmp.specialDetail.customName = nameInput.value.trim();
+    state.tmp.pickMode = 'special-add';
+    go('library', { cat: 'all', query: '' });
+  },
+  'sd-set-size': (e, btn) => { state.tmp.sdItemDraft.sizePct = Number(btn.dataset.v); render(); },
+  'sd-set-share': (e, btn) => { state.tmp.sdItemDraft.sharedBy = Number(btn.dataset.v); render(); },
+  'sd-confirm-item': () => {
+    const d = state.tmp.sdItemDraft;
+    if (!d || !d.meal) return;
+    const factor = (d.sizePct / 100) * d.quantity / d.sharedBy;
+    const item = {
+      mealId: d.meal.id,
+      name: d.meal.name,
+      emoji: d.meal.emoji || '🍽️',
+      sizePct: d.sizePct,
+      quantity: d.quantity,
+      sharedBy: d.sharedBy,
+      perPersonCal: Math.round((d.meal.baseCalories || 0) * factor),
+      perPersonProtein: Math.round((d.meal.protein_g || 0) * factor * 10) / 10,
+      perPersonCarbs: Math.round((d.meal.carbs_g || 0) * factor * 10) / 10,
+      perPersonFat: Math.round((d.meal.fat_g || 0) * factor * 10) / 10,
+      perPersonSugar: Math.round((d.meal.sugar_g || 0) * factor * 10) / 10
+    };
+    const sd = state.tmp.specialDetailReturn || state.tmp.specialDetail || { customName: '', category: 'thai_multi_dish', items: [] };
+    sd.items.push(item);
+    state.tmp.sdItemDraft = null;
+    state.tmp.specialDetailReturn = null;
+    state.stack = state.stack.filter(s => s.view !== 'library' && s.view !== 'special-add-config');
+    state.view = 'special-detail';
+    state.tmp = { specialDetail: sd };
+    render();
+  },
+  'sd-remove-item': (e, btn) => {
+    const idx = Number(btn.dataset.v);
+    state.tmp.specialDetail.items.splice(idx, 1);
+    render();
+  },
+
+  'save-special-detail': () => {
+    const sd = state.tmp.specialDetail;
+    if (!sd || !sd.items.length) return toast('เพิ่มเมนูอย่างน้อย 1 รายการ', true);
+    const nameInput = document.getElementById('sd-name');
+    if (nameInput) sd.customName = nameInput.value.trim();
+    let totalCal = 0, totalP = 0, totalC = 0, totalF = 0, totalS = 0;
+    sd.items.forEach(it => {
+      totalCal += it.perPersonCal;
+      totalP += it.perPersonProtein;
+      totalC += it.perPersonCarbs;
+      totalF += it.perPersonFat;
+      totalS += it.perPersonSugar;
+    });
+    const preset = SPECIAL_MEAL_PRESETS[sd.category] || SPECIAL_MEAL_PRESETS.other;
+    const mealId = uid('sp');
+    const itemNames = sd.items.map(it => it.name).join(', ');
+    const name = sd.customName || (preset.name + ' — ' + sd.items.length + ' รายการ');
+    const snap = {
+      id: mealId, name, emoji: preset.emoji,
+      baseCalories: Math.round(totalCal), baseWeight_g: 0,
+      protein_g: Math.round(totalP * 10) / 10, carbs_g: Math.round(totalC * 10) / 10,
+      fat_g: Math.round(totalF * 10) / 10, sugar_g: Math.round(totalS * 10) / 10,
+      category: 'special'
+    };
+    addLogEntry({
+      mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap,
+      special: { method: 'detailed', category: sd.category, customName: sd.customName, items: sd.items.slice(), itemSummary: itemNames }
+    });
+    coachingToast(totalCal);
+    goHome();
+  },
   'nav-ocr-with-barcode': () => replace('ocr', { barcode: state.tmp.barcode || null }),
   'nav-manual-scan': () => replace('manual', { draft: { name: '', emoji: '🏷️', category: 'custom' }, barcodeHint: state.tmp.barcode }),
 
@@ -2860,6 +3351,15 @@ const actions = {
     const id = btn.dataset.id;
     const m = findMeal(id);
     if (!m) return;
+    if (state.tmp.pickMode === 'special-add') {
+      const sdReturn = state.tmp.specialDetail;
+      state.tmp.pickMode = null;
+      go('special-add-config', {
+        sdItemDraft: { meal: m, sizePct: 100, quantity: 1, sharedBy: 1 },
+        specialDetailReturn: sdReturn
+      });
+      return;
+    }
     go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {} });
   },
 
@@ -2882,6 +3382,8 @@ const actions = {
     const key = btn.dataset.v;
     if (key === 'main') {
       state.tmp.quantity = Math.min(5, (state.tmp.quantity == null ? 1 : state.tmp.quantity) + 1);
+    } else if (key === 'sd_qty') {
+      state.tmp.sdItemDraft.quantity = Math.min(10, (state.tmp.sdItemDraft.quantity || 1) + 1);
     } else if (key.startsWith('addon_')) {
       const id = key.slice(6);
       state.tmp.addonCounts = state.tmp.addonCounts || {};
@@ -2893,6 +3395,8 @@ const actions = {
     const key = btn.dataset.v;
     if (key === 'main') {
       state.tmp.quantity = Math.max(0, (state.tmp.quantity == null ? 1 : state.tmp.quantity) - 1);
+    } else if (key === 'sd_qty') {
+      state.tmp.sdItemDraft.quantity = Math.max(1, (state.tmp.sdItemDraft.quantity || 1) - 1);
     } else if (key.startsWith('addon_')) {
       const id = key.slice(6);
       state.tmp.addonCounts = state.tmp.addonCounts || {};
