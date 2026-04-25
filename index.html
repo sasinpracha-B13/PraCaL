@@ -663,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.4';
+const VERSION = 'v1.8.5';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -938,11 +938,11 @@ const GOAL_EMOJI = { lose: '📉', maintain: '⚖️', gain: '📈' };
 const GOAL_ADJUST = { lose: -400, maintain: 0, gain: 400 };
 
 const ACTIVITY_LABELS = {
-  sedentary:   { name: 'น้อยมาก',   desc: 'นั่งทำงาน ไม่ขยับ',           multiplier: 1.2,   includesExercise: false },
-  light:       { name: 'เบา',       desc: 'เดินบ้าง ทำงานบ้าน',          multiplier: 1.375, includesExercise: false },
-  moderate:    { name: 'ปานกลาง',   desc: 'ออกกำลัง 3-5×/สัปดาห์',        multiplier: 1.55,  includesExercise: true },
-  active:      { name: 'มาก',       desc: 'ออกกำลัง 6-7×/สัปดาห์',        multiplier: 1.725, includesExercise: true },
-  very_active: { name: 'มากที่สุด', desc: 'งานใช้แรง + ออกกำลังหนัก',    multiplier: 1.9,   includesExercise: true }
+  sedentary:   { name: 'น้อยมาก',   desc: 'นั่งทำงาน ไม่ขยับ (BMR + NEAT พื้นฐาน)', multiplier: 1.2,   includesExercise: false },
+  light:       { name: 'เบา',       desc: 'เดินบ้าง ทำงานบ้าน',                     multiplier: 1.375, includesExercise: false },
+  moderate:    { name: 'ปานกลาง',   desc: 'ออกกำลัง 3-5×/สัปดาห์',                  multiplier: 1.55,  includesExercise: true },
+  active:      { name: 'มาก',       desc: 'ออกกำลัง 6-7×/สัปดาห์',                  multiplier: 1.725, includesExercise: true },
+  very_active: { name: 'มากที่สุด', desc: 'งานใช้แรง + ออกกำลังหนัก',              multiplier: 1.9,   includesExercise: true }
 };
 
 // Legacy v1.7-v1.8.0 activity keys mapped to new names
@@ -1156,12 +1156,10 @@ function proteinTarget(p) {
   return Math.round(w * mult);
 }
 function activityMultiplier(p) {
-  if (p?.activityMode === 'manual') return 1.0;
   const key = normalizeActivityLevel(p?.defaultActivity);
-  return ACTIVITY_LABELS[key]?.multiplier || 1.0;
+  return ACTIVITY_LABELS[key]?.multiplier || 1.2;
 }
 function activityIncludesExercise(p) {
-  if (p?.activityMode === 'manual') return false;
   const key = normalizeActivityLevel(p?.defaultActivity);
   return ACTIVITY_LABELS[key]?.includesExercise || false;
 }
@@ -1983,7 +1981,7 @@ function renderOnbProfile() {
             ${goalSliderHtml(
               typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[goal] ?? 0),
               'onb-goal-slider',
-              { gender: t.gender, age: Number(t.age), height: Number(t.height), weight: Number(t.weight), defaultActivity: t.defaultActivity, activityMode: t.activityMode || 'multiplier' }
+              { gender: t.gender, age: Number(t.age), height: Number(t.height), weight: Number(t.weight), defaultActivity: t.defaultActivity }
             )}
           </div>
         </div>
@@ -2357,8 +2355,7 @@ function renderDashboard() {
   const carbsTarget = Math.round(calTarget * 0.5 / 4);
   const sugarLimit = SUGAR_DAILY_LIMIT_G;
   const incExercise = activityIncludesExercise(u);
-  const allowsLogging = !incExercise || u.activityMode === 'manual';
-  const isManual = u.activityMode === 'manual';
+  const allowsLogging = !incExercise;
   const burned = allowsLogging ? sumActivitiesBurn(u.id) : 0;
   const tdee = calcTDEE(u);
   const totalDailyBurn = tdee + burned;
@@ -2480,14 +2477,14 @@ function renderDashboard() {
 
       ${weeklyStripHtml(u, calTarget)}
 
-      ${incExercise && !isManual ? `
+      ${incExercise ? `
         <div class="card" style="background:#fef3c7;border:1px solid #fbbf24">
-          <div style="font-weight:600;margin-bottom:6px">💡 ใช้ Activity Multiplier "${h(ACTIVITY_LABELS[normalizeActivityLevel(u.defaultActivity)].name)}"</div>
+          <div style="font-weight:600;margin-bottom:6px">💡 ระดับ "${h(ACTIVITY_LABELS[normalizeActivityLevel(u.defaultActivity)].name)}" รวมออกกำลังในเป้าแล้ว</div>
           <div style="font-size:13px;color:#92400e;line-height:1.6">
-            รวมการออกกำลังในเป้าแล้ว (×${ACTIVITY_LABELS[normalizeActivityLevel(u.defaultActivity)].multiplier})<br>
+            ×${ACTIVITY_LABELS[normalizeActivityLevel(u.defaultActivity)].multiplier} ครอบ BMR + NEAT + ออกกำลังประจำ<br>
             log ออกกำลังเพิ่มจะ<b>นับซ้ำ</b>
           </div>
-          <button class="btn secondary block sm mt" data-act="switch-to-manual">เปลี่ยนเป็น Manual Tracking</button>
+          <button class="btn secondary block sm mt" data-act="switch-to-light">เปลี่ยนเป็น "เบา" + log แยก</button>
         </div>
       ` : ''}
 
@@ -2500,7 +2497,7 @@ function renderDashboard() {
               <span class="muted" style="font-size:13px">${acts.length === 0 ? 'ยังไม่มี' : `เผา ${fmt(burned)} kcal`}</span>
             </div>
             ${acts.length === 0 ? `
-              <div class="hint" style="font-size:13px;margin-bottom:8px">${isManual ? 'เริ่มจาก BMR + log ออกกำลังเพิ่มเอง' : 'log ออกกำลังจริงเพิ่ม (multiplier ครอบเฉพาะการเดินปกติ)'}</div>
+              <div class="hint" style="font-size:13px;margin-bottom:8px">log ออกกำลังจริงเพิ่ม (multiplier ครอบแค่ BMR + NEAT)</div>
             ` : acts.map(a => {
               const at = ACTIVITY_TYPES.find(x => x.id === a.type) || ACTIVITY_TYPES[ACTIVITY_TYPES.length - 1];
               const intLabel = a.intensity ? ACTIVITY_INTENSITY_LABELS[a.intensity]?.name : '';
@@ -4105,18 +4102,6 @@ function renderSettings() {
         </div>
       </div>
 
-      <div class="card">
-        <h3 style="margin-top:0">🏃 วิธีคำนวณกิจกรรม</h3>
-        <button class="mode-opt ${u.activityMode !== 'manual' ? 'on' : ''}" data-act="set-activity-mode" data-v="multiplier">
-          <div class="mn">${u.activityMode !== 'manual' ? '●' : '○'} ตั้งค่ากิจกรรมประจำ <span class="badge">auto</span></div>
-          <div class="md">เลือกระดับกิจกรรม "เบา/ปานกลาง/มาก" ระบบบวกแคลให้อัตโนมัติทุกวัน · เหมาะกับคนทั่วไป</div>
-        </button>
-        <button class="mode-opt ${u.activityMode === 'manual' ? 'on' : ''}" data-act="set-activity-mode" data-v="manual">
-          <div class="mn">${u.activityMode === 'manual' ? '●' : '○'} บันทึกแต่ละกิจกรรม <span class="badge">manual</span></div>
-          <div class="md">เริ่มจาก BMR + log แต่ละวันที่ออกกำลัง · แม่นกว่า เหมาะกับคนออกกำลังไม่สม่ำเสมอ</div>
-        </button>
-      </div>
-
       ${(() => {
         const protDefault = proteinTarget(u);
         const protOverride = state.dailyTargets[u.id]?.protein;
@@ -4319,33 +4304,25 @@ function renderProfileEdit() {
                 age: Number(state.tmp.age ?? u.age),
                 height: Number(state.tmp.height ?? u.height),
                 weight: Number(state.tmp.weight ?? u.weight),
-                defaultActivity: state.tmp.defaultActivity ?? u.defaultActivity,
-                activityMode: u.activityMode || 'multiplier'
+                defaultActivity: state.tmp.defaultActivity ?? u.defaultActivity
               }
             )}
           </div>
 
-          ${(state.tmp.activityMode ?? u.activityMode ?? 'multiplier') === 'multiplier' ? `
-            <div class="field">
-              <label>กิจกรรมประจำวัน</label>
-              <div class="hint" style="margin-bottom:8px">ระบบจะคูณ BMR ตามระดับ ไม่ต้องกดทุกวัน</div>
-              ${activitySelectorHtml(
-                state.tmp.defaultActivity ?? u.defaultActivity ?? 'sedentary',
-                'edit-activity',
-                {
-                  gender: state.tmp.gender ?? u.gender,
-                  age: Number(state.tmp.age ?? u.age),
-                  height: Number(state.tmp.height ?? u.height),
-                  weight: Number(state.tmp.weight ?? u.weight)
-                }
-              )}
-            </div>
-          ` : `
-            <div class="callout info">
-              📌 โหมด <b>"บันทึกแต่ละกิจกรรม (manual)"</b> เปิดอยู่<br>
-              เป้าหมายคำนวณจาก BMR (ไม่บวกกิจกรรมประจำ) — ไปที่ Settings เพื่อเปลี่ยน
-            </div>
-          `}
+          <div class="field">
+            <label>กิจกรรมประจำวัน</label>
+            <div class="hint" style="margin-bottom:8px">ระบบจะคูณ BMR ตามระดับ ไม่ต้องกดทุกวัน · ระดับ "น้อยมาก/เบา" log ออกกำลังเพิ่มได้</div>
+            ${activitySelectorHtml(
+              state.tmp.defaultActivity ?? u.defaultActivity ?? 'sedentary',
+              'edit-activity',
+              {
+                gender: state.tmp.gender ?? u.gender,
+                age: Number(state.tmp.age ?? u.age),
+                height: Number(state.tmp.height ?? u.height),
+                weight: Number(state.tmp.weight ?? u.weight)
+              }
+            )}
+          </div>
         </div>
         <button type="button" class="btn block lg" data-act="save-profile">บันทึก</button>
         ${!isNew && state.users.length > 1 ? `<button type="button" class="btn ghost block mt" data-act="delete-user" style="color:var(--red)">🗑️ ลบผู้ใช้นี้</button>` : ''}
@@ -4607,21 +4584,13 @@ const actions = {
   'set-act-type': (e, btn) => { state.tmp.actType = btn.dataset.v; render(); },
   'set-act-mode': (e, btn) => { state.tmp.actCalcMode = btn.dataset.v; render(); },
   'set-act-intensity': (e, btn) => { state.tmp.actIntensity = btn.dataset.v; render(); },
-  'set-activity-mode': (e, btn) => {
+  'switch-to-light': () => {
     const u = currentUser();
     if (!u) return;
-    u.activityMode = btn.dataset.v;
+    if (!confirm('เปลี่ยนระดับกิจกรรมเป็น "เบา" (×1.375)?\n\nระบบจะลด multiplier และเปิดให้ log ออกกำลังแยกได้')) return;
+    u.defaultActivity = 'light';
     persist();
-    toast(btn.dataset.v === 'manual' ? 'เปิดโหมด manual แล้ว' : 'เปิดโหมด multiplier แล้ว');
-    render();
-  },
-  'switch-to-manual': () => {
-    const u = currentUser();
-    if (!u) return;
-    if (!confirm('เปลี่ยนเป็น Manual Tracking?\n\nเป้าจะคำนวณจาก BMR (ไม่บวก multiplier) — log ออกกำลังเองทุกครั้ง')) return;
-    u.activityMode = 'manual';
-    persist();
-    toast('🏃 เปลี่ยนเป็น Manual Tracking แล้ว');
+    toast('เปลี่ยนเป็น "เบา" แล้ว · log ออกกำลังแยกได้');
     render();
   },
   'save-activity': () => {
@@ -5380,8 +5349,7 @@ const actions = {
       age: t.age, height: t.height, weight: t.weight,
       avatar: t.avatar || '🧑',
       photo: t.photo || '',
-      defaultActivity: t.defaultActivity || 'moderate',
-      activityMode: 'multiplier',
+      defaultActivity: t.defaultActivity || 'sedentary',
       activities: {},
       onboardingComplete: true,
       weights: [{ date: todayKey(), weight_kg: Number(t.weight) }],
@@ -5489,7 +5457,7 @@ const actions = {
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
     if (isNew) {
-      const nu = { id: uid('u'), name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity, activityMode: 'multiplier', activities: {}, createdAt: Date.now() };
+      const nu = { id: uid('u'), name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity, activities: {}, createdAt: Date.now() };
       state.users.push(nu);
       state.currentUserId = nu.id;
     } else {
@@ -5701,11 +5669,20 @@ function migrateData() {
       u.goalAdjust = GOAL_ADJUST[u.goal] ?? 0;
       changed = true;
     }
-    if (!u.activityMode) { u.activityMode = 'multiplier'; changed = true; }
     if (!u.activities) { u.activities = {}; changed = true; }
     // v1.8.2: legacy activity level keys
     if (u.defaultActivity && !ACTIVITY_LABELS[u.defaultActivity]) {
       u.defaultActivity = ACTIVITY_LEGACY_MAP[u.defaultActivity] || 'sedentary';
+      changed = true;
+    }
+    // v1.8.5: deprecate manual mode (BMR-only is unrealistic, NEAT exists)
+    // Manual users get bumped to sedentary baseline (BMR × 1.2 = BMR + NEAT)
+    if (u.activityMode === 'manual') {
+      u.defaultActivity = 'sedentary';
+      delete u.activityMode;
+      changed = true;
+    } else if (u.activityMode) {
+      delete u.activityMode;
       changed = true;
     }
     if (!u.streakState) { u.streakState = defaultStreakState(); changed = true; }
