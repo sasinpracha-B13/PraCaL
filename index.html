@@ -606,7 +606,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.7.6';
+const VERSION = 'v1.7.7';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -3043,20 +3043,112 @@ function renderFavorites() {
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1>⭐ เมนูประจำ</h1>
+        <h1 style="flex:1">⭐ เมนูประจำ ${favs.length > 0 ? `<span class="muted" style="font-size:14px;font-weight:400">· ${favs.length} รายการ</span>` : ''}</h1>
+        <button class="icon-btn" data-act="nav-fav-edit" aria-label="แก้รายการ" title="แก้รายการ" style="background:var(--primary-soft);color:var(--primary-dark);font-size:16px;padding:0 12px;font-weight:600">+ เพิ่ม</button>
       </div>
       ${favs.length === 0 ? `
         <div class="card empty">
           <div class="big">⭐</div>
           <div>ยังไม่มีเมนูประจำ</div>
-          <div class="muted" style="font-size:14px;margin-top:4px">เลือกเมนูแล้วกด ☆ เพื่อเพิ่ม</div>
-          <button class="btn sm mt" data-act="nav-library">📚 เลือกเมนู</button>
+          <div class="muted" style="font-size:14px;margin-top:6px;line-height:1.6">เมนูประจำคือเมนูที่กินบ่อย<br>เลือกไว้ครั้งเดียว · กดบันทึกได้ใน 5 วินาที</div>
+          <button class="btn block lg mt2" data-act="nav-fav-edit">+ เพิ่มเมนูประจำ</button>
         </div>
-      ` : favs.map(m => mealItemHtml(m)).join('')}
+      ` : `
+        <div class="callout info" style="font-size:13px">
+          💡 <b>แตะเมนู</b> = บันทึกในวันนี้ · <b>กด ✕</b> = ลบจากเมนูประจำ
+        </div>
+        ${favs.map(m => `
+          <div class="meal-item">
+            <div class="emo" data-act="pick-meal" data-id="${m.id}" style="cursor:pointer">${m.emoji || '🍽️'}</div>
+            <div class="body" data-act="pick-meal" data-id="${m.id}" style="cursor:pointer">
+              <div class="name">${h(m.name)}</div>
+              <div class="sub">${fmt(m.baseCalories)} kcal · โปรตีน ${fmt(m.protein_g, 0)}g</div>
+            </div>
+            <div class="cal" data-act="pick-meal" data-id="${m.id}" style="cursor:pointer">${fmt(m.baseCalories)}</div>
+            <button class="del" data-act="quick-remove-fav" data-id="${m.id}" aria-label="ลบจากเมนูประจำ" style="margin-left:6px">✕</button>
+          </div>
+        `).join('')}
+        <button class="btn secondary block mt" data-act="nav-fav-edit">+ เพิ่ม / แก้รายการเมนูประจำ</button>
+      `}
       <div style="height:30px"></div>
     </div>
-    <button class="fab" data-act="nav-add" aria-label="เพิ่มเมนู">+</button>
     ${bottomNavHtml('fav')}
+  `;
+}
+
+function renderFavEdit() {
+  const t = state.tmp;
+  const search = (t.favEditSearch || '').toLowerCase().trim();
+  const expanded = t.favEditExpanded || {};
+  const cats = buildOnbCats();
+  const selected = state.favorites || [];
+  const count = selected.length;
+
+  const pickRow = (m) => {
+    const on = selected.includes(m.id);
+    const badges = dietBadges(m);
+    return `
+      <div class="fav-pick ${on ? 'on' : ''}" data-act="toggle-fav-pick" data-v="${m.id}">
+        <div class="chk">${on ? '✓' : ''}</div>
+        <div class="emo">${m.emoji || '🍽️'}</div>
+        <div class="body">
+          <div class="name">${h(m.name)}</div>
+          ${badges.length ? `<div>${badges.map(b => `<span class="diet-badge">🟢 ${h(b.text)}</span>`).join('')}</div>` : ''}
+        </div>
+        <div class="cal">${fmt(m.baseCalories)} kcal</div>
+      </div>
+    `;
+  };
+
+  let body = '';
+  if (search) {
+    const matched = [];
+    cats.forEach(c => c.meals.forEach(m => {
+      if (m.name.toLowerCase().includes(search)) matched.push(m);
+    }));
+    body = matched.length === 0
+      ? `<div class="empty muted">ไม่พบเมนูที่ค้นหา</div>`
+      : matched.slice(0, 100).map(pickRow).join('');
+  } else {
+    body = cats.map(c => {
+      const isOpen = (expanded[c.id] !== undefined) ? expanded[c.id] : c.defaultExpanded;
+      const selectedInCat = c.meals.filter(m => selected.includes(m.id)).length;
+      return `
+        <div class="cat-header" data-act="toggle-fav-edit-cat" data-v="${c.id}">
+          <span style="flex:1">${h(c.name)} <span class="count">(${c.meals.length}${selectedInCat ? ` · ✓${selectedInCat}` : ''})</span></span>
+          <span class="arrow">${isOpen ? '▼' : '▶'}</span>
+        </div>
+        ${isOpen ? c.meals.map(pickRow).join('') : ''}
+      `;
+    }).join('');
+  }
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1">⭐ จัดการเมนูประจำ</h1>
+        <button class="icon-btn" data-act="back" style="background:var(--primary);color:#fff;font-size:15px;padding:0 14px;font-weight:700">เสร็จ ✓</button>
+      </div>
+      <div class="callout info">
+        <b>แตะเพื่อเลือก / เอาออก</b><br>
+        เมนูที่เลือกจะอยู่ในหน้า "เมนูประจำ" — กดบันทึกในวันนี้ได้ใน 5 วินาที
+      </div>
+      <div class="search-box mb">
+        <span class="icon">🔍</span>
+        <input id="fav-edit-search" class="input" placeholder="ค้นหาเมนู..." value="${h(t.favEditSearch || '')}">
+      </div>
+      <div class="row between" style="padding:6px 4px;font-size:14px;position:sticky;top:0;background:var(--bg);z-index:5">
+        <span class="muted">เลือกแล้ว</span>
+        <span style="font-weight:700;color:var(--primary-dark)">${count} รายการ</span>
+      </div>
+
+      ${body}
+
+      <div style="height:10px"></div>
+      <button class="btn block lg" data-act="back">เสร็จ ✓</button>
+      <div style="height:30px"></div>
+    </div>
   `;
 }
 
@@ -3773,6 +3865,7 @@ function render() {
       case 'history': html = renderHistory(); break;
       case 'history-day': html = renderHistoryDay(); break;
       case 'favorites': html = renderFavorites(); break;
+      case 'fav-edit': html = renderFavEdit(); break;
       case 'users': html = renderUserSwitcher(); break;
       case 'settings': html = renderSettings(); break;
       case 'profile-edit': html = renderProfileEdit(); break;
@@ -3964,6 +4057,40 @@ const actions = {
   'nav-online-from-library': () => replace('online', { query: state.tmp.query || '' }),
   'nav-manual': () => go('manual'),
   'nav-fav': () => go('favorites'),
+  'nav-fav-edit': () => go('fav-edit', { favEditSearch: '', favEditExpanded: {} }),
+
+  'toggle-fav-pick': (e, btn) => {
+    const id = btn.dataset.v;
+    const i = state.favorites.indexOf(id);
+    if (i >= 0) state.favorites.splice(i, 1);
+    else state.favorites.push(id);
+    persist();
+    render();
+  },
+
+  'toggle-fav-edit-cat': (e, btn) => {
+    const id = btn.dataset.v;
+    const cats = buildOnbCats();
+    const cat = cats.find(c => c.id === id);
+    state.tmp.favEditExpanded = state.tmp.favEditExpanded || {};
+    const cur = state.tmp.favEditExpanded[id] !== undefined
+      ? state.tmp.favEditExpanded[id]
+      : (cat?.defaultExpanded || false);
+    state.tmp.favEditExpanded[id] = !cur;
+    render();
+  },
+
+  'quick-remove-fav': (e, btn) => {
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    const i = state.favorites.indexOf(id);
+    if (i >= 0) {
+      state.favorites.splice(i, 1);
+      persist();
+      render();
+      toast('ลบจากเมนูประจำแล้ว');
+    }
+  },
   'nav-history': () => go('history'),
   'nav-users': () => go('users'),
   'nav-settings': () => go('settings'),
@@ -4848,6 +4975,11 @@ document.addEventListener('input', (e) => {
   }
   if (e.target.id === 'onb-search') {
     state.tmp.onbSearch = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 150);
+  }
+  if (e.target.id === 'fav-edit-search') {
+    state.tmp.favEditSearch = e.target.value;
     clearTimeout(render._t);
     render._t = setTimeout(render, 150);
   }
