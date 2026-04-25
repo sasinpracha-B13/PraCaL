@@ -663,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.3';
+const VERSION = 'v1.8.4';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2360,10 +2360,28 @@ function renderDashboard() {
   const allowsLogging = !incExercise || u.activityMode === 'manual';
   const isManual = u.activityMode === 'manual';
   const burned = allowsLogging ? sumActivitiesBurn(u.id) : 0;
-  const netConsumed = totals.calories - burned;
-  const ringValue = allowsLogging && burned > 0 ? netConsumed : totals.calories;
-  const calRemain = calTarget - ringValue;
-  const calPctRing = Math.min(100, (Math.max(0, ringValue) / calTarget) * 100);
+  const tdee = calcTDEE(u);
+  const totalDailyBurn = tdee + burned;
+  const energyDelta = totals.calories - totalDailyBurn; // negative = deficit
+  const goalAdj = effectiveGoalAdjust(u);
+  const goalDiff = energyDelta - goalAdj; // 0 = on track
+  const weightChangeG = Math.abs(energyDelta) / 7700 * 1000;
+  let statusText, statusColor;
+  if (Math.abs(goalDiff) < 150) {
+    statusText = '✓ ตามเป้าหมายเป๊ะ'; statusColor = 'var(--green)';
+  } else if (goalDiff < -300) {
+    statusText = goalAdj < 0 ? '⚠️ ลดเร็วกว่าแผน เสี่ยงเสียกล้าม' : '💪 deficit เยอะกว่าแผน';
+    statusColor = goalAdj < 0 ? 'var(--red)' : 'var(--green)';
+  } else if (goalDiff < -150) {
+    statusText = goalAdj < 0 ? '💪 ลดได้เยอะกว่าเป้า' : 'deficit เกินแผนนิด ๆ';
+    statusColor = 'var(--green)';
+  } else if (goalDiff > 300) {
+    statusText = '⚠️ กินเกินแผน — พรุ่งนี้ลดลงนิด'; statusColor = 'var(--amber)';
+  } else {
+    statusText = 'กินเกินแผนเล็กน้อย'; statusColor = 'var(--amber)';
+  }
+  const calPctRing = Math.min(100, (totals.calories / calTarget) * 100);
+  const calRemain = calTarget - totals.calories;
   const protPct = protTarget ? Math.min(100, (totals.protein_g / protTarget) * 100) : 0;
   const protRemain = protTarget - totals.protein_g;
   const carbsPct = carbsTarget ? Math.min(100, (totals.carbs_g / carbsTarget) * 100) : 0;
@@ -2399,21 +2417,30 @@ function renderDashboard() {
                 stroke-linecap="round"/>
             </svg>
             <div class="num">
-              <b>${fmt(ringValue)}</b>
-              <small>${isManual ? 'สุทธิ / ' + fmt(calTarget) : 'จาก ' + fmt(calTarget) + ' kcal'}</small>
+              <b>${fmt(totals.calories)}</b>
+              <small>กิน / ${fmt(calTarget)} เป้า</small>
             </div>
           </div>
-          <div class="ring-labels">
-            ${burned > 0 && allowsLogging ? `
-              <div>กิน <span class="v">${fmt(totals.calories)}</span> kcal</div>
-              <div>เผา <span class="v" style="color:var(--green)">-${fmt(burned)}</span> kcal</div>
-              <div>สุทธิ <span class="v">${fmt(netConsumed)}</span> / <b>${fmt(calTarget)}</b></div>
-            ` : `
-              <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
-              <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
-              <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
-            `}
+          <div class="ring-labels" style="font-size:13px;line-height:1.7">
+            <div><span class="muted">🔥 เผา</span> <b>${fmt(totalDailyBurn)}</b>${burned > 0 ? ` <span style="color:var(--muted);font-size:12px">(+${fmt(burned)} ออกกำลัง)</span>` : ''}</div>
+            <div><span class="muted">🍽️ กิน</span> <b>${fmt(totals.calories)}</b></div>
+            <div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--line)">
+              <span class="muted">⚖️ ส่วนต่าง</span>
+              <b style="color:${energyDelta < 0 ? 'var(--green)' : energyDelta > 0 ? 'var(--amber)' : 'var(--ink)'}">
+                ${energyDelta === 0 ? '0' : (energyDelta < 0 ? '−' : '+') + fmt(Math.abs(energyDelta))}
+              </b>
+            </div>
           </div>
+        </div>
+
+        <div style="margin-top:10px;padding:10px 12px;background:var(--bg-2);border-radius:10px;text-align:center;font-size:13px;line-height:1.7">
+          ${energyDelta === 0
+            ? '⚖️ พลังงานสมดุล — น้ำหนักคงที่'
+            : energyDelta < 0
+              ? `📉 deficit · กำลังลด <b>~${fmt(weightChangeG, 0)} ก.</b> วันนี้`
+              : `📈 surplus · กำลังเพิ่ม <b>~${fmt(weightChangeG, 0)} ก.</b> วันนี้`}<br>
+          <span style="color:${statusColor};font-weight:600">🎯 ${h(statusText)}</span>
+          <span class="muted" style="font-size:12px"> · เป้า ${goalAdj > 0 ? '+' : ''}${goalAdj}/วัน</span>
         </div>
 
         <div class="bar-wrap mt">
