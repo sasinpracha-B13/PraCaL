@@ -425,6 +425,40 @@
 
   .onb-section { margin-top: 14px; margin-bottom: 6px; font-weight: 600; color: var(--ink-2); font-size: 14px; }
 
+  .cat-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; background: var(--bg-2);
+    border-radius: 12px; margin: 14px 0 8px;
+    font-weight: 600; cursor: pointer;
+    font-size: 15px;
+  }
+  .cat-header:active { background: var(--primary-soft); }
+  .cat-header .arrow { color: var(--muted); font-size: 12px; }
+  .cat-header .count { color: var(--muted); font-weight: 400; font-size: 13px; }
+
+  .diet-badge {
+    display: inline-block;
+    background: var(--green-soft); color: var(--green);
+    padding: 1px 7px; border-radius: 999px;
+    font-size: 10px; margin-right: 4px; font-weight: 500;
+    margin-top: 3px;
+  }
+
+  .profile-avatar-big {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--bg-2); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0; border: 2px solid var(--line);
+  }
+  .profile-avatar-big img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .profile-avatar-big span { font-size: 36px; line-height: 1; }
+
+  .privacy-note {
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; color: #15803d;
+    margin-top: 10px; line-height: 1.5;
+  }
+
   /* Update banner (created dynamically only when needed) */
   #update-banner {
     position: fixed; left: 12px; right: 12px;
@@ -572,7 +606,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.7.0';
+const VERSION = 'v1.7.1';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -585,6 +619,7 @@ const CATEGORIES = [
   { id: 'drinks', name: 'เครื่องดื่ม', emoji: '🥤' },
   { id: 'snacks', name: 'ขนม', emoji: '🍰' },
   { id: 'fruits', name: 'ผลไม้', emoji: '🍎' },
+  { id: 'healthy', name: 'สุขภาพ', emoji: '🥩' },
   { id: 'custom', name: 'ของฉัน', emoji: '⭐' }
 ];
 
@@ -684,15 +719,56 @@ function getMilestoneInfo(days) {
   return null;
 }
 
-const ONBOARDING_FAVORITES = [
-  { section: '🌅 มื้อเช้า', ids: ['r17', 'r24', 'k11', 'm12', 'm11', 'm21'] },
-  { section: '☀️ มื้อกลางวัน / เย็น', ids: ['r01', 'r02', 'r04', 'r08', 'r07', 'n01', 'n02', 'n11', 'n06', 'n15', 'n08'] },
-  { section: '🥗 อาหารจาน / กับข้าว', ids: ['s01', 's04', 'm16', 'm08', 'm09'] },
-  { section: '🥤 เครื่องดื่ม', ids: ['d11', 'd03', 'd17', 'd21', 'd08'] },
-  { section: '🍎 ผลไม้ / ของว่าง', ids: ['f01', 'f02', 'f03', 'k09', 'k06'] }
+const ONB_BREAKFAST_IDS = ['r17', 'r24', 'r18', 'k01', 'k11', 'm11', 'm12', 'm21'];
+const ONB_CONVENIENCE_IDS = [
+  'bp_sunshine_hp_choco', 'bp_vitaday_hp_apple', 'bp_711_ham_cheese',
+  'bp_onigiri_tuna_mayo', 'bp_salapao_moo', 'bp_dutchmill_drinking_yogurt',
+  'bp_lays_original', 'bp_pretz_stick'
 ];
 const ONBOARDING_DEFAULT_FAVS = ['r01', 'n01', 'd03', 'f01'];
 const ONBOARDING_MAX_FAVS = 15;
+
+function buildOnbCats() {
+  const all = allMeals();
+  const byId = {};
+  all.forEach(m => { byId[m.id] = m; });
+  const breakfastSet = new Set(ONB_BREAKFAST_IDS);
+  const convenienceSet = new Set(ONB_CONVENIENCE_IDS);
+  return [
+    { id: 'breakfast',   name: '🌅 มื้อเช้า',          defaultExpanded: false,
+      meals: ONB_BREAKFAST_IDS.map(id => byId[id]).filter(Boolean) },
+    { id: 'main_rice',   name: '☀️ ข้าวจาน',           defaultExpanded: true,
+      meals: all.filter(m => m.category === 'rice_dishes' && !breakfastSet.has(m.id) && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'noodles',     name: '🍜 ก๋วยเตี๋ยว / เส้น',  defaultExpanded: false,
+      meals: all.filter(m => m.category === 'noodles' && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'salads',      name: '🥗 สลัด / ส้มตำ',       defaultExpanded: false,
+      meals: all.filter(m => m.category === 'salads' && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'mains',       name: '🍲 กับข้าว',            defaultExpanded: false,
+      meals: all.filter(m => m.category === 'mains' && !breakfastSet.has(m.id) && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'drinks',      name: '🥤 เครื่องดื่ม',         defaultExpanded: true,
+      meals: all.filter(m => m.category === 'drinks' && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'fruits',      name: '🍎 ผลไม้',              defaultExpanded: false,
+      meals: all.filter(m => m.category === 'fruits' && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'desserts',    name: '🍰 ของหวาน',            defaultExpanded: false,
+      meals: all.filter(m => m.category === 'snacks' && !breakfastSet.has(m.id) && m.source !== 'branded' && m.source !== 'scanned') },
+    { id: 'healthy',     name: '🥩 อาหารสุขภาพ',         defaultExpanded: false,
+      meals: all.filter(m => m.category === 'healthy') },
+    { id: 'convenience', name: '🏪 สินค้าสะดวกซื้อ',     defaultExpanded: false,
+      meals: ONB_CONVENIENCE_IDS.map(id => byId[id]).filter(Boolean) }
+  ];
+}
+
+function dietBadges(meal) {
+  if (!meal) return [];
+  const out = [];
+  const sugar = meal.sugar_g || 0;
+  const carbs = meal.carbs_g || 0;
+  const protein = meal.protein_g || 0;
+  if (sugar <= 5 && carbs <= 20) out.push({ key: 'diabetic', text: 'เบาหวาน-friendly' });
+  if (protein >= 20) out.push({ key: 'highprotein', text: 'high-protein' });
+  if (carbs <= 15 && !out.some(b => b.key === 'diabetic')) out.push({ key: 'lowcarb', text: 'low-carb' });
+  return out;
+}
 
 const SPECIAL_MEAL_ADDONS = [
   { id: 'soda',       name: 'น้ำอัดลม / ชานม',     emoji: '🥤', cal: 150, protein_g: 0, carbs_g: 38, fat_g: 0, sugar_g: 35 },
@@ -724,7 +800,7 @@ const SIZE_PRESETS = [
   { pct: 200, label: '2 เท่า' }
 ];
 
-const AVATARS = ['🧑', '👩', '👨', '👵', '👴', '🧒', '👧', '👦', '🧔', '👩‍🦳'];
+const AVATARS = ['🧑', '👩', '👨', '👴', '👵', '🧒', '👧', '👦', '🧔', '👩‍🦳', '👨‍🦱', '👩‍🦱', '🤵', '👰', '👨‍💼', '👩‍💼', '👨‍🍳', '👩‍🍳', '🏃', '💪'];
 
 const GOAL_LABELS = { lose: 'ลดน้ำหนัก', maintain: 'คงน้ำหนัก', gain: 'เพิ่มน้ำหนัก' };
 const GOAL_EMOJI = { lose: '📉', maintain: '⚖️', gain: '📈' };
@@ -811,6 +887,36 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 const h = (s) => escapeHtml(s);
+
+function avatarHtml(u, size = 28) {
+  if (u?.photo) {
+    return `<img src="${u.photo}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block">`;
+  }
+  const fontSize = Math.round(size * 0.95);
+  return `<span style="font-size:${fontSize}px;line-height:1;display:inline-block">${h(u?.avatar || '🧑')}</span>`;
+}
+
+async function compressProfilePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = 200; canvas.height = 200;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, 200, 200);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('โหลดรูปไม่ได้')); };
+    img.src = url;
+  });
+}
 
 function coachingToast(specialMealCal) {
   const u = currentUser();
@@ -1510,13 +1616,12 @@ function renderOnbWelcome() {
       <div class="center" style="padding:30px 16px">
         <div style="font-size:80px;line-height:1">🍚</div>
         <h1 style="font-size:30px;margin:14px 0 4px">PraCaL</h1>
-        <div class="muted" style="font-size:16px">นับแคลอรี่อาหาร ง่าย ๆ</div>
       </div>
-      <div class="card">
-        <h3 style="margin-top:0">ยินดีต้อนรับ 👋</h3>
-        <p style="margin:6px 0 0;font-size:15px;line-height:1.7;color:var(--ink-2)">
-          แอปติดตามแคลอรี่แบบไทย ที่ออกแบบให้ใช้ง่าย<br>
-          แม้กับพ่อแม่และครอบครัว
+      <div class="card center">
+        <h3 style="margin:0 0 12px;font-size:20px">ยินดีต้อนรับ 👋</h3>
+        <p style="margin:0;font-size:17px;line-height:1.7;color:var(--ink-2)">
+          นับแคลอรี่ใน <b>5 วินาที</b><br>
+          ไม่ยุ่งยาก ใครก็ใช้ได้
         </p>
       </div>
       <button class="btn block lg mt2" data-act="onb-next">เริ่มกัน →</button>
@@ -1567,6 +1672,7 @@ function renderOnbProfile() {
   const weight = t.weight || '';
   const goal = t.goal || 'maintain';
   const avatar = t.avatar || '🧑';
+  const photo = t.photo || '';
   return `
     <div class="screen">
       ${onbProgress(3)}
@@ -1576,10 +1682,22 @@ function renderOnbProfile() {
       </div>
       <form id="profile-form" autocomplete="off">
         <div class="card">
-          <label>รูปโปรไฟล์</label>
-          <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
-            ${AVATARS.map(a => `<button type="button" class="${a === avatar ? 'on' : ''}" data-act="pick-avatar" data-v="${a}" style="font-size:24px">${a}</button>`).join('')}
+          <label>รูปประจำตัว</label>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+            <div class="profile-avatar-big">
+              ${photo ? `<img src="${photo}" alt="">` : `<span>${h(avatar)}</span>`}
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+              <button type="button" class="btn secondary sm" data-act="pick-photo">📸 ใช้รูปของคุณ</button>
+              ${photo ? `<button type="button" class="btn ghost sm" data-act="clear-photo">ลบรูป กลับใช้ emoji</button>` : ''}
+            </div>
           </div>
+          ${!photo ? `
+            <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
+              ${AVATARS.map(a => `<button type="button" class="${a === avatar ? 'on' : ''}" data-act="pick-avatar" data-v="${a}" style="font-size:22px;min-width:44px">${a}</button>`).join('')}
+            </div>
+          ` : ''}
+          <div class="privacy-note">🔒 ข้อมูลทั้งหมด (รวมรูป) อยู่ในเครื่องนี้เท่านั้น ไม่ส่งออกไปไหน</div>
 
           <div class="field">
             <label for="pf-name">ชื่อ (ไว้เรียก)</label>
@@ -1683,11 +1801,56 @@ function renderOnbActivity() {
   `;
 }
 
+function favPickRowHtml(meal, selected, count, max) {
+  if (!meal) return '';
+  const on = selected.includes(meal.id);
+  const disabled = !on && count >= max;
+  const badges = dietBadges(meal);
+  return `
+    <div class="fav-pick ${on ? 'on' : ''}" data-act="${disabled ? '' : 'toggle-onb-fav'}" data-v="${meal.id}" style="${disabled ? 'opacity:0.4;pointer-events:none' : ''}">
+      <div class="chk">${on ? '✓' : ''}</div>
+      <div class="emo">${meal.emoji || '🍽️'}</div>
+      <div class="body">
+        <div class="name">${h(meal.name)}</div>
+        ${badges.length ? `<div>${badges.map(b => `<span class="diet-badge">🟢 ${h(b.text)}</span>`).join('')}</div>` : ''}
+      </div>
+      <div class="cal">${fmt(meal.baseCalories)} kcal</div>
+    </div>
+  `;
+}
+
 function renderOnbFavorites() {
   const t = state.tmp;
   const selected = t.selectedMealIds || [];
   const count = selected.length;
   const max = ONBOARDING_MAX_FAVS;
+  const search = (t.onbSearch || '').toLowerCase().trim();
+  const expanded = t.onbExpanded || {};
+  const cats = buildOnbCats();
+
+  let body = '';
+  if (search) {
+    const matched = [];
+    cats.forEach(c => c.meals.forEach(m => {
+      if (m.name.toLowerCase().includes(search)) matched.push(m);
+    }));
+    body = matched.length === 0
+      ? `<div class="empty muted">ไม่พบเมนูที่ค้นหา</div>`
+      : matched.slice(0, 80).map(m => favPickRowHtml(m, selected, count, max)).join('');
+  } else {
+    body = cats.map(c => {
+      const isOpen = (expanded[c.id] !== undefined) ? expanded[c.id] : c.defaultExpanded;
+      const selectedInCat = c.meals.filter(m => selected.includes(m.id)).length;
+      return `
+        <div class="cat-header" data-act="toggle-onb-cat" data-v="${c.id}">
+          <span style="flex:1">${h(c.name)} <span class="count">(${c.meals.length}${selectedInCat ? ` · ✓${selectedInCat}` : ''})</span></span>
+          <span class="arrow">${isOpen ? '▼' : '▶'}</span>
+        </div>
+        ${isOpen ? c.meals.map(m => favPickRowHtml(m, selected, count, max)).join('') : ''}
+      `;
+    }).join('');
+  }
+
   return `
     <div class="screen">
       ${onbProgress(5)}
@@ -1696,33 +1859,19 @@ function renderOnbFavorites() {
         <h1 style="flex:1">⚡ เลือกเมนูประจำ</h1>
       </div>
       <div class="callout info">
-        <b>เลือกเมนูที่คุณกินบ่อย</b><br>
+        <b>เลือกเมนูที่คุณกินบ่อย</b> (สูงสุด ${max})<br>
         จะปรากฏใน Home ทันที — บันทึกได้ใน 5 วินาที
       </div>
-      <div class="row between" style="padding:6px 4px;font-size:14px">
+      <div class="search-box mb">
+        <span class="icon">🔍</span>
+        <input id="onb-search" class="input" placeholder="ค้นหาเมนู..." value="${h(t.onbSearch || '')}">
+      </div>
+      <div class="row between" style="padding:6px 4px;font-size:14px;position:sticky;top:0;background:var(--bg);z-index:5">
         <span class="muted">เลือกแล้ว</span>
         <span style="font-weight:700;color:${count >= max ? 'var(--red)' : 'var(--primary-dark)'}">${count}/${max}</span>
       </div>
 
-      ${ONBOARDING_FAVORITES.map(sec => `
-        <div class="onb-section">${sec.section}</div>
-        ${sec.ids.map(id => {
-          const m = findMeal(id);
-          if (!m) return '';
-          const on = selected.includes(id);
-          const disabled = !on && count >= max;
-          return `
-            <div class="fav-pick ${on ? 'on' : ''}" data-act="${disabled ? '' : 'toggle-onb-fav'}" data-v="${id}" style="${disabled ? 'opacity:0.4;pointer-events:none' : ''}">
-              <div class="chk">${on ? '✓' : ''}</div>
-              <div class="emo">${m.emoji || '🍽️'}</div>
-              <div class="body">
-                <div class="name">${h(m.name)}</div>
-              </div>
-              <div class="cal">${fmt(m.baseCalories)} kcal</div>
-            </div>
-          `;
-        }).join('')}
-      `).join('')}
+      ${body}
 
       <div style="height:10px"></div>
       <div class="btn-row">
@@ -1896,8 +2045,8 @@ function renderDashboard() {
   return `
     <div class="screen">
       <div class="header">
-        <button class="icon-btn" data-act="nav-users" aria-label="สลับผู้ใช้" title="สลับผู้ใช้">
-          <span style="font-size:28px">${h(u.avatar || '🧑')}</span>
+        <button class="icon-btn" data-act="nav-users" aria-label="สลับผู้ใช้" title="สลับผู้ใช้" style="padding:6px">
+          ${avatarHtml(u, 30)}
         </button>
         <div style="flex:1">
           <h1 style="margin:0;font-size:20px">สวัสดี ${h(u.name)}</h1>
@@ -3268,7 +3417,7 @@ function renderUserSwitcher() {
         return `
           <div class="card tight" data-act="switch-user" data-id="${u.id}" style="cursor:pointer;${u.id === state.currentUserId ? 'border:2px solid var(--primary)' : ''}">
             <div class="row">
-              <div style="font-size:36px">${h(u.avatar || '🧑')}</div>
+              <div>${avatarHtml(u, 36)}</div>
               <div style="flex:1">
                 <div style="font-weight:600;font-size:17px">${h(u.name)} ${u.id === state.currentUserId ? '<span class="badge">ปัจจุบัน</span>' : ''}</div>
                 <div class="muted" style="font-size:14px">BMR ${fmt(bmr)} · เป้า ${fmt(tgt)} kcal · ${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]}</div>
@@ -3300,7 +3449,7 @@ function renderSettings() {
 
       <div class="card">
         <div class="row">
-          <div style="font-size:40px">${h(u.avatar || '🧑')}</div>
+          <div>${avatarHtml(u, 44)}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:17px">${h(u.name)}</div>
             <div class="muted" style="font-size:14px">${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]} · ${u.gender === 'male' ? 'ชาย' : 'หญิง'} อายุ ${u.age}</div>
@@ -3474,10 +3623,27 @@ function renderProfileEdit() {
       </div>
       <form id="edit-form" autocomplete="off">
         <div class="card">
-          <label>รูปโปรไฟล์</label>
-          <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
-            ${AVATARS.map(a => `<button type="button" class="${a === (state.tmp.avatar || u.avatar) ? 'on' : ''}" data-act="edit-avatar" data-v="${a}" style="font-size:24px;min-width:52px">${a}</button>`).join('')}
-          </div>
+          <label>รูปประจำตัว</label>
+          ${(() => {
+            const photo = state.tmp.photo !== undefined ? state.tmp.photo : (u.photo || '');
+            const av = state.tmp.avatar || u.avatar || '🧑';
+            return `
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+                <div class="profile-avatar-big">
+                  ${photo ? `<img src="${photo}" alt="">` : `<span>${h(av)}</span>`}
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                  <button type="button" class="btn secondary sm" data-act="pick-photo">📸 ใช้รูปของคุณ</button>
+                  ${photo ? `<button type="button" class="btn ghost sm" data-act="clear-photo">ลบรูป</button>` : ''}
+                </div>
+              </div>
+              ${!photo ? `
+                <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
+                  ${AVATARS.map(a => `<button type="button" class="${a === av ? 'on' : ''}" data-act="edit-avatar" data-v="${a}" style="font-size:22px;min-width:48px">${a}</button>`).join('')}
+                </div>
+              ` : ''}
+            `;
+          })()}
           <div class="field">
             <label for="ef-name">ชื่อ</label>
             <input id="ef-name" class="input" value="${h(state.tmp.name ?? u.name)}" maxlength="20">
@@ -4326,6 +4492,37 @@ const actions = {
     render();
   },
   'onb-set-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
+  'toggle-onb-cat': (e, btn) => {
+    const id = btn.dataset.v;
+    const cats = buildOnbCats();
+    const cat = cats.find(c => c.id === id);
+    state.tmp.onbExpanded = state.tmp.onbExpanded || {};
+    const cur = state.tmp.onbExpanded[id] !== undefined ? state.tmp.onbExpanded[id] : (cat?.defaultExpanded || false);
+    state.tmp.onbExpanded[id] = !cur;
+    render();
+  },
+  'pick-photo': async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const dataUrl = await compressProfilePhoto(file);
+        state.tmp.photo = dataUrl;
+        render();
+        toast('อัปโหลดรูปแล้ว ✅');
+      } catch (err) {
+        toast('โหลดรูปไม่ได้ ลองใหม่', true);
+      }
+    };
+    input.click();
+  },
+  'clear-photo': () => {
+    state.tmp.photo = '';
+    render();
+  },
   'toggle-onb-fav': (e, el) => {
     const id = el.dataset.v;
     state.tmp.selectedMealIds = state.tmp.selectedMealIds || [];
@@ -4349,6 +4546,7 @@ const actions = {
         name: t.name, gender: t.gender, goal: t.goal,
         age: t.age, height: t.height, weight: t.weight,
         avatar: t.avatar || u.avatar || '🧑',
+        photo: t.photo || '',
         defaultActivity: t.defaultActivity || 'moderate',
         onboardingComplete: true
       });
@@ -4366,6 +4564,7 @@ const actions = {
       name: t.name, gender: t.gender, goal: t.goal,
       age: t.age, height: t.height, weight: t.weight,
       avatar: t.avatar || '🧑',
+      photo: t.photo || '',
       defaultActivity: t.defaultActivity || 'moderate',
       onboardingComplete: true,
       weights: [{ date: todayKey(), weight_kg: Number(t.weight) }],
@@ -4395,6 +4594,7 @@ const actions = {
       name: u.name, gender: u.gender, age: u.age,
       height: u.height, weight: u.weight, goal: u.goal,
       avatar: u.avatar || '🧑',
+      photo: u.photo || '',
       defaultActivity: u.defaultActivity || 'moderate',
       selectedMealIds: (state.favorites || []).slice(0, ONBOARDING_MAX_FAVS)
     };
@@ -4430,6 +4630,7 @@ const actions = {
     const gender = state.tmp.gender ?? u.gender;
     const goal = state.tmp.goal ?? u.goal;
     const avatar = state.tmp.avatar ?? u.avatar ?? '🧑';
+    const photo = state.tmp.photo !== undefined ? state.tmp.photo : (u.photo || '');
     const defaultActivity = state.tmp.defaultActivity ?? u.defaultActivity ?? 'none';
     if (!name) return toast('กรอกชื่อ', true);
     if (!gender) return toast('เลือกเพศ', true);
@@ -4438,11 +4639,11 @@ const actions = {
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
     if (isNew) {
-      const nu = { id: uid('u'), name, gender, goal, age, height, weight, avatar, defaultActivity, createdAt: Date.now() };
+      const nu = { id: uid('u'), name, gender, goal, age, height, weight, avatar, photo, defaultActivity, createdAt: Date.now() };
       state.users.push(nu);
       state.currentUserId = nu.id;
     } else {
-      Object.assign(u, { name, gender, goal, age, height, weight, avatar, defaultActivity });
+      Object.assign(u, { name, gender, goal, age, height, weight, avatar, photo, defaultActivity });
     }
     persist();
     toast('บันทึกแล้ว ✅');
@@ -4577,6 +4778,11 @@ document.addEventListener('input', (e) => {
     clearTimeout(render._t);
     render._t = setTimeout(render, 120);
   }
+  if (e.target.id === 'onb-search') {
+    state.tmp.onbSearch = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 150);
+  }
   if (e.target.id === 'size-slider') {
     state.tmp.sizePct = Number(e.target.value);
     clearTimeout(render._t);
@@ -4616,6 +4822,7 @@ function migrateData() {
     if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
     if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
     if (u.onboardingComplete === undefined) { u.onboardingComplete = true; changed = true; }
+    if (u.photo === undefined) { u.photo = ''; changed = true; }
     if (!u.streakState) { u.streakState = defaultStreakState(); changed = true; }
     else { ensureStreakState(u); replenishTokensIfNeeded(u); }
   });

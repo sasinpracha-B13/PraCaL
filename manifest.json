@@ -1,7 +1,7 @@
 {
   "name": "PraCaL - นับแคลอาหารไทย",
   "short_name": "PraCaL",
-  "description": "แอปนับแคลอรี่อาหารไทยสำหรับครอบครัว",
+  "description": "นับแคลอรี่ใน 5 วินาที ใช้ง่าย",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

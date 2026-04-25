@@ -125,6 +125,17 @@
     { "id": "f04", "name": "มะม่วงสุก (1 ลูก)", "emoji": "🥭", "category": "fruits", "baseCalories": 150, "baseWeight_g": 250, "protein_g": 2, "carbs_g": 36, "fat_g": 0.6, "sugar_g": 30 },
     { "id": "f05", "name": "แตงโม (1 ถ้วย)", "emoji": "🍉", "category": "fruits", "baseCalories": 45, "baseWeight_g": 150, "protein_g": 1, "carbs_g": 11, "fat_g": 0.2, "sugar_g": 9 },
     { "id": "f06", "name": "สับปะรด (1 ถ้วย)", "emoji": "🍍", "category": "fruits", "baseCalories": 80, "baseWeight_g": 160, "protein_g": 1, "carbs_g": 19, "fat_g": 0.2, "sugar_g": 15 },
-    { "id": "f07", "name": "ฝรั่ง (1 ลูก)", "emoji": "🍏", "category": "fruits", "baseCalories": 70, "baseWeight_g": 200, "protein_g": 2, "carbs_g": 15, "fat_g": 0.5, "sugar_g": 9 }
+    { "id": "f07", "name": "ฝรั่ง (1 ลูก)", "emoji": "🍏", "category": "fruits", "baseCalories": 70, "baseWeight_g": 200, "protein_g": 2, "carbs_g": 15, "fat_g": 0.5, "sugar_g": 9 },
+
+    { "id": "h01", "name": "อกไก่ย่าง 100g", "emoji": "🍗", "category": "healthy", "baseCalories": 165, "baseWeight_g": 100, "protein_g": 31, "carbs_g": 0, "fat_g": 4, "sugar_g": 0 },
+    { "id": "h02", "name": "ไข่ขาว 3 ฟอง", "emoji": "🥚", "category": "healthy", "baseCalories": 50, "baseWeight_g": 100, "protein_g": 11, "carbs_g": 1, "fat_g": 0, "sugar_g": 0 },
+    { "id": "h03", "name": "ข้าวโอ๊ต 1 ถ้วย", "emoji": "🥣", "category": "healthy", "baseCalories": 300, "baseWeight_g": 250, "protein_g": 10, "carbs_g": 54, "fat_g": 5, "sugar_g": 1 },
+    { "id": "h04", "name": "Greek Yogurt 1 ถ้วย", "emoji": "🥣", "category": "healthy", "baseCalories": 130, "baseWeight_g": 200, "protein_g": 17, "carbs_g": 9, "fat_g": 4, "sugar_g": 6 },
+    { "id": "h05", "name": "ทูน่ากระป๋อง", "emoji": "🐟", "category": "healthy", "baseCalories": 180, "baseWeight_g": 140, "protein_g": 30, "carbs_g": 0, "fat_g": 7, "sugar_g": 0 },
+    { "id": "h06", "name": "บร็อคโคลี่ลวก 100g", "emoji": "🥦", "category": "healthy", "baseCalories": 35, "baseWeight_g": 100, "protein_g": 3, "carbs_g": 7, "fat_g": 0, "sugar_g": 1 },
+    { "id": "h07", "name": "ข้าวกล้อง 1 ทัพพี", "emoji": "🍚", "category": "healthy", "baseCalories": 220, "baseWeight_g": 150, "protein_g": 5, "carbs_g": 45, "fat_g": 2, "sugar_g": 0 },
+    { "id": "h08", "name": "ปลาแซลมอนย่าง 100g", "emoji": "🐟", "category": "healthy", "baseCalories": 210, "baseWeight_g": 100, "protein_g": 22, "carbs_g": 0, "fat_g": 13, "sugar_g": 0 },
+    { "id": "h09", "name": "Whey Protein 1 scoop", "emoji": "💪", "category": "healthy", "baseCalories": 120, "baseWeight_g": 30, "protein_g": 24, "carbs_g": 3, "fat_g": 1, "sugar_g": 1 },
+    { "id": "h10", "name": "ถั่วลันเตาต้ม 1 ถ้วย", "emoji": "🫛", "category": "healthy", "baseCalories": 170, "baseWeight_g": 200, "protein_g": 11, "carbs_g": 30, "fat_g": 1, "sugar_g": 6 }
   ]
 }
