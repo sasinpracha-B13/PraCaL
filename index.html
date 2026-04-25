@@ -132,6 +132,18 @@
   .ring .num small { color: var(--muted); font-size: 13px; margin-top: 2px; }
   .ring-labels { flex: 1; font-size: 15px; color: var(--ink-2); line-height: 1.8; }
   .ring-labels .v { color: var(--ink); font-weight: 600; }
+  /* Goal-zone reward feedback */
+  .ring.pulse svg circle:nth-child(2) { animation: ringPulse 2.4s ease-in-out infinite; }
+  .ring.pulse .num b { animation: numBreathe 2.4s ease-in-out infinite; }
+  @keyframes ringPulse {
+    0%, 100% { filter: drop-shadow(0 0 0 transparent); opacity: 1; }
+    50%      { filter: drop-shadow(0 0 6px var(--green)); opacity: 0.92; }
+  }
+  @keyframes numBreathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  .zone-card { transition: background 220ms ease; }
 
   .bar-wrap { margin-top: 8px; }
   .bar-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 15px; }
@@ -663,7 +675,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.6';
+const VERSION = 'v1.9.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1242,6 +1254,112 @@ function effectiveCalorieTarget(userId) {
   const u = state.users.find(x => x.id === userId);
   if (!u) return 2000;
   return defaultCalorieTarget(u);
+}
+// Daily effective target = base target + today's logged exercise (if user is allowed to log)
+// This is the "budget" the ring visualizes — it grows when the user exercises.
+function dailyEffectiveTarget(userId, dateKey = todayKey()) {
+  const u = state.users.find(x => x.id === userId);
+  if (!u) return 2000;
+  const base = effectiveCalorieTarget(userId);
+  const incExercise = activityIncludesExercise(u);
+  const burn = incExercise ? 0 : sumActivitiesBurn(userId, dateKey);
+  return base + burn;
+}
+// Pure function — given today's numbers + goal, returns ring visualization data
+// that's emotionally aligned with the user's goal type.
+//
+// Loss user: rewarded for staying near (or slightly under) goal deficit.
+// Gain user: rewarded for hitting surplus + reminded about protein.
+// Maintain user: rewarded for staying balanced.
+//
+// Returns: { zone, ringPct, ringColor, headline, sub, pulse, effective, energyDelta, goalDelta, totalBurn }
+function goalZoneEval({ eaten, baseTarget, exerciseBurn, goalAdj, tdee }) {
+  const totalBurn = tdee + exerciseBurn;
+  const energyDelta = eaten - totalBurn;             // − = deficit, + = surplus
+  const goalDelta = energyDelta - goalAdj;            // 0 = perfectly on goal
+  const effective = Math.max(1, baseTarget + exerciseBurn);
+  const ringPct = Math.min(120, (eaten / effective) * 100);
+
+  const isLoss = goalAdj < -50;
+  const isGain = goalAdj > 50;
+  const weightG = Math.round(Math.abs(energyDelta) / 7700 * 1000);
+
+  let zone, ringColor, headline, sub, pulse = false;
+
+  if (isLoss) {
+    if (goalDelta < -500) {
+      zone = 'danger-low'; ringColor = 'var(--red)';
+      headline = '⚠️ ขาดดุลเยอะเกินไป';
+      sub = 'กินน้อยเกิน เสี่ยงเสียกล้าม + เผาผลาญพัง';
+    } else if (goalDelta < -150) {
+      zone = 'extra'; ringColor = 'var(--green)';
+      headline = '💪 ขาดดุลเกินเป้า — bonus';
+      sub = `น้ำหนักจะลดเร็วกว่าแผน ~${weightG} ก. วันนี้`;
+      pulse = true;
+    } else if (goalDelta < 150) {
+      zone = 'win'; ringColor = 'var(--green)';
+      headline = '🎯 ตามเป้าเป๊ะ!';
+      sub = `น้ำหนักจะลด ~${weightG} ก. วันนี้`;
+      pulse = true;
+    } else if (goalDelta < 400) {
+      zone = 'high'; ringColor = 'var(--amber)';
+      headline = 'กินเกินแผนนิดหน่อย';
+      sub = 'ยังไม่หลุดเป้า พรุ่งนี้ปรับใหม่ได้';
+    } else {
+      zone = 'danger-high'; ringColor = 'var(--red)';
+      headline = 'วันนี้กินเกินแผน';
+      sub = 'ไม่เป็นไร พรุ่งนี้กลับเข้าทาง';
+    }
+  } else if (isGain) {
+    if (goalDelta < -300) {
+      zone = 'low'; ringColor = 'var(--amber)';
+      headline = 'ยังกินไม่ถึงเป้า surplus';
+      sub = `เพิ่มอีก ~${fmt(-goalDelta)} kcal เพื่อเพิ่มกล้าม`;
+    } else if (goalDelta < -100) {
+      zone = 'almost'; ringColor = 'var(--amber)';
+      headline = 'เกือบถึงเป้าแล้ว';
+      sub = `เหลืออีก ~${fmt(-goalDelta)} kcal`;
+    } else if (goalDelta < 200) {
+      zone = 'win'; ringColor = 'var(--green)';
+      headline = '💪 ได้ surplus ตามเป้า!';
+      sub = 'อย่าลืมโปรตีนถึงเป้าเพื่อสร้างกล้าม';
+      pulse = true;
+    } else if (goalDelta < 500) {
+      zone = 'high'; ringColor = 'var(--amber)';
+      headline = 'กินเกินเป้าเล็กน้อย';
+      sub = 'ระวังได้ไขมันมากกว่ากล้าม';
+    } else {
+      zone = 'danger-high'; ringColor = 'var(--red)';
+      headline = 'กินเยอะเกินไป';
+      sub = 'น้ำหนักจะเพิ่มเร็ว แต่อาจไม่ใช่กล้ามล้วน';
+    }
+  } else {
+    // Maintain
+    if (goalDelta < -400) {
+      zone = 'low'; ringColor = 'var(--amber)';
+      headline = 'ขาดดุลกว่าที่ตั้งไว้';
+      sub = `น้ำหนักอาจลด ~${weightG} ก. วันนี้`;
+    } else if (goalDelta < -150) {
+      zone = 'extra'; ringColor = 'var(--green)';
+      headline = 'ขาดดุลเล็กน้อย';
+      sub = 'น้ำหนักจะลดช้าๆ';
+    } else if (goalDelta < 150) {
+      zone = 'win'; ringColor = 'var(--green)';
+      headline = '⚖️ สมดุลพอดี!';
+      sub = 'รักษาน้ำหนักได้ตามแผน';
+      pulse = true;
+    } else if (goalDelta < 400) {
+      zone = 'high'; ringColor = 'var(--amber)';
+      headline = 'เกินสมดุลเล็กน้อย';
+      sub = 'น้ำหนักจะเพิ่มช้าๆ';
+    } else {
+      zone = 'danger-high'; ringColor = 'var(--red)';
+      headline = 'เกินเป้าเยอะ';
+      sub = `น้ำหนักจะเพิ่ม ~${weightG} ก. วันนี้`;
+    }
+  }
+
+  return { zone, ringPct, ringColor, headline, sub, pulse, effective, energyDelta, goalDelta, totalBurn };
 }
 function effectiveProteinTarget(userId) {
   const u = state.users.find(x => x.id === userId);
@@ -2346,35 +2464,28 @@ function renderDashboard() {
   if (!u) return '';
   const entries = todayEntries();
   const totals = sumEntries(entries);
-  const calTarget = effectiveCalorieTarget(u.id);
+  const baseTarget = effectiveCalorieTarget(u.id);
   const protTarget = effectiveProteinTarget(u.id);
-  const carbsTarget = Math.round(calTarget * 0.5 / 4);
   const sugarLimit = SUGAR_DAILY_LIMIT_G;
   const incExercise = activityIncludesExercise(u);
   const allowsLogging = !incExercise;
   const burned = allowsLogging ? sumActivitiesBurn(u.id) : 0;
   const tdee = calcTDEE(u);
-  const totalDailyBurn = tdee + burned;
-  const energyDelta = totals.calories - totalDailyBurn; // negative = deficit
   const goalAdj = effectiveGoalAdjust(u);
-  const goalDiff = energyDelta - goalAdj; // 0 = on track
-  const weightChangeG = Math.abs(energyDelta) / 7700 * 1000;
-  let statusText, statusColor;
-  if (Math.abs(goalDiff) < 150) {
-    statusText = '✓ ตามเป้าหมายเป๊ะ'; statusColor = 'var(--green)';
-  } else if (goalDiff < -300) {
-    statusText = goalAdj < 0 ? '⚠️ ลดเร็วกว่าแผน เสี่ยงเสียกล้าม' : '💪 deficit เยอะกว่าแผน';
-    statusColor = goalAdj < 0 ? 'var(--red)' : 'var(--green)';
-  } else if (goalDiff < -150) {
-    statusText = goalAdj < 0 ? '💪 ลดได้เยอะกว่าเป้า' : 'deficit เกินแผนนิด ๆ';
-    statusColor = 'var(--green)';
-  } else if (goalDiff > 300) {
-    statusText = '⚠️ กินเกินแผน — พรุ่งนี้ลดลงนิด'; statusColor = 'var(--amber)';
-  } else {
-    statusText = 'กินเกินแผนเล็กน้อย'; statusColor = 'var(--amber)';
-  }
-  const calPctRing = Math.min(100, (totals.calories / calTarget) * 100);
-  const calRemain = calTarget - totals.calories;
+
+  // Goal-aware ring evaluation — handles all goal types (loss/gain/maintain)
+  // and adjusts target up by today's exercise burn.
+  const zone = goalZoneEval({
+    eaten: totals.calories,
+    baseTarget,
+    exerciseBurn: burned,
+    goalAdj,
+    tdee
+  });
+  const totalDailyBurn = zone.totalBurn;
+  const energyDelta = zone.energyDelta;
+  const carbsTarget = Math.round(baseTarget * 0.5 / 4);
+
   const protPct = protTarget ? Math.min(100, (totals.protein_g / protTarget) * 100) : 0;
   const protRemain = protTarget - totals.protein_g;
   const carbsPct = carbsTarget ? Math.min(100, (totals.carbs_g / carbsTarget) * 100) : 0;
@@ -2382,8 +2493,14 @@ function renderDashboard() {
   const sugarCls = totals.sugar_g > sugarLimit ? 'over' : totals.sugar_g > sugarLimit * 0.6 ? 'warn' : 'ok';
 
   const ringC = 2 * Math.PI * 58;
-  const ringOffset = ringC - (calPctRing / 100) * ringC;
-  const ringColor = calPctRing >= 100 ? 'var(--red)' : calPctRing >= 85 ? 'var(--amber)' : 'var(--primary)';
+  const ringOffset = ringC - (Math.min(100, zone.ringPct) / 100) * ringC;
+
+  // Status card background + accent — soft tint matching the zone color
+  const statusBg = zone.zone === 'win' || zone.zone === 'extra'
+    ? 'var(--green-soft)'
+    : zone.zone === 'danger-low' || zone.zone === 'danger-high'
+      ? 'var(--red-soft)'
+      : 'var(--amber-soft)';
 
   const favsForUser = favoriteSuggestions(entries);
 
@@ -2402,16 +2519,16 @@ function renderDashboard() {
 
       <div class="card">
         <div class="ring-wrap">
-          <div class="ring" aria-label="แคลอรี่วันนี้">
+          <div class="ring zone-${zone.zone}${zone.pulse ? ' pulse' : ''}" aria-label="แคลอรี่วันนี้">
             <svg width="140" height="140" viewBox="0 0 140 140">
               <circle cx="70" cy="70" r="58" fill="none" stroke="var(--bg-2)" stroke-width="14"/>
-              <circle cx="70" cy="70" r="58" fill="none" stroke="${ringColor}" stroke-width="14"
+              <circle cx="70" cy="70" r="58" fill="none" stroke="${zone.ringColor}" stroke-width="14"
                 stroke-dasharray="${ringC.toFixed(2)}" stroke-dashoffset="${ringOffset.toFixed(2)}"
                 stroke-linecap="round"/>
             </svg>
             <div class="num">
               <b>${fmt(totals.calories)}</b>
-              <small>กิน / ${fmt(calTarget)} เป้า</small>
+              <small>/ ${fmt(zone.effective)} kcal</small>
             </div>
           </div>
           <div class="ring-labels" style="font-size:13px;line-height:1.7">
@@ -2426,14 +2543,13 @@ function renderDashboard() {
           </div>
         </div>
 
-        <div style="margin-top:10px;padding:10px 12px;background:var(--bg-2);border-radius:10px;text-align:center;font-size:13px;line-height:1.7">
-          ${energyDelta === 0
-            ? '⚖️ พลังงานสมดุล — น้ำหนักคงที่'
-            : energyDelta < 0
-              ? `📉 deficit · กำลังลด <b>~${fmt(weightChangeG, 0)} ก.</b> วันนี้`
-              : `📈 surplus · กำลังเพิ่ม <b>~${fmt(weightChangeG, 0)} ก.</b> วันนี้`}<br>
-          <span style="color:${statusColor};font-weight:600">🎯 ${h(statusText)}</span>
-          <span class="muted" style="font-size:12px"> · เป้า ${goalAdj > 0 ? '+' : ''}${goalAdj}/วัน</span>
+        <div class="zone-card" style="margin-top:12px;padding:12px 14px;background:${statusBg};border-radius:12px;text-align:center;line-height:1.6">
+          <div style="font-weight:700;font-size:15px;color:${zone.ringColor}">${h(zone.headline)}</div>
+          <div style="font-size:13px;color:var(--ink-2);margin-top:3px">${h(zone.sub)}</div>
+          <div class="muted" style="font-size:11.5px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,0.08)">
+            กิน ${fmt(totals.calories)} − เผา ${fmt(totalDailyBurn)} = ${energyDelta === 0 ? '0' : (energyDelta < 0 ? '−' : '+') + fmt(Math.abs(energyDelta))}
+            · เป้า ${goalAdj > 0 ? '+' : ''}${goalAdj}/วัน${burned > 0 ? ` · งบ ${fmt(baseTarget)}+${fmt(burned)} ออกกำลัง` : ''}
+          </div>
         </div>
 
         <div class="bar-wrap mt">
@@ -2471,7 +2587,7 @@ function renderDashboard() {
 
       ${streakStripHtml(u)}
 
-      ${weeklyStripHtml(u, calTarget)}
+      ${weeklyStripHtml(u, baseTarget)}
 
       ${incExercise ? `
         <div class="card" style="background:#fef3c7;border:1px solid #fbbf24">
@@ -3699,8 +3815,30 @@ function renderReports() {
   const wEnd = monthWeights[monthWeights.length - 1];
   const wChange = (wStart && wEnd) ? (wEnd.weight_kg - wStart.weight_kg) : null;
 
-  const kcalGap = calTarget - agg.avg.calories;
+  const kcalGap = calTarget - agg.avg.calories;     // + = ate under target, − = ate over
   const projKg = agg.loggedCount > 0 ? (kcalGap * 30) / KCAL_PER_KG_FAT : 0;
+  const goalCat = goalCategory(u);                  // 'lose' | 'gain' | 'maintain'
+  const goalAdjRpt = effectiveGoalAdjust(u);
+
+  // Goal-aware status framing — same philosophy as the dashboard ring
+  let rptStatus, rptStatusColor;
+  if (goalCat === 'lose') {
+    if (kcalGap > 250) { rptStatus = '💪 ขาดดุลเกินแผน — ลดเร็วกว่าคาด'; rptStatusColor = 'var(--green)'; }
+    else if (kcalGap > -150) { rptStatus = '🎯 ตามแผนเป๊ะ'; rptStatusColor = 'var(--green)'; }
+    else if (kcalGap > -400) { rptStatus = 'กินเกินแผนเล็กน้อย'; rptStatusColor = 'var(--amber)'; }
+    else { rptStatus = '⚠️ กินเกินแผนเยอะ — น้ำหนักอาจไม่ลด'; rptStatusColor = 'var(--red)'; }
+  } else if (goalCat === 'gain') {
+    if (kcalGap > 200) { rptStatus = '⚠️ ยังกินไม่ถึงเป้า surplus'; rptStatusColor = 'var(--amber)'; }
+    else if (kcalGap > -200) { rptStatus = '💪 ตามเป้าเพิ่มกล้าม'; rptStatusColor = 'var(--green)'; }
+    else if (kcalGap > -500) { rptStatus = 'กินเกินเป้า — ระวังไขมันเยอะ'; rptStatusColor = 'var(--amber)'; }
+    else { rptStatus = '⚠️ กินเยอะเกินเป้ามาก'; rptStatusColor = 'var(--red)'; }
+  } else {
+    if (Math.abs(kcalGap) < 150) { rptStatus = '⚖️ สมดุลดี'; rptStatusColor = 'var(--green)'; }
+    else if (kcalGap > 0) { rptStatus = 'ขาดดุล — น้ำหนักจะลดช้าๆ'; rptStatusColor = 'var(--amber)'; }
+    else { rptStatus = 'เกินสมดุล — น้ำหนักจะเพิ่ม'; rptStatusColor = 'var(--amber)'; }
+  }
+  const rptStatusBg = rptStatusColor === 'var(--green)' ? 'var(--green-soft)'
+                    : rptStatusColor === 'var(--red)' ? 'var(--red-soft)' : 'var(--amber-soft)';
 
   const proteinMetDays = agg.days.filter(d => d.logged && d.totals.protein_g >= protTarget).length;
   const proteinGap = protTarget - agg.avg.protein_g;
@@ -3753,8 +3891,9 @@ function renderReports() {
         <div class="stat-card">
           <h3>🔥 แคลอรี่ ${helpHtml('deficit')}</h3>
           <div class="stat-row"><span>เฉลี่ย/วัน</span><b>${fmt(agg.avg.calories)} kcal</b></div>
-          <div class="stat-row"><span>เป้าหมาย</span><span>${fmt(calTarget)} kcal</span></div>
-          <div class="stat-row"><span>${kcalGap >= 0 ? 'ขาดดุล' : 'เกิน'}</span><b style="color:${kcalGap >= 0 ? 'var(--green)' : 'var(--red)'}">${kcalGap >= 0 ? '-' : '+'}${fmt(Math.abs(kcalGap))} kcal/วัน</b></div>
+          <div class="stat-row"><span>เป้ารายวัน</span><span>${fmt(calTarget)} kcal${goalAdjRpt !== 0 ? ` <span class="muted" style="font-size:12px">(TDEE ${fmt(calcTDEE(u))} ${goalAdjRpt > 0 ? '+' : ''}${goalAdjRpt})</span>` : ''}</span></div>
+          <div class="stat-row"><span>vs เป้า</span><b style="color:${kcalGap >= 0 ? 'var(--green)' : 'var(--red)'}">${kcalGap >= 0 ? 'ใต้เป้า −' : 'เหนือเป้า +'}${fmt(Math.abs(kcalGap))} kcal/วัน</b></div>
+          <div style="background:${rptStatusBg};color:${rptStatusColor};font-weight:600;font-size:14px;padding:10px 12px;border-radius:10px;margin-top:10px;text-align:center">${h(rptStatus)}</div>
           <div class="hint mt" style="font-size:13px;line-height:1.7">
             💡 ${fmt(Math.abs(kcalGap))} × 30 ÷ ${KCAL_PER_KG_FAT} = ~${Math.abs(projKg).toFixed(2)} kg ที่ควรเปลี่ยนจากแคลอย่างเดียว
           </div>
