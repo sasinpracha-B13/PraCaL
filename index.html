@@ -334,6 +334,64 @@
   .kv-row input:focus { outline: none; border-color: var(--primary); }
   .kv-row input.w-full { width: 100%; text-align: left; }
 
+  /* Streak system */
+  .streak-strip {
+    display: flex; gap: 6px; padding: 10px 12px; background: #fff;
+    border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 10px;
+    align-items: center;
+  }
+  .streak-chip {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 6px 4px; border-radius: 10px; background: var(--bg-2);
+    cursor: pointer; min-width: 0;
+    transition: opacity 200ms;
+  }
+  .streak-chip.dim { opacity: 0.45; }
+  .streak-chip .e { font-size: 22px; line-height: 1; }
+  .streak-chip .n { font-weight: 700; font-size: 17px; color: var(--ink); margin-top: 2px; }
+  .streak-chip .l { font-size: 10px; color: var(--muted); }
+
+  .streak-row {
+    background: #fff; border-radius: 12px; padding: 14px;
+    box-shadow: var(--shadow); margin-bottom: 10px;
+  }
+  .streak-row .head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .streak-row .head .e { font-size: 28px; }
+  .streak-row .head .n { font-weight: 600; font-size: 16px; flex: 1; }
+  .streak-row .head .num { font-weight: 700; font-size: 22px; color: var(--primary-dark); }
+  .streak-row .desc { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .streak-row .bar { height: 8px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+  .streak-row .bar i { display: block; height: 100%; background: var(--primary); border-radius: 999px; transition: width 300ms; }
+  .streak-row .bar i.fire { background: linear-gradient(90deg, #f59e0b, #ea580c); }
+  .streak-row .bar i.green { background: var(--green); }
+  .streak-row .meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+  .streak-row .status { padding: 8px 10px; border-radius: 8px; background: var(--bg-2); margin-top: 8px; font-size: 13px; }
+  .streak-row .status.ok { background: var(--green-soft); color: var(--green); }
+  .streak-row .status.warn { background: var(--amber-soft); color: #92400e; }
+  .streak-row .status.bad { background: var(--red-soft); color: var(--red); }
+
+  .milestone-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+    z-index: 200; display: flex; align-items: center; justify-content: center;
+    padding: 24px; animation: fadeIn 200ms ease;
+  }
+  .milestone-card {
+    background: #fff; border-radius: 20px; padding: 32px 24px;
+    text-align: center; max-width: 360px; width: 100%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    animation: bounceIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .milestone-card .em { font-size: 64px; line-height: 1; margin-bottom: 8px; }
+  .milestone-card .ml-label { font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .milestone-card .ml-type { color: var(--primary-dark); font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .milestone-card .ml-days { font-size: 18px; color: var(--ink-2); margin-bottom: 14px; }
+  .milestone-card .ml-msg { font-size: 14px; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes bounceIn {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
   /* Onboarding favorites picker */
   .fav-pick {
     display: flex; align-items: center; gap: 12px;
@@ -514,7 +572,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.6.0';
+const VERSION = 'v1.7.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -598,6 +656,33 @@ const SPECIAL_MEAL_PRESETS = {
     { id: 'big',    label: 'เยอะ (~1400)', cal: 1400, protein_g: 60, carbs_g: 140, fat_g: 60, sugar_g: 22 }
   ]}
 };
+
+const STREAK_LABELS = {
+  logging:  { name: 'Logging',     emoji: '🔥', desc: 'บันทึก 1+ มื้อ/วัน' },
+  weight:   { name: 'Weight',      emoji: '⚖️', desc: 'ชั่งน้ำหนัก 1 ครั้ง/วัน' },
+  inTarget: { name: 'In-Target',   emoji: '🎯', desc: 'แคล 80-110% ของเป้า' },
+  protein:  { name: 'Protein',     emoji: '🥩', desc: 'โปรตีน ≥85% ของเป้า' }
+};
+
+const STREAK_MILESTONES = [
+  { days: 7,   label: '1 สัปดาห์! 🎉', msg: 'ผ่านสัปดาห์แรกแล้ว' },
+  { days: 14,  label: '2 สัปดาห์',     msg: 'กำลังเป็นนิสัย ✨' },
+  { days: 21,  label: '21 วัน',        msg: 'habit formed! 🧠' },
+  { days: 30,  label: '1 เดือน! ⭐',   msg: 'consistency เด่นมาก' },
+  { days: 60,  label: '2 เดือน',       msg: 'impressive 💪' },
+  { days: 100, label: '💯 100 วัน!',    msg: 'major achievement' },
+  { days: 200, label: '200 วัน',       msg: 'incredible 🏆' },
+  { days: 365, label: '1 ปี! 🎂',      msg: 'legendary' }
+];
+
+function getMilestoneInfo(days) {
+  const fixed = STREAK_MILESTONES.find(m => m.days === days);
+  if (fixed) return fixed;
+  if (days > 100 && days % 30 === 0) {
+    return { days, label: `${Math.floor(days / 30)} เดือน 🏆`, msg: 'continuing strong' };
+  }
+  return null;
+}
 
 const ONBOARDING_FAVORITES = [
   { section: '🌅 มื้อเช้า', ids: ['r17', 'r24', 'k11', 'm12', 'm11', 'm21'] },
@@ -1008,6 +1093,179 @@ function latestWeight(user) {
   return all.length ? all[all.length - 1] : null;
 }
 
+/* ========== STREAKS ========== */
+function defaultStreakState() {
+  return {
+    freezeTokens: { available: 1, max: 1, lastReplenishDate: todayKey() },
+    repairs: { monthYear: todayKey().slice(0, 7), used: 0, max: 2 },
+    freezes: { logging: [], weight: [], inTarget: [], protein: [] },
+    bests: { logging: 0, weight: 0, inTarget: 0, protein: 0 },
+    celebrated: []
+  };
+}
+
+function ensureStreakState(user) {
+  if (!user) return null;
+  if (!user.streakState) user.streakState = defaultStreakState();
+  const ss = user.streakState;
+  if (!ss.freezes) ss.freezes = { logging: [], weight: [], inTarget: [], protein: [] };
+  ['logging','weight','inTarget','protein'].forEach(k => { if (!ss.freezes[k]) ss.freezes[k] = []; });
+  if (!ss.bests) ss.bests = { logging: 0, weight: 0, inTarget: 0, protein: 0 };
+  if (!ss.celebrated) ss.celebrated = [];
+  if (!ss.freezeTokens) ss.freezeTokens = { available: 1, max: 1, lastReplenishDate: todayKey() };
+  if (!ss.repairs) ss.repairs = { monthYear: todayKey().slice(0, 7), used: 0, max: 2 };
+  // Reset repair month
+  const m = todayKey().slice(0, 7);
+  if (ss.repairs.monthYear !== m) ss.repairs = { monthYear: m, used: 0, max: 2 };
+  return ss;
+}
+
+function replenishTokensIfNeeded(user) {
+  const ss = ensureStreakState(user);
+  if (!ss) return;
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun, 1=Mon
+  const daysSinceMon = (day + 6) % 7;
+  const thisMon = new Date(today);
+  thisMon.setHours(0, 0, 0, 0);
+  thisMon.setDate(today.getDate() - daysSinceMon);
+  const thisMonKey = dateToKey(thisMon);
+  if ((ss.freezeTokens.lastReplenishDate || '0000-00-00') < thisMonKey) {
+    ss.freezeTokens.available = ss.freezeTokens.max || 1;
+    ss.freezeTokens.lastReplenishDate = thisMonKey;
+  }
+}
+
+function activeDatesForStreak(user, type) {
+  const out = new Set();
+  const userLogs = state.logs[user.id] || {};
+  if (type === 'logging') {
+    Object.keys(userLogs).forEach(d => { if ((userLogs[d] || []).length > 0) out.add(d); });
+  } else if (type === 'weight') {
+    (user.weights || []).forEach(w => out.add(w.date));
+  } else if (type === 'inTarget' || type === 'protein') {
+    const calT = effectiveCalorieTarget(user.id);
+    const protT = effectiveProteinTarget(user.id);
+    Object.keys(userLogs).forEach(d => {
+      const entries = userLogs[d] || [];
+      if (entries.length < 2) return;
+      const t = sumEntries(entries);
+      if (type === 'inTarget') {
+        const r = calT > 0 ? t.calories / calT : 0;
+        if (r >= 0.8 && r <= 1.1) out.add(d);
+      } else {
+        if (protT > 0 && t.protein_g >= protT * 0.85) out.add(d);
+      }
+    });
+  }
+  return out;
+}
+
+function streakOfSet(activeSet, frozenList, todayKeyStr) {
+  const all = new Set([...activeSet, ...(frozenList || [])]);
+  const yest = dateToKey(addDays(keyToDate(todayKeyStr), -1));
+  let cursor;
+  if (all.has(todayKeyStr)) cursor = todayKeyStr;
+  else if (all.has(yest)) cursor = yest;
+  else return 0;
+  let count = 0;
+  while (all.has(cursor)) {
+    count++;
+    cursor = dateToKey(addDays(keyToDate(cursor), -1));
+  }
+  return count;
+}
+
+function bestStreakOfSet(allSet) {
+  const dates = [...allSet].sort();
+  let best = 0, cur = 0, prev = null;
+  for (const d of dates) {
+    if (prev && daysBetween(prev, d) === 1) cur++;
+    else cur = 1;
+    if (cur > best) best = cur;
+    prev = d;
+  }
+  return best;
+}
+
+function getStreakStatus(user, type) {
+  const ss = ensureStreakState(user);
+  const active = activeDatesForStreak(user, type);
+  const frozen = ss.freezes[type] || [];
+  const allSet = new Set([...active, ...frozen]);
+  const today = todayKey();
+  const current = streakOfSet(active, frozen, today);
+  const computedBest = bestStreakOfSet(allSet);
+  const persistedBest = ss.bests[type] || 0;
+  const best = Math.max(computedBest, persistedBest, current);
+  if (best > persistedBest) ss.bests[type] = best;
+  return { current, best, doneToday: active.has(today) };
+}
+
+function checkAndCelebrateMilestones(user, prevSnapshot) {
+  const ss = ensureStreakState(user);
+  let toShow = null;
+  ['logging','weight','inTarget','protein'].forEach(type => {
+    const cur = getStreakStatus(user, type).current;
+    const prev = prevSnapshot[type] || 0;
+    if (cur <= prev) return;
+    const ms = getMilestoneInfo(cur);
+    if (!ms) return;
+    const key = `${type}-${cur}`;
+    if (ss.celebrated.includes(key)) return;
+    ss.celebrated.push(key);
+    if (!toShow) toShow = { type, days: cur, label: ms.label, msg: ms.msg };
+  });
+  if (toShow) showMilestoneModal(toShow);
+}
+
+function streaksSnapshot(user) {
+  return {
+    logging: getStreakStatus(user, 'logging').current,
+    weight: getStreakStatus(user, 'weight').current,
+    inTarget: getStreakStatus(user, 'inTarget').current,
+    protein: getStreakStatus(user, 'protein').current
+  };
+}
+
+function autoFreezeIfPossible(user) {
+  const ss = ensureStreakState(user);
+  if (ss.freezeTokens.available < 1) return false;
+  const today = todayKey();
+  const yest = dateToKey(addDays(new Date(), -1));
+  const userLogs = state.logs[user.id] || {};
+  const yestHasLog = (userLogs[yest] || []).length > 0;
+  if (yestHasLog) return false;
+  const dayBefore = dateToKey(addDays(new Date(), -2));
+  const dayBeforeHasLog = (userLogs[dayBefore] || []).length > 0;
+  const freezes = ss.freezes.logging || [];
+  if (!dayBeforeHasLog && !freezes.includes(dayBefore)) return false;
+  freezes.push(yest);
+  ss.freezes.logging = freezes;
+  ss.freezeTokens.available -= 1;
+  return true;
+}
+
+function showMilestoneModal(info) {
+  if (document.getElementById('milestone-overlay')) return;
+  const lbl = STREAK_LABELS[info.type];
+  const el = document.createElement('div');
+  el.id = 'milestone-overlay';
+  el.className = 'milestone-overlay';
+  el.dataset.act = 'dismiss-milestone';
+  el.innerHTML = `
+    <div class="milestone-card">
+      <div class="em">🎉</div>
+      <div class="ml-label">${h(info.label)}</div>
+      <div class="ml-type">${lbl.emoji} ${h(lbl.name)} Streak</div>
+      <div class="ml-days">${info.days} วันติดต่อกัน</div>
+      <div class="ml-msg">"${h(info.msg)}"</div>
+      <button class="btn block" data-act="dismiss-milestone">ขอบคุณ! 🙏</button>
+    </div>
+  `;
+  document.body.appendChild(el);
+}
+
 /* ========== AGGREGATION ========== */
 function dayTotals(userId, dateKey) {
   const entries = ((state.logs[userId] || {})[dateKey] || []);
@@ -1175,10 +1433,18 @@ function downloadCSV(days) {
 function addLogEntry(entry, dateKey = todayKey()) {
   if (!state.logs[state.currentUserId]) state.logs[state.currentUserId] = {};
   if (!state.logs[state.currentUserId][dateKey]) state.logs[state.currentUserId][dateKey] = [];
+  const u = currentUser();
+  const beforeSnap = u ? streaksSnapshot(u) : null;
+  if (u && dateKey === todayKey()) {
+    if (autoFreezeIfPossible(u)) {
+      setTimeout(() => toast('🛡️ ใช้ freeze token รักษา streak'), 200);
+    }
+  }
   entry.id = entry.id || uid('e');
   entry.dateKey = dateKey;
   entry.loggedAt = Date.now();
   state.logs[state.currentUserId][dateKey].push(entry);
+  if (u && beforeSnap) checkAndCelebrateMilestones(u, beforeSnap);
   persist();
 }
 function deleteLogEntry(entryId, dateKey = todayKey()) {
@@ -1512,6 +1778,28 @@ function helpHtml(key) {
 
 const DOW = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 
+function streakStripHtml(user) {
+  const types = ['logging','weight','inTarget','protein'];
+  const status = {};
+  types.forEach(t => status[t] = getStreakStatus(user, t));
+  return `
+    <div class="streak-strip" data-act="nav-streaks">
+      ${types.map(t => {
+        const s = status[t];
+        const lbl = STREAK_LABELS[t];
+        return `
+          <div class="streak-chip ${s.doneToday ? '' : 'dim'}">
+            <div class="e">${lbl.emoji}</div>
+            <div class="n">${s.current}</div>
+            <div class="l">${h(lbl.name)}</div>
+          </div>
+        `;
+      }).join('')}
+      <div style="font-size:18px;color:var(--muted);padding:0 4px">›</div>
+    </div>
+  `;
+}
+
 function weeklyStripHtml(user, calTarget) {
   const agg = weekAggregate(user.id);
   const today = todayKey();
@@ -1671,6 +1959,8 @@ function renderDashboard() {
         </div>
         <div class="hint" style="margin-top:10px;font-size:13px">${breakdownText(u)}</div>
       </div>
+
+      ${streakStripHtml(u)}
 
       ${weeklyStripHtml(u, calTarget)}
 
@@ -2849,6 +3139,121 @@ function renderWeightLog() {
   `;
 }
 
+function renderStreaks() {
+  const u = currentUser();
+  if (!u) return '';
+  ensureStreakState(u);
+  const types = ['logging','weight','inTarget','protein'];
+  const calT = effectiveCalorieTarget(u.id);
+  const protT = effectiveProteinTarget(u.id);
+  const todayLogs = todayEntries();
+  const todayTotals = sumEntries(todayLogs);
+  const ss = u.streakState;
+  const lateHour = new Date().getHours() >= 20;
+
+  function statusFor(type, status) {
+    if (status.doneToday) return { cls: 'ok', text: '✓ ทำได้แล้ววันนี้' };
+    if (type === 'logging') {
+      if (status.current > 0 && lateHour) return { cls: 'warn', text: `⏰ Streak ${status.current} วัน — ยังไม่ได้บันทึกวันนี้` };
+      if (status.current > 0) return { cls: 'warn', text: 'ยังไม่ได้บันทึกวันนี้' };
+      return { cls: '', text: 'เริ่มต้นวันนี้ได้!' };
+    }
+    if (type === 'weight') {
+      const latest = latestWeight(u);
+      if (!latest) return { cls: '', text: 'ยังไม่มีข้อมูลน้ำหนัก' };
+      return { cls: 'warn', text: 'ยังไม่ได้ชั่งวันนี้' };
+    }
+    if (type === 'inTarget') {
+      if (todayLogs.length < 2) return { cls: '', text: 'ต้องบันทึกอย่างน้อย 2 มื้อ' };
+      const r = calT > 0 ? todayTotals.calories / calT : 0;
+      if (r < 0.8) return { cls: 'warn', text: `🟡 ใกล้ครบ (${fmt(todayTotals.calories)}/${fmt(Math.round(calT * 0.8))}-${fmt(Math.round(calT * 1.1))})` };
+      if (r > 1.1) return { cls: 'bad', text: `❌ เกินเป้า ${fmt(Math.round(todayTotals.calories - calT * 1.1))} kcal` };
+      return { cls: 'ok', text: '✓ อยู่ในเป้า' };
+    }
+    if (type === 'protein') {
+      if (todayLogs.length < 2) return { cls: '', text: 'ต้องบันทึกอย่างน้อย 2 มื้อ' };
+      const need = protT * 0.85;
+      if (todayTotals.protein_g < need) return { cls: 'bad', text: `❌ ขาด ${fmt(need - todayTotals.protein_g, 1)} ก.` };
+      return { cls: 'ok', text: '✓ ครบเป้าโปรตีน' };
+    }
+    return { cls: '', text: '' };
+  }
+
+  const breakNotice = (() => {
+    const cur = getStreakStatus(u, 'logging').current;
+    const best = getStreakStatus(u, 'logging').best;
+    if (cur > 0 || best < 5) return '';
+    return `<div class="callout info">💔 Streak reset — best ของคุณ <b>${best} วัน</b> ยังอยู่<br>วันนี้เริ่มใหม่ได้: log มื้อแรก = streak 1 วัน 🎯</div>`;
+  })();
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>🏆 Streaks</h1>
+      </div>
+      ${breakNotice}
+      ${types.map(t => {
+        const s = getStreakStatus(u, t);
+        const lbl = STREAK_LABELS[t];
+        const pct = s.best > 0 ? Math.min(100, (s.current / Math.max(s.best, 7)) * 100) : 0;
+        const stat = statusFor(t, s);
+        const barCls = t === 'logging' ? 'fire' : (stat.cls === 'ok' ? 'green' : '');
+        return `
+          <div class="streak-row">
+            <div class="head">
+              <div class="e">${lbl.emoji}</div>
+              <div class="n">${h(lbl.name)}</div>
+              <div class="num">${s.current}</div>
+              <div class="muted" style="font-size:13px">วัน</div>
+            </div>
+            <div class="desc">${h(lbl.desc)}</div>
+            <div class="bar"><i class="${barCls}" style="width:${pct.toFixed(1)}%"></i></div>
+            <div class="meta">
+              <span>ปัจจุบัน <b>${s.current}</b> วัน</span>
+              <span>Best: <b>${s.best}</b> วัน</span>
+            </div>
+            <div class="status ${stat.cls}">${stat.text}</div>
+          </div>
+        `;
+      }).join('')}
+
+      <div class="card">
+        <h3 style="margin-top:0">🛡️ Freeze Tokens</h3>
+        <div class="row between">
+          <div>
+            <div style="font-size:22px;font-weight:700;color:var(--primary-dark)">${ss.freezeTokens.available}/${ss.freezeTokens.max}</div>
+            <div class="muted" style="font-size:13px">พร้อมใช้</div>
+          </div>
+          <div style="font-size:13px;color:var(--muted);text-align:right">
+            ใช้อัตโนมัติเมื่อพลาด 1 วัน<br>
+            รีเซ็ตทุก<b>วันจันทร์</b>
+          </div>
+        </div>
+        ${ss.freezes.logging.length > 0 ? `<div class="hint mt">วันที่ freeze: ${ss.freezes.logging.slice(-5).join(', ')}</div>` : ''}
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">🔧 Repair (วันยุ่งจริงๆ)</h3>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">นับวันที่ผ่านเป็น "ทำได้" — ใช้ได้ ${ss.repairs.max} ครั้ง/เดือน</div>
+        <div class="row between">
+          <div style="font-weight:600">ใช้ไปแล้ว ${ss.repairs.used}/${ss.repairs.max}</div>
+          <button class="btn sm ${ss.repairs.used >= ss.repairs.max ? 'ghost' : 'secondary'}" ${ss.repairs.used >= ss.repairs.max ? 'disabled' : ''} data-act="streak-repair">
+            ${ss.repairs.used >= ss.repairs.max ? 'หมดเดือนนี้' : 'ซ่อม streak เมื่อวาน'}
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <button class="btn ghost block" data-act="streak-reset" style="color:var(--red);font-size:14px">⚠️ Reset all streaks</button>
+        <div class="hint center" style="font-size:12px;margin-top:6px">ทุก streak จะกลับเป็น 0 (best ก็ถูก reset)</div>
+      </div>
+
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
 function renderUserSwitcher() {
   return `
     <div class="screen">
@@ -2953,6 +3358,23 @@ function renderSettings() {
                 ${protOverride ? `<button class="btn secondary sm" data-act="reset-custom-protein">รีเซ็ต</button>` : ''}
               </div>
             </div>
+          </div>
+        `;
+      })()}
+
+      ${(() => {
+        ensureStreakState(u);
+        const ss = u.streakState;
+        const types = ['logging','weight','inTarget','protein'];
+        const stats = types.map(t => ({ t, s: getStreakStatus(u, t) }));
+        return `
+          <div class="card">
+            <h3 style="margin-top:0">🏆 Streaks</h3>
+            <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              ${stats.map(({t, s}) => `<div style="flex:1;min-width:60px;text-align:center;padding:6px;background:var(--bg-2);border-radius:8px"><div style="font-size:18px">${STREAK_LABELS[t].emoji}</div><div style="font-weight:700">${s.current}</div></div>`).join('')}
+            </div>
+            <div class="hint" style="font-size:13px;margin-bottom:8px">🛡️ Tokens ${ss.freezeTokens.available}/${ss.freezeTokens.max} · 🔧 Repairs ${ss.repairs.used}/${ss.repairs.max}</div>
+            <button class="btn secondary block" data-act="nav-streaks">📊 ดู Streak Dashboard</button>
           </div>
         `;
       })()}
@@ -3137,6 +3559,7 @@ function render() {
       case 'scan': html = renderScan(); break;
       case 'scan-not-found': html = renderScanNotFound(); break;
       case 'ocr': html = renderOcr(); break;
+      case 'streaks': html = renderStreaks(); break;
       case 'special-choose': html = renderSpecialChoose(); break;
       case 'special-quick': html = renderSpecialQuick(); break;
       case 'special-detail': html = renderSpecialDetail(); break;
@@ -3327,6 +3750,36 @@ const actions = {
   'nav-scan': () => go('scan', { error: '' }),
   'nav-ocr': () => go('ocr', {}),
   'nav-special': () => go('special-choose'),
+  'nav-streaks': () => go('streaks'),
+
+  'dismiss-milestone': () => {
+    document.getElementById('milestone-overlay')?.remove();
+  },
+
+  'streak-repair': () => {
+    const u = currentUser();
+    if (!u) return;
+    const ss = ensureStreakState(u);
+    if (ss.repairs.used >= ss.repairs.max) return toast('ใช้ครบโควต้าเดือนนี้แล้ว', true);
+    if (!confirm('ใช้ repair ซ่อม streak เมื่อวาน?\nนับวันที่ผ่านเป็น "ทำได้"')) return;
+    const yest = dateToKey(addDays(new Date(), -1));
+    ss.freezes.logging = ss.freezes.logging || [];
+    if (!ss.freezes.logging.includes(yest)) ss.freezes.logging.push(yest);
+    ss.repairs.used += 1;
+    persist();
+    toast('🔧 ซ่อม streak แล้ว');
+    render();
+  },
+
+  'streak-reset': () => {
+    const u = currentUser();
+    if (!u) return;
+    if (!confirm('Reset streaks ทั้งหมด? (ทุกอย่างกลับ 0)')) return;
+    u.streakState = defaultStreakState();
+    persist();
+    toast('Reset แล้ว');
+    render();
+  },
   'nav-special-quick': () => go('special-quick', { specialCat: null, specialSizeId: null, specialAddons: [] }),
   'nav-special-detail': () => go('special-detail', { specialDetail: { customName: '', category: 'thai_multi_dish', items: [] } }),
 
@@ -4163,6 +4616,8 @@ function migrateData() {
     if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
     if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
     if (u.onboardingComplete === undefined) { u.onboardingComplete = true; changed = true; }
+    if (!u.streakState) { u.streakState = defaultStreakState(); changed = true; }
+    else { ensureStreakState(u); replenishTokensIfNeeded(u); }
   });
   for (const userId in state.logs) {
     for (const date in state.logs[userId]) {
