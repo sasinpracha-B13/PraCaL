@@ -663,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.2';
+const VERSION = 'v1.8.3';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2021,23 +2021,38 @@ function renderOnbActivity() {
         <div class="muted" style="font-size:14px;margin-bottom:8px">วันปกติของคุณใช้พลังงาน:</div>
         ${Object.entries(ACTIVITY_LABELS).map(([id, info]) => {
           const on = id === activity;
+          const incExe = info.includesExercise;
+          const tdeeOpt = Math.round(bmr * info.multiplier);
           return `
             <button type="button" class="activity-opt ${on ? 'on' : ''}" data-act="onb-set-activity" data-v="${id}">
               <div class="radio">${on ? '●' : '○'}</div>
               <div class="body">
-                <div class="n">${h(info.name)} ${info.bonus ? `<span class="badge">+${info.bonus} kcal</span>` : `<span class="badge" style="background:var(--bg-2);color:var(--muted)">บวกเอง</span>`}</div>
+                <div class="n">${h(info.name)} <span class="badge">×${info.multiplier}</span>${incExe ? ` <span class="badge" style="background:#fef3c7;color:#92400e">⚠️ รวมออกกำลัง</span>` : ''}</div>
                 <div class="d">${h(info.desc)}</div>
+                <div class="d" style="margin-top:3px;font-size:12px;color:var(--ink-2)">📊 BMR ${fmt(bmr)} × ${info.multiplier} = <b>${fmt(tdeeOpt)}</b> kcal</div>
+                <div class="d" style="color:${incExe ? 'var(--red)' : 'var(--green)'};margin-top:2px;font-size:12px">
+                  ${incExe ? '✗ ห้าม log ออกกำลังเพิ่ม (จะนับซ้ำ)' : '👍 + log ออกกำลังแยกได้'}
+                </div>
               </div>
             </button>
           `;
         }).join('')}
+        <div class="callout info" style="margin-top:10px;font-size:12px;line-height:1.7">
+          <b>📚 ตัวเลข × มาจากไหน:</b><br>
+          Harris-Benedict / WHO physical activity factors — มาตรฐานวิทยาศาสตร์โภชนาการ<br>
+          แทน "ทั้งวัน" ของกิจกรรมต่าง ๆ (เดิน ทำงาน นอน ย่อย ออกกำลัง) <b>ไม่ใช่แค่ตอนออกกำลัง</b><br>
+          <br>
+          <b>💡 เลือกยังไงให้แม่น:</b><br>
+          • ออกกำลังสม่ำเสมอ + ขี้เกียจ log → ≥ ปานกลาง (สะดวก)<br>
+          • ออกกำลังไม่แน่นอน หรืออยาก track แม่น → ≤ เบา + log แต่ละวันเอง
+        </div>
       </div>
 
       <div class="card" style="background:var(--bg-2)">
         <h3 style="margin-top:0;font-size:15px">📊 เป้าหมายของคุณ</h3>
         <div style="font-size:30px;font-weight:700;color:var(--primary-dark);text-align:center;padding:8px 0">${fmt(total)} kcal/วัน</div>
-        <div class="hint center" style="font-size:13px;line-height:1.6">
-          BMR (${fmt(bmr)}) + กิจกรรม (+${act}) ${goalAdj !== 0 ? `+ เป้าหมาย (${goalAdj > 0 ? '+' : ''}${goalAdj})` : ''}
+        <div class="hint center" style="font-size:13px;line-height:1.7">
+          <b>BMR ${fmt(bmr)}</b> × <b>${activityMultiplier(pseudoUser)}</b> = <b>TDEE ${fmt(bmr + act)}</b>${goalAdj !== 0 ? ` ${goalAdj > 0 ? '+' : ''}${goalAdj} (เป้าหมาย)` : ''}
         </div>
       </div>
       <div class="hint center" style="font-size:13px;margin-top:6px">💡 เปลี่ยนได้ทีหลังใน Settings</div>
@@ -2297,18 +2312,21 @@ function goalSliderHtml(currentAdjust, actName, profile) {
   `;
 }
 
-function activitySelectorHtml(currentValue, actName) {
+function activitySelectorHtml(currentValue, actName, profile) {
   const cur = normalizeActivityLevel(currentValue);
+  const bmr = profile ? Math.round(calcBMR(profile)) : 0;
   return `
     <div class="activity-list">
       ${Object.entries(ACTIVITY_LABELS).map(([id, info]) => {
         const on = id === cur;
+        const tdeeOpt = bmr ? Math.round(bmr * info.multiplier) : 0;
         return `
           <button type="button" class="activity-opt ${on ? 'on' : ''}" data-act="${actName}" data-v="${id}">
             <div class="radio">${on ? '●' : '○'}</div>
             <div class="body">
               <div class="n">${h(info.name)} <span class="badge">×${info.multiplier}</span>${info.includesExercise ? ` <span class="badge" style="background:#fef3c7;color:#92400e">⚠️ รวมออกกำลัง</span>` : ''}</div>
               <div class="d">${h(info.desc)}</div>
+              ${bmr ? `<div class="d" style="margin-top:3px;font-size:12px;color:var(--ink-2)">📊 BMR ${fmt(bmr)} × ${info.multiplier} = <b>${fmt(tdeeOpt)}</b> kcal</div>` : ''}
               <div class="d" style="color:${info.includesExercise ? 'var(--red)' : 'var(--green)'};margin-top:2px;font-size:12px">
                 ${info.includesExercise ? '✗ ห้าม log ออกกำลังเพิ่ม (จะนับซ้ำ)' : '👍 + log ออกกำลังแยกได้'}
               </div>
@@ -2317,10 +2335,14 @@ function activitySelectorHtml(currentValue, actName) {
         `;
       }).join('')}
     </div>
-    <div class="callout info" style="margin-top:8px;font-size:13px;line-height:1.7">
-      <b>💡 แนะนำ:</b><br>
-      • ออกกำลังสม่ำเสมอ + ขี้เกียจ log → เลือก ≥ ปานกลาง<br>
-      • ออกกำลังไม่แน่นอน หรืออยาก track แม่น → เลือก ≤ เบา + log แต่ละวัน
+    <div class="callout info" style="margin-top:8px;font-size:12px;line-height:1.7">
+      <b>📚 ตัวเลข × มาจากไหน:</b><br>
+      Harris-Benedict / WHO physical activity factors — มาตรฐานวิทยาศาสตร์โภชนาการ<br>
+      แทน "ทั้งวัน" ของกิจกรรม (เดิน ทำงาน นอน ย่อย ออกกำลัง) <b>ไม่ใช่แค่ตอนออกกำลัง</b><br>
+      <br>
+      <b>💡 เลือกยังไงให้แม่น:</b><br>
+      • ออกกำลังสม่ำเสมอ + ขี้เกียจ log → ≥ ปานกลาง<br>
+      • ออกกำลังไม่แน่นอน หรืออยาก track แม่น → ≤ เบา + log แต่ละวัน
     </div>
   `;
 }
@@ -4278,9 +4300,18 @@ function renderProfileEdit() {
 
           ${(state.tmp.activityMode ?? u.activityMode ?? 'multiplier') === 'multiplier' ? `
             <div class="field">
-              <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
-              <div class="hint" style="margin-bottom:8px">ระบบจะบวกให้อัตโนมัติ ไม่ต้องกดทุกวัน</div>
-              ${activitySelectorHtml(state.tmp.defaultActivity ?? u.defaultActivity ?? 'none', 'edit-activity')}
+              <label>กิจกรรมประจำวัน</label>
+              <div class="hint" style="margin-bottom:8px">ระบบจะคูณ BMR ตามระดับ ไม่ต้องกดทุกวัน</div>
+              ${activitySelectorHtml(
+                state.tmp.defaultActivity ?? u.defaultActivity ?? 'sedentary',
+                'edit-activity',
+                {
+                  gender: state.tmp.gender ?? u.gender,
+                  age: Number(state.tmp.age ?? u.age),
+                  height: Number(state.tmp.height ?? u.height),
+                  weight: Number(state.tmp.weight ?? u.weight)
+                }
+              )}
             </div>
           ` : `
             <div class="callout info">
