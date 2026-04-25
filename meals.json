@@ -206,7 +206,7 @@
     { "id": "m11", "name": "ไข่ดาว (1 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 130, "baseWeight_g": 55, "protein_g": 8, "carbs_g": 1, "fat_g": 11, "sugar_g": 0, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -50, "fatChange": -6 }
     ] },
-    { "id": "m12", "name": "ไข่เจียว", "emoji": "🍳", "category": "mains", "baseCalories": 230, "baseWeight_g": 100, "protein_g": 16, "carbs_g": 3, "fat_g": 17, "sugar_g": 1, "customizations": [
+    { "id": "m12", "name": "ไข่เจียว (ร้านข้าว)", "emoji": "🍳", "category": "mains", "baseCalories": 420, "baseWeight_g": 130, "protein_g": 18, "carbs_g": 3, "fat_g": 36, "sugar_g": 1, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -50, "fatChange": -6 },
       { "id": "with_pork", "label": "ใส่หมูสับ", "calChange": 60, "proteinChange": 8 },
       { "id": "with_veg", "label": "ใส่ผัก", "calChange": 20, "carbChange": 3 }
