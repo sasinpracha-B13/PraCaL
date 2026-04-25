@@ -334,6 +334,39 @@
   .kv-row input:focus { outline: none; border-color: var(--primary); }
   .kv-row input.w-full { width: 100%; text-align: left; }
 
+  /* Onboarding favorites picker */
+  .fav-pick {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: 12px; background: #fff;
+    margin-bottom: 8px; border: 1.5px solid var(--line);
+    cursor: pointer; min-height: 56px;
+  }
+  .fav-pick.on { border-color: var(--primary); background: var(--primary-soft); }
+  .fav-pick .chk {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    border: 2px solid var(--line); background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 700;
+  }
+  .fav-pick.on .chk { background: var(--primary); border-color: var(--primary); }
+  .fav-pick .emo { font-size: 22px; width: 28px; text-align: center; flex-shrink: 0; }
+  .fav-pick .body { flex: 1; min-width: 0; }
+  .fav-pick .name { font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fav-pick .cal { color: var(--primary-dark); font-weight: 600; font-size: 14px; white-space: nowrap; }
+
+  .onb-progress {
+    display: flex; gap: 6px; justify-content: center;
+    padding: 4px 0 16px; align-items: center;
+  }
+  .onb-progress .dot {
+    width: 8px; height: 8px; border-radius: 4px; background: var(--line);
+    transition: all 200ms ease;
+  }
+  .onb-progress .dot.done { background: var(--primary-soft); }
+  .onb-progress .dot.active { background: var(--primary); width: 24px; }
+
+  .onb-section { margin-top: 14px; margin-bottom: 6px; font-weight: 600; color: var(--ink-2); font-size: 14px; }
+
   /* Update banner (created dynamically only when needed) */
   #update-banner {
     position: fixed; left: 12px; right: 12px;
@@ -481,7 +514,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.5.0';
+const VERSION = 'v1.6.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -565,6 +598,16 @@ const SPECIAL_MEAL_PRESETS = {
     { id: 'big',    label: 'เยอะ (~1400)', cal: 1400, protein_g: 60, carbs_g: 140, fat_g: 60, sugar_g: 22 }
   ]}
 };
+
+const ONBOARDING_FAVORITES = [
+  { section: '🌅 มื้อเช้า', ids: ['r17', 'r24', 'k11', 'm12', 'm11', 'm21'] },
+  { section: '☀️ มื้อกลางวัน / เย็น', ids: ['r01', 'r02', 'r04', 'r08', 'r07', 'n01', 'n02', 'n11', 'n06', 'n15', 'n08'] },
+  { section: '🥗 อาหารจาน / กับข้าว', ids: ['s01', 's04', 'm16', 'm08', 'm09'] },
+  { section: '🥤 เครื่องดื่ม', ids: ['d11', 'd03', 'd17', 'd21', 'd08'] },
+  { section: '🍎 ผลไม้ / ของว่าง', ids: ['f01', 'f02', 'f03', 'k09', 'k06'] }
+];
+const ONBOARDING_DEFAULT_FAVS = ['r01', 'n01', 'd03', 'f01'];
+const ONBOARDING_MAX_FAVS = 15;
 
 const SPECIAL_MEAL_ADDONS = [
   { id: 'soda',       name: 'น้ำอัดลม / ชานม',     emoji: '🥤', cal: 150, protein_g: 0, carbs_g: 38, fat_g: 0, sugar_g: 35 },
@@ -1183,48 +1226,92 @@ function goHome() {
 }
 
 /* ========== VIEWS ========== */
-function renderOnboarding() {
-  const t = state.tmp;
-  const step = t.step || 1;
-  if (step === 1) {
-    return `
-      <div class="screen">
-        <div style="padding-top:40px"></div>
-        <div class="center" style="margin-bottom:20px">
-          <div style="font-size:72px">🍚</div>
-          <h1 style="font-size:28px;margin:8px 0 4px">PraCaL</h1>
-          <div class="muted">นับแคลอรี่อาหาร ง่าย ๆ</div>
-        </div>
-        <div class="card">
-          <h3 style="margin-top:0">ยินดีต้อนรับ</h3>
-          <p class="muted" style="margin:6px 0 0;font-size:15px">
-            แอปนี้ช่วยให้คุณและคนในครอบครัวติดตามแคลอรี่ที่กินในแต่ละวัน
-            มีเมนูไทยให้เลือก 85+ เมนู ค้นหา AI ได้ และเก็บข้อมูลไว้ในเครื่อง
-          </p>
-        </div>
-        <button class="btn block lg mt" data-act="onb-next">เริ่มใช้งาน →</button>
-        <div class="center mt muted" style="font-size:13px">เวอร์ชัน ${VERSION}</div>
+function onbProgress(step) {
+  return `<div class="onb-progress">${
+    Array.from({length: 6}, (_, i) => {
+      const n = i + 1;
+      const cls = n === step ? 'active' : n < step ? 'done' : '';
+      return `<span class="dot ${cls}"></span>`;
+    }).join('')
+  }<span style="font-size:12px;color:var(--muted);margin-left:8px">${step}/6</span></div>`;
+}
+
+function renderOnbWelcome() {
+  return `
+    <div class="screen">
+      <div style="padding-top:40px"></div>
+      ${onbProgress(1)}
+      <div class="center" style="padding:30px 16px">
+        <div style="font-size:80px;line-height:1">🍚</div>
+        <h1 style="font-size:30px;margin:14px 0 4px">PraCaL</h1>
+        <div class="muted" style="font-size:16px">นับแคลอรี่อาหาร ง่าย ๆ</div>
       </div>
-    `;
-  }
-  // step 2: create profile
+      <div class="card">
+        <h3 style="margin-top:0">ยินดีต้อนรับ 👋</h3>
+        <p style="margin:6px 0 0;font-size:15px;line-height:1.7;color:var(--ink-2)">
+          แอปติดตามแคลอรี่แบบไทย ที่ออกแบบให้ใช้ง่าย<br>
+          แม้กับพ่อแม่และครอบครัว
+        </p>
+      </div>
+      <button class="btn block lg mt2" data-act="onb-next">เริ่มกัน →</button>
+      <div class="center mt muted" style="font-size:12px">เวอร์ชัน ${VERSION}</div>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderOnbConcept() {
+  return `
+    <div class="screen">
+      ${onbProgress(2)}
+      <div class="header">
+        <button class="icon-btn" data-act="onb-back">←</button>
+        <h1 style="flex:1">💡 หลักการของ PraCaL</h1>
+      </div>
+      <div class="card">
+        <div style="font-size:15px;line-height:1.8">
+          คนเรากินเมนูซ้ำ ๆ <b>~80% ของเวลา</b><br>
+          เพราะงั้นเราเลย:
+        </div>
+        <div style="margin-top:14px;font-size:15px;line-height:1.9">
+          <div>✓ เลือก <b>"เมนูประจำ"</b> ไว้ก่อน</div>
+          <div>✓ กดเมนูที่อยากกิน</div>
+          <div>✓ บันทึกใน <b>5 วินาที</b></div>
+        </div>
+        <div class="callout info mt">
+          ไม่ต้องค้นหาทุกครั้ง<br>
+          ไม่ต้องกรอกค่าซ้ำ ๆ
+        </div>
+      </div>
+      <div class="btn-row mt2">
+        <button class="btn secondary" data-act="onb-back">← ย้อนกลับ</button>
+        <button class="btn" data-act="onb-next">ต่อไป →</button>
+      </div>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderOnbProfile() {
+  const t = state.tmp;
   const name = t.name || '';
   const gender = t.gender || '';
   const age = t.age || '';
   const height = t.height || '';
   const weight = t.weight || '';
-  const goal = t.goal || '';
+  const goal = t.goal || 'maintain';
   const avatar = t.avatar || '🧑';
   return `
     <div class="screen">
+      ${onbProgress(3)}
       <div class="header">
-        <button class="icon-btn" data-act="onb-back" aria-label="ย้อน">←</button>
-        <h1>สร้างโปรไฟล์</h1>
+        <button class="icon-btn" data-act="onb-back">←</button>
+        <h1 style="flex:1">👤 ข้อมูลของคุณ</h1>
       </div>
       <form id="profile-form" autocomplete="off">
         <div class="card">
           <label>รูปโปรไฟล์</label>
-          <div class="seg" style="margin-bottom:4px">
+          <div class="seg" style="margin-bottom:4px;flex-wrap:wrap">
             ${AVATARS.map(a => `<button type="button" class="${a === avatar ? 'on' : ''}" data-act="pick-avatar" data-v="${a}" style="font-size:24px">${a}</button>`).join('')}
           </div>
 
@@ -1265,18 +1352,158 @@ function renderOnboarding() {
               <button type="button" class="${goal === 'gain' ? 'on' : ''}" data-act="set-goal" data-v="gain">📈 เพิ่ม</button>
             </div>
           </div>
-
-          <div class="field">
-            <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
-            <div class="hint" style="margin-bottom:8px">ถ้ากิจวัตรเหมือนกันทุกวัน ตั้งไว้ระบบจะบวกให้อัตโนมัติ</div>
-            ${activitySelectorHtml(t.defaultActivity || 'none', 'set-activity')}
-          </div>
         </div>
-        <button type="button" class="btn block lg" data-act="onb-save">บันทึก</button>
+        <div class="btn-row">
+          <button type="button" class="btn secondary" data-act="onb-back">← ย้อนกลับ</button>
+          <button type="button" class="btn" data-act="onb-next-profile">ต่อไป →</button>
+        </div>
       </form>
-      <div style="height:20px"></div>
+      <div style="height:30px"></div>
     </div>
   `;
+}
+
+function renderOnbActivity() {
+  const t = state.tmp;
+  const activity = t.defaultActivity || 'moderate';
+  // Compute live preview
+  const pseudoUser = {
+    gender: t.gender, age: Number(t.age) || 30,
+    height: Number(t.height) || 165, weight: Number(t.weight) || 60,
+    goal: t.goal || 'maintain', defaultActivity: activity
+  };
+  const bmr = Math.round(calcBMR(pseudoUser));
+  const act = activityBonus(pseudoUser);
+  const goalAdj = goalAdjust(pseudoUser);
+  const total = bmr + act + goalAdj;
+  return `
+    <div class="screen">
+      ${onbProgress(4)}
+      <div class="header">
+        <button class="icon-btn" data-act="onb-back">←</button>
+        <h1 style="flex:1">🏃 กิจกรรมประจำวัน</h1>
+      </div>
+      <div class="card">
+        <div class="muted" style="font-size:14px;margin-bottom:8px">วันปกติของคุณใช้พลังงาน:</div>
+        ${Object.entries(ACTIVITY_LABELS).filter(([id]) => id !== 'none').map(([id, info]) => {
+          const on = id === activity;
+          return `
+            <button type="button" class="activity-opt ${on ? 'on' : ''}" data-act="onb-set-activity" data-v="${id}">
+              <div class="radio">${on ? '●' : '○'}</div>
+              <div class="body">
+                <div class="n">${h(info.name)} <span class="badge">+${info.bonus} kcal</span></div>
+                <div class="d">${h(info.desc)}</div>
+              </div>
+            </button>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="card" style="background:var(--bg-2)">
+        <h3 style="margin-top:0;font-size:15px">📊 เป้าหมายของคุณ</h3>
+        <div style="font-size:30px;font-weight:700;color:var(--primary-dark);text-align:center;padding:8px 0">${fmt(total)} kcal/วัน</div>
+        <div class="hint center" style="font-size:13px;line-height:1.6">
+          BMR (${fmt(bmr)}) + กิจกรรม (+${act}) ${goalAdj !== 0 ? `+ เป้าหมาย (${goalAdj > 0 ? '+' : ''}${goalAdj})` : ''}
+        </div>
+      </div>
+      <div class="hint center" style="font-size:13px;margin-top:6px">💡 เปลี่ยนได้ทีหลังใน Settings</div>
+
+      <div class="btn-row mt2">
+        <button class="btn secondary" data-act="onb-back">← ย้อนกลับ</button>
+        <button class="btn" data-act="onb-next">ต่อไป →</button>
+      </div>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderOnbFavorites() {
+  const t = state.tmp;
+  const selected = t.selectedMealIds || [];
+  const count = selected.length;
+  const max = ONBOARDING_MAX_FAVS;
+  return `
+    <div class="screen">
+      ${onbProgress(5)}
+      <div class="header">
+        <button class="icon-btn" data-act="onb-back">←</button>
+        <h1 style="flex:1">⚡ เลือกเมนูประจำ</h1>
+      </div>
+      <div class="callout info">
+        <b>เลือกเมนูที่คุณกินบ่อย</b><br>
+        จะปรากฏใน Home ทันที — บันทึกได้ใน 5 วินาที
+      </div>
+      <div class="row between" style="padding:6px 4px;font-size:14px">
+        <span class="muted">เลือกแล้ว</span>
+        <span style="font-weight:700;color:${count >= max ? 'var(--red)' : 'var(--primary-dark)'}">${count}/${max}</span>
+      </div>
+
+      ${ONBOARDING_FAVORITES.map(sec => `
+        <div class="onb-section">${sec.section}</div>
+        ${sec.ids.map(id => {
+          const m = findMeal(id);
+          if (!m) return '';
+          const on = selected.includes(id);
+          const disabled = !on && count >= max;
+          return `
+            <div class="fav-pick ${on ? 'on' : ''}" data-act="${disabled ? '' : 'toggle-onb-fav'}" data-v="${id}" style="${disabled ? 'opacity:0.4;pointer-events:none' : ''}">
+              <div class="chk">${on ? '✓' : ''}</div>
+              <div class="emo">${m.emoji || '🍽️'}</div>
+              <div class="body">
+                <div class="name">${h(m.name)}</div>
+              </div>
+              <div class="cal">${fmt(m.baseCalories)} kcal</div>
+            </div>
+          `;
+        }).join('')}
+      `).join('')}
+
+      <div style="height:10px"></div>
+      <div class="btn-row">
+        <button class="btn secondary" data-act="onb-back">← ย้อนกลับ</button>
+        <button class="btn" data-act="onb-next">เสร็จ ✓</button>
+      </div>
+      <button class="btn ghost block sm mt" data-act="onb-skip-favs">ข้ามขั้นตอนนี้</button>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderOnbTips() {
+  return `
+    <div class="screen">
+      ${onbProgress(6)}
+      <div style="padding-top:30px"></div>
+      <div class="center">
+        <div style="font-size:72px">🎉</div>
+        <h1 style="font-size:24px;margin:8px 0">พร้อมใช้งานแล้ว!</h1>
+        <div class="muted">Tips สั้น ๆ ก่อนเริ่ม</div>
+      </div>
+
+      <div class="card mt2" style="line-height:1.8">
+        <div style="font-size:15px;margin-bottom:10px"><b>1️⃣ กดเมนูใน "เมนูแนะนำ"</b><br><span class="muted" style="font-size:14px">บันทึกใน 5 วินาที</span></div>
+        <div style="font-size:15px;margin-bottom:10px"><b>2️⃣ กด 🎉 มื้อพิเศษ</b><br><span class="muted" style="font-size:14px">เมื่อกินบุฟเฟ่ / ร้านอาหาร</span></div>
+        <div style="font-size:15px;margin-bottom:10px"><b>3️⃣ ชั่งน้ำหนักทุกเช้า</b><br><span class="muted" style="font-size:14px">ดู trend ที่ Reports → ⚖️</span></div>
+        <div style="font-size:15px"><b>4️⃣ ดูสรุปสัปดาห์</b><br><span class="muted" style="font-size:14px">แถบ 7 วันใน Dashboard</span></div>
+      </div>
+
+      <button class="btn block lg mt2" data-act="onb-finish">เริ่มใช้งาน 🚀</button>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
+function renderOnboarding() {
+  const step = state.tmp.step || 1;
+  switch (step) {
+    case 1: return renderOnbWelcome();
+    case 2: return renderOnbConcept();
+    case 3: return renderOnbProfile();
+    case 4: return renderOnbActivity();
+    case 5: return renderOnbFavorites();
+    case 6: return renderOnbTips();
+    default: return renderOnbWelcome();
+  }
 }
 
 function helpHtml(key) {
@@ -2680,6 +2907,7 @@ function renderSettings() {
           <div><div class="v">${fmt(effectiveProteinTarget(u.id))}</div><div class="l">โปรตีน/วัน</div></div>
         </div>
         <button class="btn secondary block mt" data-act="edit-profile">✏️ แก้ไขโปรไฟล์</button>
+        <button class="btn ghost block mt" data-act="onb-redo" style="font-size:14px">🔄 ทำ Onboarding ใหม่</button>
       </div>
 
       <div class="card">
@@ -3616,16 +3844,16 @@ const actions = {
   },
 
   // onboarding
-  'onb-next': () => { state.tmp.step = 2; render(); },
-  'onb-back': () => {
-    if (state.tmp.step === 2 && state.users.length === 0) { state.tmp.step = 1; render(); }
-    else back();
+  'onb-next': () => {
+    const cur = state.tmp.step || 1;
+    if (cur < 6) { state.tmp.step = cur + 1; render(); }
   },
-  'set-gender': (e, btn) => { state.tmp.gender = btn.dataset.v; render(); },
-  'set-goal': (e, btn) => { state.tmp.goal = btn.dataset.v; render(); },
-  'set-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
-  'pick-avatar': (e, btn) => { state.tmp.avatar = btn.dataset.v; render(); },
-  'onb-save': () => {
+  'onb-back': () => {
+    const cur = state.tmp.step || 1;
+    if (cur > 1) { state.tmp.step = cur - 1; render(); }
+    else if (state.users.length > 0) { back(); }
+  },
+  'onb-next-profile': () => {
     const name = document.getElementById('pf-name')?.value.trim();
     const age = Number(document.getElementById('pf-age')?.value);
     const height = Number(document.getElementById('pf-height')?.value);
@@ -3636,19 +3864,88 @@ const actions = {
     if (!age || age < 5 || age > 120) return toast('อายุไม่ถูกต้อง', true);
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
-
+    state.tmp.name = name;
+    state.tmp.age = age;
+    state.tmp.height = height;
+    state.tmp.weight = weight;
+    if (!state.tmp.defaultActivity || state.tmp.defaultActivity === 'none') state.tmp.defaultActivity = 'moderate';
+    state.tmp.step = 4;
+    render();
+  },
+  'onb-set-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
+  'toggle-onb-fav': (e, el) => {
+    const id = el.dataset.v;
+    state.tmp.selectedMealIds = state.tmp.selectedMealIds || [];
+    const i = state.tmp.selectedMealIds.indexOf(id);
+    if (i >= 0) state.tmp.selectedMealIds.splice(i, 1);
+    else if (state.tmp.selectedMealIds.length < ONBOARDING_MAX_FAVS) state.tmp.selectedMealIds.push(id);
+    render();
+  },
+  'onb-skip-favs': () => {
+    state.tmp.selectedMealIds = [];
+    state.tmp.step = 6;
+    render();
+  },
+  'onb-finish': () => {
+    const t = state.tmp;
+    const fav = (t.selectedMealIds && t.selectedMealIds.length) ? t.selectedMealIds.slice() : ONBOARDING_DEFAULT_FAVS.slice();
+    if (t.redoMode) {
+      const u = currentUser();
+      if (!u) return toast('ไม่พบผู้ใช้', true);
+      Object.assign(u, {
+        name: t.name, gender: t.gender, goal: t.goal,
+        age: t.age, height: t.height, weight: t.weight,
+        avatar: t.avatar || u.avatar || '🧑',
+        defaultActivity: t.defaultActivity || 'moderate',
+        onboardingComplete: true
+      });
+      state.favorites = fav;
+      const today = todayKey();
+      const hasToday = (u.weights || []).some(w => w.date === today);
+      if (!hasToday) setWeight(u, today, t.weight);
+      persist();
+      toast('อัปเดตข้อมูลแล้ว ✅');
+      goHome();
+      return;
+    }
     const u = {
       id: uid('u'),
-      name, gender: state.tmp.gender, goal: state.tmp.goal,
-      age, height, weight, avatar: state.tmp.avatar || '🧑',
-      defaultActivity: state.tmp.defaultActivity || 'none',
+      name: t.name, gender: t.gender, goal: t.goal,
+      age: t.age, height: t.height, weight: t.weight,
+      avatar: t.avatar || '🧑',
+      defaultActivity: t.defaultActivity || 'moderate',
+      onboardingComplete: true,
+      weights: [{ date: todayKey(), weight_kg: Number(t.weight) }],
+      scannedProducts: [],
       createdAt: Date.now()
     };
     state.users.push(u);
     state.currentUserId = u.id;
+    state.favorites = fav;
     persist();
-    toast('ยินดีต้อนรับ! ' + u.name);
+    toast('ยินดีต้อนรับ ' + u.name + ' 🎉');
     goHome();
+  },
+  'set-gender': (e, btn) => { state.tmp.gender = btn.dataset.v; render(); },
+  'set-goal': (e, btn) => { state.tmp.goal = btn.dataset.v; render(); },
+  'set-activity': (e, btn) => { state.tmp.defaultActivity = btn.dataset.v; render(); },
+  'pick-avatar': (e, btn) => { state.tmp.avatar = btn.dataset.v; render(); },
+  'onb-redo': () => {
+    const u = currentUser();
+    if (!u) return;
+    if (!confirm('ทำ Onboarding ใหม่? favorites ปัจจุบันจะถูกแทน')) return;
+    state.stack = [];
+    state.view = 'onboarding';
+    state.tmp = {
+      step: 1,
+      redoMode: true,
+      name: u.name, gender: u.gender, age: u.age,
+      height: u.height, weight: u.weight, goal: u.goal,
+      avatar: u.avatar || '🧑',
+      defaultActivity: u.defaultActivity || 'moderate',
+      selectedMealIds: (state.favorites || []).slice(0, ONBOARDING_MAX_FAVS)
+    };
+    render();
   },
 
   // user mgmt
@@ -3865,6 +4162,7 @@ function migrateData() {
     if (!u.displayMode) { u.displayMode = 'normal'; changed = true; }
     if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
     if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
+    if (u.onboardingComplete === undefined) { u.onboardingComplete = true; changed = true; }
   });
   for (const userId in state.logs) {
     for (const date in state.logs[userId]) {
