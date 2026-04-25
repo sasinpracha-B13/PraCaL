@@ -392,6 +392,63 @@
     100% { transform: scale(1); opacity: 1; }
   }
 
+  /* Goal slider */
+  .goal-slider-wrap {
+    background: var(--bg-2); border-radius: 12px; padding: 14px;
+  }
+  .goal-slider-wrap input[type=range] {
+    width: 100%; -webkit-appearance: none; background: transparent; padding: 8px 0;
+  }
+  .goal-slider-wrap input[type=range]::-webkit-slider-runnable-track {
+    height: 8px; background: linear-gradient(90deg, #fca5a5 0%, #fef3c7 25%, #bbf7d0 40%, #bbf7d0 65%, #fef3c7 80%, #fca5a5 100%);
+    border-radius: 999px;
+  }
+  .goal-slider-wrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--primary); margin-top: -10px; box-shadow: var(--shadow-lg);
+    border: 3px solid #fff;
+  }
+  .goal-slider-wrap input[type=range]::-moz-range-track {
+    height: 8px; background: linear-gradient(90deg, #fca5a5, #fef3c7, #bbf7d0, #bbf7d0, #fef3c7, #fca5a5);
+    border-radius: 999px;
+  }
+  .goal-slider-wrap input[type=range]::-moz-range-thumb {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--primary);
+    border: 3px solid #fff;
+  }
+  .goal-slider-wrap .ticks {
+    display: flex; justify-content: space-between; padding: 0 8px;
+    font-size: 11px; color: var(--muted); margin-top: 4px;
+  }
+  .goal-slider-wrap .label {
+    text-align: center; padding: 8px 0 4px;
+    font-weight: 600; font-size: 17px;
+  }
+  .goal-slider-wrap .label .num {
+    color: var(--primary-dark); font-weight: 700; font-size: 18px;
+  }
+  .goal-slider-wrap .hint-line {
+    text-align: center; font-size: 13px; padding: 4px 0;
+  }
+  .goal-slider-wrap .hint-line.safe { color: var(--green); }
+  .goal-slider-wrap .hint-line.warn { color: #92400e; }
+  .goal-slider-wrap .hint-line.danger { color: var(--red); }
+  .goal-slider-wrap .hint-line.neutral { color: var(--muted); }
+
+  /* Activity card */
+  .activity-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: #fff; border-radius: 10px;
+    margin-bottom: 6px;
+  }
+  .activity-item .emo { font-size: 22px; width: 30px; text-align: center; }
+  .activity-item .body { flex: 1; min-width: 0; }
+  .activity-item .name { font-weight: 500; font-size: 14px; }
+  .activity-item .sub { color: var(--muted); font-size: 12px; }
+  .activity-item .burn { color: var(--green); font-weight: 600; font-size: 14px; }
+  .activity-item .del { font-size: 16px; color: var(--muted); background: transparent; min-width: 30px; min-height: 30px; border-radius: 8px; }
+  .activity-item .del:active { background: var(--red-soft); color: var(--red); }
+
   /* Onboarding favorites picker */
   .fav-pick {
     display: flex; align-items: center; gap: 12px;
@@ -606,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.7.7';
+const VERSION = 'v1.8.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -692,6 +749,43 @@ const SPECIAL_MEAL_PRESETS = {
   ]}
 };
 
+const ACTIVITY_TYPES = [
+  { id: 'running',  emoji: '🏃', name: 'วิ่ง' },
+  { id: 'cycling',  emoji: '🚴', name: 'ปั่นจักรยาน' },
+  { id: 'weights',  emoji: '💪', name: 'เวทเทรนนิ่ง' },
+  { id: 'swimming', emoji: '🏊', name: 'ว่ายน้ำ' },
+  { id: 'walking',  emoji: '🚶', name: 'เดิน' },
+  { id: 'yoga',     emoji: '🧘', name: 'โยคะ' },
+  { id: 'sports',   emoji: '⚽', name: 'กีฬา' },
+  { id: 'fitness',  emoji: '🏋️', name: 'ฟิตเนส' },
+  { id: 'other',    emoji: '✨', name: 'อื่น ๆ' }
+];
+
+const MET_VALUES = {
+  running:  { light: 6.0, moderate: 8.3, heavy: 11.0 },
+  cycling:  { light: 4.0, moderate: 7.5, heavy: 10.0 },
+  weights:  { light: 3.5, moderate: 5.0, heavy: 6.0 },
+  swimming: { light: 5.8, moderate: 8.3, heavy: 10.0 },
+  walking:  { light: 3.0, moderate: 4.3, heavy: 6.0 },
+  yoga:     { light: 2.5, moderate: 4.0, heavy: 5.5 },
+  sports:   { light: 5.0, moderate: 7.0, heavy: 9.0 },
+  fitness:  { light: 4.0, moderate: 5.5, heavy: 7.5 },
+  other:    { light: 3.5, moderate: 5.0, heavy: 7.0 }
+};
+
+const ACTIVITY_INTENSITY_LABELS = {
+  light:    { name: 'เบา',     desc: 'พูดได้สบาย' },
+  moderate: { name: 'ปานกลาง', desc: 'หายใจเร็วขึ้น' },
+  heavy:    { name: 'หนัก',    desc: 'พูดยาก เหนื่อย' }
+};
+
+function calculateBurn(type, intensity, durationMin, weightKg) {
+  const met = MET_VALUES[type]?.[intensity];
+  if (!met || !durationMin || !weightKg) return 0;
+  const calPerMin = (met * 3.5 * weightKg) / 200;
+  return Math.round(calPerMin * durationMin * 0.85);
+}
+
 const STREAK_LABELS = {
   logging:  { name: 'Logging',     emoji: '🔥', desc: 'บันทึก 1+ มื้อ/วัน' },
   weight:   { name: 'Weight',      emoji: '⚖️', desc: 'ชั่งน้ำหนัก 1 ครั้ง/วัน' },
@@ -726,7 +820,9 @@ const ONB_CONVENIENCE_IDS = [
   'bp_lays_original', 'bp_pretz_stick'
 ];
 const ONBOARDING_DEFAULT_FAVS = ['r01', 'n01', 'd03', 'f01'];
-const ONBOARDING_MAX_FAVS = 15;
+const ONBOARDING_MIN_FAVS = 3;
+const ONBOARDING_MAX_FAVS = 999;
+const ONBOARDING_HINT_THRESHOLD = 20;
 
 function buildOnbCats() {
   const all = allMeals();
@@ -991,16 +1087,57 @@ function calcBMR(p) {
   if (p.gender === 'male') return 10 * w + 6.25 * hcm - 5 * a + 5;
   return 10 * w + 6.25 * hcm - 5 * a - 161;
 }
+function effectiveGoalAdjust(p) {
+  if (typeof p.goalAdjust === 'number' && isFinite(p.goalAdjust)) return p.goalAdjust;
+  return GOAL_ADJUST[p.goal] ?? 0;
+}
+function goalCategory(p) {
+  const adj = effectiveGoalAdjust(p);
+  if (adj < -200) return 'lose';
+  if (adj > 200) return 'gain';
+  return 'maintain';
+}
 function proteinTarget(p) {
   const w = Number(p.weight) || 0;
-  const mult = p.goal === 'lose' ? 1.6 : p.goal === 'gain' ? 1.8 : 1.2;
+  const cat = goalCategory(p);
+  const mult = cat === 'lose' ? 1.6 : cat === 'gain' ? 1.8 : 1.2;
   return Math.round(w * mult);
 }
 function activityBonus(p) {
+  if (p.activityMode === 'manual') return 0;
   return ACTIVITY_LABELS[p.defaultActivity || 'none']?.bonus || 0;
 }
 function goalAdjust(p) {
-  return GOAL_ADJUST[p.goal] ?? 0;
+  return effectiveGoalAdjust(p);
+}
+
+/* ========== ACTIVITY TRACKING ========== */
+function todayActivities(userId = state.currentUserId, dateKey = todayKey()) {
+  const u = state.users.find(x => x.id === userId);
+  if (!u || !u.activities) return [];
+  return (u.activities[dateKey] || []).slice();
+}
+function sumActivitiesBurn(userId = state.currentUserId, dateKey = todayKey()) {
+  return todayActivities(userId, dateKey).reduce((s, a) => s + (a.caloriesBurned || 0), 0);
+}
+function addActivity(activity, dateKey = todayKey()) {
+  const u = currentUser();
+  if (!u) return;
+  if (!u.activities) u.activities = {};
+  if (!u.activities[dateKey]) u.activities[dateKey] = [];
+  activity.id = activity.id || uid('act');
+  activity.dateKey = dateKey;
+  activity.timestamp = Date.now();
+  u.activities[dateKey].push(activity);
+  persist();
+}
+function deleteActivity(activityId, dateKey = todayKey()) {
+  const u = currentUser();
+  if (!u || !u.activities) return;
+  const arr = u.activities[dateKey];
+  if (!arr) return;
+  const i = arr.findIndex(a => a.id === activityId);
+  if (i >= 0) { arr.splice(i, 1); persist(); }
 }
 function defaultCalorieTarget(p) {
   return Math.round(calcBMR(p)) + activityBonus(p) + goalAdjust(p);
@@ -1747,12 +1884,8 @@ function renderOnbProfile() {
           </div>
 
           <div class="field">
-            <label>เป้าหมาย</label>
-            <div class="seg">
-              <button type="button" class="${goal === 'lose' ? 'on' : ''}" data-act="set-goal" data-v="lose">📉 ลด</button>
-              <button type="button" class="${goal === 'maintain' ? 'on' : ''}" data-act="set-goal" data-v="maintain">⚖️ คง</button>
-              <button type="button" class="${goal === 'gain' ? 'on' : ''}" data-act="set-goal" data-v="gain">📈 เพิ่ม</button>
-            </div>
+            <label>เป้าหมาย — ปรับแคลจาก TDEE</label>
+            ${goalSliderHtml(typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[goal] ?? 0), 'onb-goal-slider')}
           </div>
         </div>
         <div class="btn-row">
@@ -1842,6 +1975,9 @@ function renderOnbFavorites() {
   const selected = t.selectedMealIds || [];
   const count = selected.length;
   const max = ONBOARDING_MAX_FAVS;
+  const min = ONBOARDING_MIN_FAVS;
+  const meetsMin = count >= min;
+  const overHint = count >= ONBOARDING_HINT_THRESHOLD;
   const search = (t.onbSearch || '').toLowerCase().trim();
   const expanded = t.onbExpanded || {};
   const cats = buildOnbCats();
@@ -1877,8 +2013,8 @@ function renderOnbFavorites() {
         <h1 style="flex:1">⚡ เลือกเมนูประจำ</h1>
       </div>
       <div class="callout info">
-        <b>เลือกเมนูที่คุณกินบ่อย</b> (สูงสุด ${max})<br>
-        จะปรากฏใน Home ทันที — บันทึกได้ใน 5 วินาที
+        <b>เลือกเมนูที่คุณกินบ่อย</b><br>
+        อย่างน้อย <b>${min} รายการ</b> · จะปรากฏใน Home — บันทึกได้ใน 5 วินาที
       </div>
       <div class="search-box mb">
         <span class="icon">🔍</span>
@@ -1886,17 +2022,18 @@ function renderOnbFavorites() {
       </div>
       <div class="row between" style="padding:6px 4px;font-size:14px;position:sticky;top:0;background:var(--bg);z-index:5">
         <span class="muted">เลือกแล้ว</span>
-        <span style="font-weight:700;color:${count >= max ? 'var(--red)' : 'var(--primary-dark)'}">${count}/${max}</span>
+        <span style="font-weight:700;color:${meetsMin ? 'var(--green)' : 'var(--red)'}">${count} ${meetsMin ? '✓' : `(ขั้นต่ำ ${min})`}</span>
       </div>
+      ${overHint ? `<div class="hint" style="font-size:12px;text-align:center;margin-bottom:6px">💡 เลือกเยอะแล้ว ${count} รายการ — Home อาจจะรกหน่อยนะ</div>` : ''}
 
       ${body}
 
       <div style="height:10px"></div>
       <div class="btn-row">
         <button class="btn secondary" data-act="onb-back">← ย้อนกลับ</button>
-        <button class="btn" data-act="onb-next">เสร็จ ✓</button>
+        <button class="btn" data-act="onb-next" ${meetsMin ? '' : 'disabled'}>${meetsMin ? 'เสร็จ ✓' : `ขาดอีก ${min - count}`}</button>
       </div>
-      <button class="btn ghost block sm mt" data-act="onb-skip-favs">ข้ามขั้นตอนนี้</button>
+      <button class="btn ghost block sm mt" data-act="onb-skip-favs">ข้ามขั้นตอนนี้ (ใช้ค่าเริ่มต้น)</button>
       <div style="height:30px"></div>
     </div>
   `;
@@ -2018,6 +2155,34 @@ function weeklyStripHtml(user, calTarget) {
   `;
 }
 
+function goalSliderHtml(currentAdjust, actName) {
+  const adj = typeof currentAdjust === 'number' ? currentAdjust : 0;
+  let category, hintCls, hintText;
+  if (adj <= -500) {
+    category = '📉 ลดน้ำหนักเร็ว'; hintCls = 'danger'; hintText = '⚠️ ลดเร็วเกินไป — เสี่ยงเสียกล้ามเนื้อ';
+  } else if (adj <= -300) {
+    category = '📉 ลดน้ำหนัก'; hintCls = 'safe'; hintText = '✓ ลดปลอดภัย ~0.5 kg/สัปดาห์';
+  } else if (adj < 100) {
+    category = '⚖️ คงน้ำหนัก'; hintCls = 'neutral'; hintText = 'รักษาน้ำหนักปัจจุบัน';
+  } else if (adj <= 400) {
+    category = '📈 เพิ่มกล้ามเนื้อ (lean bulk)'; hintCls = 'safe'; hintText = '✓ เพิ่มกล้ามแบบไม่อ้วน ~0.5 kg/สัปดาห์';
+  } else {
+    category = '📈 เพิ่มน้ำหนักเร็ว'; hintCls = 'danger'; hintText = '⚠️ เพิ่มเร็วเกินไป — อาจได้ไขมันเยอะ';
+  }
+  const sign = adj > 0 ? '+' : '';
+  return `
+    <div class="goal-slider-wrap">
+      <div class="label">${h(category)}</div>
+      <div style="text-align:center;font-size:14px;color:var(--ink-2)">ปรับแคลจาก TDEE: <span class="num">${sign}${adj}</span> kcal/วัน</div>
+      <input type="range" id="${actName}" min="-700" max="700" step="50" value="${adj}">
+      <div class="ticks">
+        <span>-700</span><span>-400</span><span>0</span><span>+400</span><span>+700</span>
+      </div>
+      <div class="hint-line ${hintCls}">${h(hintText)}</div>
+    </div>
+  `;
+}
+
 function activitySelectorHtml(currentValue, actName) {
   return `
     <div class="activity-list">
@@ -2046,8 +2211,12 @@ function renderDashboard() {
   const protTarget = effectiveProteinTarget(u.id);
   const carbsTarget = Math.round(calTarget * 0.5 / 4);
   const sugarLimit = SUGAR_DAILY_LIMIT_G;
-  const calRemain = calTarget - totals.calories;
-  const calPctRing = Math.min(100, (totals.calories / calTarget) * 100);
+  const isManual = u.activityMode === 'manual';
+  const burned = isManual ? sumActivitiesBurn(u.id) : 0;
+  const netConsumed = totals.calories - burned;
+  const ringValue = isManual ? netConsumed : totals.calories;
+  const calRemain = calTarget - ringValue;
+  const calPctRing = Math.min(100, (Math.max(0, ringValue) / calTarget) * 100);
   const protPct = protTarget ? Math.min(100, (totals.protein_g / protTarget) * 100) : 0;
   const protRemain = protTarget - totals.protein_g;
   const carbsPct = carbsTarget ? Math.min(100, (totals.carbs_g / carbsTarget) * 100) : 0;
@@ -2083,14 +2252,20 @@ function renderDashboard() {
                 stroke-linecap="round"/>
             </svg>
             <div class="num">
-              <b>${fmt(totals.calories)}</b>
-              <small>จาก ${fmt(calTarget)} kcal</small>
+              <b>${fmt(ringValue)}</b>
+              <small>${isManual ? 'สุทธิ / ' + fmt(calTarget) : 'จาก ' + fmt(calTarget) + ' kcal'}</small>
             </div>
           </div>
           <div class="ring-labels">
-            <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
-            <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
-            <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
+            ${isManual ? `
+              <div>กิน <span class="v">${fmt(totals.calories)}</span> kcal</div>
+              <div>เผา <span class="v" style="color:var(--green)">-${fmt(burned)}</span> kcal</div>
+              <div>สุทธิ <span class="v">${fmt(netConsumed)}</span> / เป้า <b>${fmt(calTarget)}</b></div>
+            ` : `
+              <div>เหลือ <span class="v" style="color:${calRemain < 0 ? 'var(--red)' : 'var(--green)'}">${fmt(Math.abs(calRemain))}</span> ${calRemain < 0 ? 'เกิน' : 'kcal'}</div>
+              <div>เป้า <span class="v">${fmt(calTarget)}</span> kcal</div>
+              <div>กินไปแล้ว <span class="v">${fmt(totals.calories)}</span> kcal</div>
+            `}
           </div>
         </div>
 
@@ -2130,6 +2305,37 @@ function renderDashboard() {
       ${streakStripHtml(u)}
 
       ${weeklyStripHtml(u, calTarget)}
+
+      ${isManual ? (() => {
+        const acts = todayActivities();
+        return `
+          <div class="card">
+            <div class="row between" style="margin-bottom:6px">
+              <h3 style="margin:0;font-size:16px">💪 กิจกรรมวันนี้</h3>
+              <span class="muted" style="font-size:13px">${acts.length === 0 ? 'ยังไม่มี' : `เผา ${fmt(burned)} kcal`}</span>
+            </div>
+            ${acts.length === 0 ? `
+              <div class="hint" style="font-size:13px;margin-bottom:8px">เริ่มจาก BMR + log ออกกำลังเพิ่มเอง</div>
+            ` : acts.map(a => {
+              const at = ACTIVITY_TYPES.find(x => x.id === a.type) || ACTIVITY_TYPES[ACTIVITY_TYPES.length - 1];
+              const intLabel = a.intensity ? ACTIVITY_INTENSITY_LABELS[a.intensity]?.name : '';
+              const sourceTag = a.source === 'manual' ? (a.sourceNote || 'manual') : 'MET';
+              return `
+                <div class="activity-item">
+                  <div class="emo">${at.emoji}</div>
+                  <div class="body">
+                    <div class="name">${h(at.name)}${intLabel ? ' ' + h(intLabel) : ''} · ${a.durationMin || 0} นาที</div>
+                    <div class="sub">จาก ${h(sourceTag)}</div>
+                  </div>
+                  <div class="burn">-${fmt(a.caloriesBurned)} kcal</div>
+                  <button class="del" data-act="delete-activity" data-id="${a.id}" aria-label="ลบ">🗑️</button>
+                </div>
+              `;
+            }).join('')}
+            <button class="btn secondary block sm mt" data-act="nav-add-activity">+ เพิ่มกิจกรรม</button>
+          </div>
+        `;
+      })() : ''}
 
       ${favsForUser.length ? `
         <h2>💡 เมนูแนะนำ</h2>
@@ -3076,6 +3282,86 @@ function renderFavorites() {
   `;
 }
 
+function renderAddActivity() {
+  const t = state.tmp;
+  const u = currentUser();
+  const type = t.actType || 'running';
+  const mode = t.actCalcMode || 'met';
+  const intensity = t.actIntensity || 'moderate';
+  const duration = t.actDuration != null ? t.actDuration : 30;
+  const manualCal = t.actCalInput != null ? t.actCalInput : 0;
+  const sourceNote = t.actSourceNote || '';
+  const typeDef = ACTIVITY_TYPES.find(x => x.id === type) || ACTIVITY_TYPES[0];
+  const calcCal = mode === 'met' ? calculateBurn(type, intensity, duration, u?.weight || 70) : Math.max(0, manualCal);
+  const calPerMin = duration > 0 ? calcCal / duration : 0;
+  const tooHigh = calPerMin > 20;
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>💪 บันทึกกิจกรรม</h1>
+      </div>
+
+      <div class="card">
+        <label>ประเภทกิจกรรม</label>
+        <div class="seg" style="flex-wrap:wrap">
+          ${ACTIVITY_TYPES.map(at => `
+            <button type="button" class="${at.id === type ? 'on' : ''}" data-act="set-act-type" data-v="${at.id}" style="font-size:14px;padding:8px 10px;min-height:46px">${at.emoji} ${h(at.name)}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="card">
+        <label>วิธีกรอกแคล</label>
+        <div class="seg">
+          <button type="button" class="${mode === 'met' ? 'on' : ''}" data-act="set-act-mode" data-v="met">📊 คำนวณให้ (MET)</button>
+          <button type="button" class="${mode === 'manual' ? 'on' : ''}" data-act="set-act-mode" data-v="manual">✏️ กรอกเอง</button>
+        </div>
+
+        ${mode === 'met' ? `
+          <div class="field mt2">
+            <label>ความหนัก</label>
+            <div class="seg">
+              ${Object.entries(ACTIVITY_INTENSITY_LABELS).map(([id, info]) => `
+                <button type="button" class="${id === intensity ? 'on' : ''}" data-act="set-act-intensity" data-v="${id}" style="flex-direction:column;line-height:1.2;padding:8px 6px"><span style="font-weight:600">${h(info.name)}</span><span style="font-size:11px;color:var(--muted);font-weight:400">${h(info.desc)}</span></button>
+              `).join('')}
+            </div>
+          </div>
+          <div class="field mt">
+            <label for="act-duration">ระยะเวลา (นาที)</label>
+            <input id="act-duration" type="number" inputmode="numeric" class="input" min="1" max="600" value="${duration}">
+          </div>
+          <div class="card tight" style="background:var(--primary-soft);text-align:center;margin-top:10px">
+            <div style="font-size:13px;color:var(--ink-2)">📊 คำนวณ</div>
+            <div style="font-size:28px;font-weight:700;color:var(--primary-dark)">${fmt(calcCal)} kcal</div>
+            <div class="hint">MET ${MET_VALUES[type][intensity]} × ${u?.weight || 70}kg × ${duration} นาที × 0.85</div>
+          </div>
+          <div class="hint mt" style="font-size:12px">💡 MET = หน่วยมาตรฐาน WHO · ลด 15% เพื่อความปลอดภัย (สมาร์ทวอทช์มักเกินจริง)</div>
+        ` : `
+          <div class="field mt2">
+            <label for="act-duration">ระยะเวลา (นาที)</label>
+            <input id="act-duration" type="number" inputmode="numeric" class="input" min="1" max="600" value="${duration}">
+          </div>
+          <div class="field">
+            <label for="act-cal-input">แคลที่เผา (จาก device / app)</label>
+            <input id="act-cal-input" type="number" inputmode="numeric" class="input" min="0" max="3000" value="${manualCal}">
+          </div>
+          <div class="field">
+            <label>ที่มา (ไม่จำเป็น)</label>
+            <input id="act-source-note" type="text" class="input" placeholder="เช่น Apple Watch / Garmin / Strava" value="${h(sourceNote)}" maxlength="50">
+          </div>
+          ${tooHigh ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">⚠️ ${fmt(calPerMin, 1)} kcal/นาที สูงผิดปกติ — ตรวจค่าอีกครั้ง</div>` : ''}
+          <div class="hint" style="font-size:12px">💡 ใช้ค่าจาก smart watch / Apple Watch / Garmin / Strava — แม่นที่สุดเพราะวัดจริงจาก device</div>
+        `}
+      </div>
+
+      <button class="btn block lg mt" data-act="save-activity" ${calcCal <= 0 ? 'disabled' : ''}>✅ บันทึก ${fmt(calcCal)} kcal</button>
+      <div style="height:30px"></div>
+    </div>
+  `;
+}
+
 function renderFavEdit() {
   const t = state.tmp;
   const search = (t.favEditSearch || '').toLowerCase().trim();
@@ -3634,6 +3920,18 @@ function renderSettings() {
         </div>
       </div>
 
+      <div class="card">
+        <h3 style="margin-top:0">🏃 วิธีคำนวณกิจกรรม</h3>
+        <button class="mode-opt ${u.activityMode !== 'manual' ? 'on' : ''}" data-act="set-activity-mode" data-v="multiplier">
+          <div class="mn">${u.activityMode !== 'manual' ? '●' : '○'} ตั้งค่ากิจกรรมประจำ <span class="badge">auto</span></div>
+          <div class="md">เลือกระดับกิจกรรม "เบา/ปานกลาง/มาก" ระบบบวกแคลให้อัตโนมัติทุกวัน · เหมาะกับคนทั่วไป</div>
+        </button>
+        <button class="mode-opt ${u.activityMode === 'manual' ? 'on' : ''}" data-act="set-activity-mode" data-v="manual">
+          <div class="mn">${u.activityMode === 'manual' ? '●' : '○'} บันทึกแต่ละกิจกรรม <span class="badge">manual</span></div>
+          <div class="md">เริ่มจาก BMR + log แต่ละวันที่ออกกำลัง · แม่นกว่า เหมาะกับคนออกกำลังไม่สม่ำเสมอ</div>
+        </button>
+      </div>
+
       ${(() => {
         const protDefault = proteinTarget(u);
         const protOverride = state.dailyTargets[u.id]?.protein;
@@ -3818,19 +4116,27 @@ function renderProfileEdit() {
             <input id="ef-w" type="number" inputmode="decimal" class="input" value="${h(state.tmp.weight ?? u.weight)}" min="20" max="250" step="0.1">
           </div>
           <div class="field">
-            <label>เป้าหมาย</label>
-            <div class="seg">
-              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'lose' ? 'on' : ''}" data-act="edit-goal" data-v="lose">📉 ลด</button>
-              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'maintain' ? 'on' : ''}" data-act="edit-goal" data-v="maintain">⚖️ คง</button>
-              <button type="button" class="${(state.tmp.goal ?? u.goal) === 'gain' ? 'on' : ''}" data-act="edit-goal" data-v="gain">📈 เพิ่ม</button>
-            </div>
+            <label>เป้าหมาย — ปรับแคลจาก TDEE</label>
+            ${goalSliderHtml(
+              typeof state.tmp.goalAdjust === 'number'
+                ? state.tmp.goalAdjust
+                : (typeof u.goalAdjust === 'number' ? u.goalAdjust : (GOAL_ADJUST[u.goal] ?? 0)),
+              'edit-goal-slider'
+            )}
           </div>
 
-          <div class="field">
-            <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
-            <div class="hint" style="margin-bottom:8px">ระบบจะบวกให้อัตโนมัติ ไม่ต้องกดทุกวัน</div>
-            ${activitySelectorHtml(state.tmp.defaultActivity ?? u.defaultActivity ?? 'none', 'edit-activity')}
-          </div>
+          ${(state.tmp.activityMode ?? u.activityMode ?? 'multiplier') === 'multiplier' ? `
+            <div class="field">
+              <label>กิจกรรมประจำวัน (ไม่จำเป็น)</label>
+              <div class="hint" style="margin-bottom:8px">ระบบจะบวกให้อัตโนมัติ ไม่ต้องกดทุกวัน</div>
+              ${activitySelectorHtml(state.tmp.defaultActivity ?? u.defaultActivity ?? 'none', 'edit-activity')}
+            </div>
+          ` : `
+            <div class="callout info">
+              📌 โหมด <b>"บันทึกแต่ละกิจกรรม (manual)"</b> เปิดอยู่<br>
+              เป้าหมายคำนวณจาก BMR (ไม่บวกกิจกรรมประจำ) — ไปที่ Settings เพื่อเปลี่ยน
+            </div>
+          `}
         </div>
         <button type="button" class="btn block lg" data-act="save-profile">บันทึก</button>
         ${!isNew && state.users.length > 1 ? `<button type="button" class="btn ghost block mt" data-act="delete-user" style="color:var(--red)">🗑️ ลบผู้ใช้นี้</button>` : ''}
@@ -3866,6 +4172,7 @@ function render() {
       case 'history-day': html = renderHistoryDay(); break;
       case 'favorites': html = renderFavorites(); break;
       case 'fav-edit': html = renderFavEdit(); break;
+      case 'add-activity': html = renderAddActivity(); break;
       case 'users': html = renderUserSwitcher(); break;
       case 'settings': html = renderSettings(); break;
       case 'profile-edit': html = renderProfileEdit(); break;
@@ -4058,6 +4365,53 @@ const actions = {
   'nav-manual': () => go('manual'),
   'nav-fav': () => go('favorites'),
   'nav-fav-edit': () => go('fav-edit', { favEditSearch: '', favEditExpanded: {} }),
+  'nav-add-activity': () => go('add-activity', { actType: 'running', actCalcMode: 'met', actIntensity: 'moderate', actDuration: 30, actCalInput: 0 }),
+
+  'set-act-type': (e, btn) => { state.tmp.actType = btn.dataset.v; render(); },
+  'set-act-mode': (e, btn) => { state.tmp.actCalcMode = btn.dataset.v; render(); },
+  'set-act-intensity': (e, btn) => { state.tmp.actIntensity = btn.dataset.v; render(); },
+  'set-activity-mode': (e, btn) => {
+    const u = currentUser();
+    if (!u) return;
+    u.activityMode = btn.dataset.v;
+    persist();
+    toast(btn.dataset.v === 'manual' ? 'เปิดโหมด manual แล้ว' : 'เปิดโหมด multiplier แล้ว');
+    render();
+  },
+  'save-activity': () => {
+    const u = currentUser();
+    if (!u) return toast('ไม่พบผู้ใช้', true);
+    const t = state.tmp;
+    const type = t.actType || 'running';
+    const mode = t.actCalcMode || 'met';
+    const duration = Number(t.actDuration) || 0;
+    let cal = 0;
+    let intensity = null;
+    let sourceNote = '';
+    if (mode === 'met') {
+      intensity = t.actIntensity || 'moderate';
+      cal = calculateBurn(type, intensity, duration, u.weight || 70);
+    } else {
+      cal = Math.max(0, Number(t.actCalInput) || 0);
+      sourceNote = (document.getElementById('act-source-note')?.value || '').trim();
+    }
+    if (cal <= 0) return toast('แคลต้องมากกว่า 0', true);
+    if (duration <= 0) return toast('กรอกระยะเวลา', true);
+    addActivity({
+      type, intensity, durationMin: duration,
+      caloriesBurned: cal,
+      source: mode,
+      sourceNote: sourceNote || null
+    });
+    toast(`บันทึกแล้ว · เผา ${fmt(cal)} kcal`);
+    goHome();
+  },
+  'delete-activity': (e, btn) => {
+    if (!confirm('ลบกิจกรรมนี้?')) return;
+    deleteActivity(btn.dataset.id);
+    render();
+    toast('ลบแล้ว');
+  },
 
   'toggle-fav-pick': (e, btn) => {
     const id = btn.dataset.v;
@@ -4674,7 +5028,6 @@ const actions = {
     const weight = Number(document.getElementById('pf-weight')?.value);
     if (!name) return toast('กรอกชื่อก่อน', true);
     if (!state.tmp.gender) return toast('เลือกเพศ', true);
-    if (!state.tmp.goal) return toast('เลือกเป้าหมาย', true);
     if (!age || age < 5 || age > 120) return toast('อายุไม่ถูกต้อง', true);
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
@@ -4682,6 +5035,8 @@ const actions = {
     state.tmp.age = age;
     state.tmp.height = height;
     state.tmp.weight = weight;
+    if (typeof state.tmp.goalAdjust !== 'number') state.tmp.goalAdjust = 0;
+    if (!state.tmp.goal) state.tmp.goal = 'maintain';
     if (!state.tmp.defaultActivity) state.tmp.defaultActivity = 'moderate';
     state.tmp.step = 4;
     render();
@@ -4723,7 +5078,7 @@ const actions = {
     state.tmp.selectedMealIds = state.tmp.selectedMealIds || [];
     const i = state.tmp.selectedMealIds.indexOf(id);
     if (i >= 0) state.tmp.selectedMealIds.splice(i, 1);
-    else if (state.tmp.selectedMealIds.length < ONBOARDING_MAX_FAVS) state.tmp.selectedMealIds.push(id);
+    else state.tmp.selectedMealIds.push(id);
     render();
   },
   'onb-skip-favs': () => {
@@ -4739,6 +5094,7 @@ const actions = {
       if (!u) return toast('ไม่พบผู้ใช้', true);
       Object.assign(u, {
         name: t.name, gender: t.gender, goal: t.goal,
+        goalAdjust: typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[t.goal] ?? 0),
         age: t.age, height: t.height, weight: t.weight,
         avatar: t.avatar || u.avatar || '🧑',
         photo: t.photo || '',
@@ -4757,10 +5113,13 @@ const actions = {
     const u = {
       id: uid('u'),
       name: t.name, gender: t.gender, goal: t.goal,
+      goalAdjust: typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[t.goal] ?? 0),
       age: t.age, height: t.height, weight: t.weight,
       avatar: t.avatar || '🧑',
       photo: t.photo || '',
       defaultActivity: t.defaultActivity || 'moderate',
+      activityMode: 'multiplier',
+      activities: {},
       onboardingComplete: true,
       weights: [{ date: todayKey(), weight_kg: Number(t.weight) }],
       scannedProducts: [],
@@ -4823,22 +5182,24 @@ const actions = {
     const isNew = !!state.tmp.isNew;
     const u = isNew ? {} : (state.tmp.user || currentUser());
     const gender = state.tmp.gender ?? u.gender;
-    const goal = state.tmp.goal ?? u.goal;
+    const goalAdj = typeof state.tmp.goalAdjust === 'number'
+      ? state.tmp.goalAdjust
+      : (typeof u.goalAdjust === 'number' ? u.goalAdjust : (GOAL_ADJUST[u.goal] ?? 0));
+    const goal = goalAdj < -200 ? 'lose' : goalAdj > 200 ? 'gain' : 'maintain';
     const avatar = state.tmp.avatar ?? u.avatar ?? '🧑';
     const photo = state.tmp.photo !== undefined ? state.tmp.photo : (u.photo || '');
     const defaultActivity = state.tmp.defaultActivity ?? u.defaultActivity ?? 'none';
     if (!name) return toast('กรอกชื่อ', true);
     if (!gender) return toast('เลือกเพศ', true);
-    if (!goal) return toast('เลือกเป้าหมาย', true);
     if (!age || age < 5 || age > 120) return toast('อายุไม่ถูกต้อง', true);
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
     if (isNew) {
-      const nu = { id: uid('u'), name, gender, goal, age, height, weight, avatar, photo, defaultActivity, createdAt: Date.now() };
+      const nu = { id: uid('u'), name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity, activityMode: 'multiplier', activities: {}, createdAt: Date.now() };
       state.users.push(nu);
       state.currentUserId = nu.id;
     } else {
-      Object.assign(u, { name, gender, goal, age, height, weight, avatar, photo, defaultActivity });
+      Object.assign(u, { name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity });
     }
     persist();
     toast('บันทึกแล้ว ✅');
@@ -4983,6 +5344,20 @@ document.addEventListener('input', (e) => {
     clearTimeout(render._t);
     render._t = setTimeout(render, 150);
   }
+  if (e.target.id === 'onb-goal-slider' || e.target.id === 'edit-goal-slider') {
+    state.tmp.goalAdjust = Number(e.target.value);
+    if (state.tmp.goalAdjust < -200) state.tmp.goal = 'lose';
+    else if (state.tmp.goalAdjust > 200) state.tmp.goal = 'gain';
+    else state.tmp.goal = 'maintain';
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 60);
+  }
+  if (e.target.id === 'act-duration' || e.target.id === 'act-cal-input') {
+    const id = e.target.id;
+    state.tmp[id] = Number(e.target.value);
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 80);
+  }
   if (e.target.id === 'size-slider') {
     state.tmp.sizePct = Number(e.target.value);
     clearTimeout(render._t);
@@ -5023,6 +5398,12 @@ function migrateData() {
     if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
     if (u.onboardingComplete === undefined) { u.onboardingComplete = true; changed = true; }
     if (u.photo === undefined) { u.photo = ''; changed = true; }
+    if (typeof u.goalAdjust !== 'number') {
+      u.goalAdjust = GOAL_ADJUST[u.goal] ?? 0;
+      changed = true;
+    }
+    if (!u.activityMode) { u.activityMode = 'multiplier'; changed = true; }
+    if (!u.activities) { u.activities = {}; changed = true; }
     if (!u.streakState) { u.streakState = defaultStreakState(); changed = true; }
     else { ensureStreakState(u); replenishTokensIfNeeded(u); }
   });
