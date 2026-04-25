@@ -606,7 +606,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.7.2';
+const VERSION = 'v1.7.3';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -636,7 +636,7 @@ const BRANDED_SUB_CATEGORY = {
 };
 
 const ADDONS = [
-  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 110, protein_g: 8, carbs_g: 1, fat_g: 8, sugar_g: 0 },
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 130, protein_g: 8, carbs_g: 1, fat_g: 11, sugar_g: 0 },
   { id: 'egg_omelet', name: 'ไข่เจียว (1 ฟอง)', emoji: '🍳', calories: 130, protein_g: 8, carbs_g: 2, fat_g: 10, sugar_g: 1 },
   { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 },
   { id: 'cheese', name: 'ชีส', emoji: '🧀', calories: 110, protein_g: 6, carbs_g: 1, fat_g: 9, sugar_g: 1 },
@@ -1072,11 +1072,29 @@ function calcEntryTotals(entry) {
   const mult = (entry.sizePct || 100) / 100;
   const qty = entry.quantity || 1;
   const factor = mult * qty;
-  let calories = (m.baseCalories || 0) * factor;
-  let protein = (m.protein_g || 0) * factor;
-  let carbs = (m.carbs_g || 0) * factor;
-  let fat = (m.fat_g || 0) * factor;
-  let sugar = (m.sugar_g || 0) * factor;
+  let baseCal = m.baseCalories || 0;
+  let baseProt = m.protein_g || 0;
+  let baseCarb = m.carbs_g || 0;
+  let baseFat = m.fat_g || 0;
+  let baseSugar = m.sugar_g || 0;
+  // Apply customizations to base before scaling
+  const custList = entry.customizations || [];
+  if (custList.length && Array.isArray(m.customizations)) {
+    custList.forEach(cid => {
+      const c = m.customizations.find(x => x.id === cid);
+      if (!c) return;
+      baseCal += c.calChange || 0;
+      baseProt += c.proteinChange || 0;
+      baseCarb += c.carbChange || 0;
+      baseFat += c.fatChange || 0;
+      baseSugar += c.sugarChange || 0;
+    });
+  }
+  let calories = baseCal * factor;
+  let protein = baseProt * factor;
+  let carbs = baseCarb * factor;
+  let fat = baseFat * factor;
+  let sugar = baseSugar * factor;
   let weight = (m.baseWeight_g || 0) * factor;
   (entry.addons || []).forEach(addon => {
     const id = typeof addon === 'string' ? addon : addon.id;
@@ -2174,6 +2192,10 @@ function logEntryHtml(entry) {
     if (!def) return '';
     return count > 1 ? `${count}×${def.name}` : def.name;
   }).filter(Boolean).join(', ');
+  const customList = (entry.customizations || []).map(cid => {
+    const c = m?.customizations?.find(x => x.id === cid);
+    return c?.label || '';
+  }).filter(Boolean).join(', ');
   if (isSpecial) {
     const sp = entry.special;
     const subText = sp.method === 'detailed'
@@ -2195,7 +2217,7 @@ function logEntryHtml(entry) {
     <div class="log-item" data-act="edit-entry" data-id="${entry.id}">
       <div class="emo">${qty > 1 ? `<span style="font-size:14px;background:var(--primary);color:#fff;padding:2px 6px;border-radius:8px;font-weight:700">${qty}×</span>` : (m ? (m.emoji || '🍽️') : '🍽️')}</div>
       <div class="body">
-        <div class="name">${h(m ? m.name : 'ไม่พบเมนู')}</div>
+        <div class="name">${h(m ? m.name : 'ไม่พบเมนู')}${customList ? ` <span style="color:var(--primary-dark);font-size:13px;font-weight:500">(${h(customList)})</span>` : ''}</div>
         <div class="sub">${pct}% ${addonList ? '· + ' + h(addonList) : ''}</div>
       </div>
       <div class="cal">${fmt(t.calories)} kcal</div>
@@ -2872,13 +2894,31 @@ function renderMealDetail() {
   const sizePct = t.sizePct || 100;
   const quantity = t.quantity == null ? 1 : t.quantity;
   const addonCounts = t.addonCounts || {};
+  const customizations = t.customizations || [];
   const mult = sizePct / 100;
   const factor = mult * quantity;
-  let cal = meal.baseCalories * factor;
-  let prot = meal.protein_g * factor;
-  let carb = meal.carbs_g * factor;
-  let fat = meal.fat_g * factor;
-  let sugar = (meal.sugar_g || 0) * factor;
+  // Apply customizations to base
+  let baseCal = meal.baseCalories;
+  let baseProt = meal.protein_g;
+  let baseCarb = meal.carbs_g;
+  let baseFat = meal.fat_g;
+  let baseSugar = meal.sugar_g || 0;
+  if (customizations.length && Array.isArray(meal.customizations)) {
+    customizations.forEach(cid => {
+      const c = meal.customizations.find(x => x.id === cid);
+      if (!c) return;
+      baseCal += c.calChange || 0;
+      baseProt += c.proteinChange || 0;
+      baseCarb += c.carbChange || 0;
+      baseFat += c.fatChange || 0;
+      baseSugar += c.sugarChange || 0;
+    });
+  }
+  let cal = baseCal * factor;
+  let prot = baseProt * factor;
+  let carb = baseCarb * factor;
+  let fat = baseFat * factor;
+  let sugar = baseSugar * factor;
   ADDONS.forEach(a => {
     const c = addonCounts[a.id] || 0;
     cal += a.calories * c;
@@ -2913,6 +2953,22 @@ function renderMealDetail() {
         </div>
         <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก. · น้ำตาล ${fmt(sugar, 1)} ก.${sugar > 20 ? ` ≈ ${Math.round(sugar / 4)} ช้อนชา` : ''}</div>
       </div>
+
+      ${Array.isArray(meal.customizations) && meal.customizations.length ? `
+        <h2>🛠️ ปรับแต่ง</h2>
+        ${meal.customizations.map(c => {
+          const on = customizations.includes(c.id);
+          const sign = (c.calChange || 0) >= 0 ? '+' : '';
+          return `
+            <div class="addon ${on ? 'on' : ''}" data-act="toggle-customization" data-v="${c.id}">
+              <div class="emo">⚙️</div>
+              <div class="n">${h(c.label)}</div>
+              <div class="c" style="color:${(c.calChange || 0) < 0 ? 'var(--green)' : (c.calChange || 0) > 0 ? 'var(--primary-dark)' : 'var(--muted)'}">${(c.calChange || 0) === 0 ? '~ 0' : sign + fmt(c.calChange) + ' kcal'}</div>
+              <div class="chk">${on ? '✓' : ''}</div>
+            </div>
+          `;
+        }).join('')}
+      ` : ''}
 
       <h2>ขนาดแต่ละจาน</h2>
       <div class="size-grid">
@@ -4207,7 +4263,7 @@ const actions = {
       });
       return;
     }
-    go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {} });
+    go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {}, customizations: [] });
   },
 
   'toggle-fav': (e, btn) => {
@@ -4222,6 +4278,15 @@ const actions = {
 
   'set-size': (e, btn) => {
     state.tmp.sizePct = Number(btn.dataset.v);
+    render();
+  },
+
+  'toggle-customization': (e, btn) => {
+    const id = btn.dataset.v;
+    state.tmp.customizations = state.tmp.customizations || [];
+    const i = state.tmp.customizations.indexOf(id);
+    if (i >= 0) state.tmp.customizations.splice(i, 1);
+    else state.tmp.customizations.push(id);
     render();
   },
 
@@ -4264,6 +4329,7 @@ const actions = {
       sizePct: state.tmp.sizePct || 100,
       quantity: qty,
       addons,
+      customizations: (state.tmp.customizations || []).slice(),
       snapshot: state.tmp.meal ? { ...meal } : null
     });
     toast('บันทึกแล้ว ✅');
@@ -4280,7 +4346,8 @@ const actions = {
     updateLogEntry(state.tmp.editingEntryId, {
       sizePct: state.tmp.sizePct || 100,
       quantity: qty,
-      addons
+      addons,
+      customizations: (state.tmp.customizations || []).slice()
     });
     toast('อัปเดตแล้ว ✅');
     goHome();
@@ -4303,6 +4370,7 @@ const actions = {
       sizePct: entry.sizePct,
       quantity: entry.quantity || 1,
       addonCounts: counts,
+      customizations: (entry.customizations || []).slice(),
       editingEntryId: id
     });
   },
@@ -4835,6 +4903,7 @@ function migrateData() {
           e.addons = e.addons.map(id => ({ id, count: 1 }));
           changed = true;
         }
+        if (!Array.isArray(e.customizations)) { e.customizations = []; changed = true; }
       });
     }
   }
