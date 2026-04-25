@@ -663,7 +663,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.8.1';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -784,6 +784,41 @@ function calculateBurn(type, intensity, durationMin, weightKg) {
   if (!met || !durationMin || !weightKg) return 0;
   const calPerMin = (met * 3.5 * weightKg) / 200;
   return Math.round(calPerMin * durationMin * 0.85);
+}
+
+function updateActivityPreview() {
+  if (state.view !== 'add-activity') return;
+  const u = currentUser();
+  const t = state.tmp;
+  const type = t.actType || 'running';
+  const mode = t.actCalcMode || 'met';
+  const intensity = t.actIntensity || 'moderate';
+  const duration = Number(t.actDuration) || 0;
+  const manualCal = Number(t.actCalInput) || 0;
+  const weightKg = u?.weight || 70;
+  const calcCal = mode === 'met' ? calculateBurn(type, intensity, duration, weightKg) : Math.max(0, manualCal);
+  const calPerMin = duration > 0 ? calcCal / duration : 0;
+  const calEl = document.getElementById('act-calc-cal');
+  if (calEl) calEl.textContent = `${fmt(calcCal)} kcal`;
+  const detailEl = document.getElementById('act-calc-detail');
+  if (detailEl && mode === 'met') {
+    detailEl.textContent = `MET ${MET_VALUES[type][intensity]} × ${weightKg}kg × ${duration} นาที × 0.85`;
+  }
+  const btn = document.querySelector('[data-act="save-activity"]');
+  if (btn) {
+    btn.textContent = `✅ บันทึก ${fmt(calcCal)} kcal`;
+    if (calcCal <= 0) btn.setAttribute('disabled', 'disabled');
+    else btn.removeAttribute('disabled');
+  }
+  const warnEl = document.getElementById('act-warn');
+  if (warnEl) {
+    if (mode === 'manual' && calPerMin > 20) {
+      warnEl.textContent = `⚠️ ${calPerMin.toFixed(1)} kcal/นาที สูงผิดปกติ — ตรวจค่าอีกครั้ง`;
+      warnEl.style.display = '';
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
 }
 
 const STREAK_LABELS = {
@@ -3334,8 +3369,8 @@ function renderAddActivity() {
           </div>
           <div class="card tight" style="background:var(--primary-soft);text-align:center;margin-top:10px">
             <div style="font-size:13px;color:var(--ink-2)">📊 คำนวณ</div>
-            <div style="font-size:28px;font-weight:700;color:var(--primary-dark)">${fmt(calcCal)} kcal</div>
-            <div class="hint">MET ${MET_VALUES[type][intensity]} × ${u?.weight || 70}kg × ${duration} นาที × 0.85</div>
+            <div id="act-calc-cal" style="font-size:28px;font-weight:700;color:var(--primary-dark)">${fmt(calcCal)} kcal</div>
+            <div id="act-calc-detail" class="hint">MET ${MET_VALUES[type][intensity]} × ${u?.weight || 70}kg × ${duration} นาที × 0.85</div>
           </div>
           <div class="hint mt" style="font-size:12px">💡 MET = หน่วยมาตรฐาน WHO · ลด 15% เพื่อความปลอดภัย (สมาร์ทวอทช์มักเกินจริง)</div>
         ` : `
@@ -3351,7 +3386,7 @@ function renderAddActivity() {
             <label>ที่มา (ไม่จำเป็น)</label>
             <input id="act-source-note" type="text" class="input" placeholder="เช่น Apple Watch / Garmin / Strava" value="${h(sourceNote)}" maxlength="50">
           </div>
-          ${tooHigh ? `<div class="callout" style="background:var(--red-soft);color:var(--red)">⚠️ ${fmt(calPerMin, 1)} kcal/นาที สูงผิดปกติ — ตรวจค่าอีกครั้ง</div>` : ''}
+          <div id="act-warn" class="callout" style="background:var(--red-soft);color:var(--red);${tooHigh ? '' : 'display:none'}">${tooHigh ? `⚠️ ${calPerMin.toFixed(1)} kcal/นาที สูงผิดปกติ — ตรวจค่าอีกครั้ง` : ''}</div>
           <div class="hint" style="font-size:12px">💡 ใช้ค่าจาก smart watch / Apple Watch / Garmin / Strava — แม่นที่สุดเพราะวัดจริงจาก device</div>
         `}
       </div>
@@ -4157,6 +4192,16 @@ function stopScanner() {
 function render() {
   if (state.view !== 'scan' && state.scanner) stopScanner();
   const root = document.getElementById('app');
+  // Preserve focus across innerHTML replacement so iOS keeps the keyboard open
+  const af = document.activeElement;
+  let focusInfo = null;
+  if (af && af.id && root && root.contains(af) && (af.tagName === 'INPUT' || af.tagName === 'TEXTAREA')) {
+    focusInfo = { id: af.id };
+    if (typeof af.selectionStart === 'number') {
+      focusInfo.start = af.selectionStart;
+      focusInfo.end = af.selectionEnd;
+    }
+  }
   let html = '';
   try {
     switch (state.view) {
@@ -4193,6 +4238,17 @@ function render() {
     html = `<div class="screen"><div class="card"><h3>เกิดข้อผิดพลาด</h3><pre style="white-space:pre-wrap;font-size:12px">${h(err.message)}</pre><button class="btn" data-act="nav-home">กลับหน้าหลัก</button></div></div>`;
   }
   root.innerHTML = html;
+  if (focusInfo) {
+    const newEl = document.getElementById(focusInfo.id);
+    if (newEl && (newEl.tagName === 'INPUT' || newEl.tagName === 'TEXTAREA')) {
+      try {
+        newEl.focus({ preventScroll: true });
+        if (focusInfo.start != null && newEl.setSelectionRange) {
+          newEl.setSelectionRange(focusInfo.start, focusInfo.end != null ? focusInfo.end : focusInfo.start);
+        }
+      } catch {}
+    }
+  }
   if (state.view === 'scan' && !state.scanner) {
     setTimeout(() => {
       const v = document.getElementById('scan-video');
@@ -5352,11 +5408,16 @@ document.addEventListener('input', (e) => {
     clearTimeout(render._t);
     render._t = setTimeout(render, 60);
   }
-  if (e.target.id === 'act-duration' || e.target.id === 'act-cal-input') {
-    const id = e.target.id;
-    state.tmp[id] = Number(e.target.value);
-    clearTimeout(render._t);
-    render._t = setTimeout(render, 80);
+  if (e.target.id === 'act-duration') {
+    state.tmp.actDuration = Number(e.target.value) || 0;
+    updateActivityPreview();
+  }
+  if (e.target.id === 'act-cal-input') {
+    state.tmp.actCalInput = Number(e.target.value) || 0;
+    updateActivityPreview();
+  }
+  if (e.target.id === 'act-source-note') {
+    state.tmp.actSourceNote = e.target.value;
   }
   if (e.target.id === 'size-slider') {
     state.tmp.sizePct = Number(e.target.value);
