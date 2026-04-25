@@ -675,7 +675,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.9.0';
+const VERSION = 'v1.9.1';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -836,7 +836,7 @@ function updateActivityPreview() {
 const STREAK_LABELS = {
   logging:  { name: 'Logging',     emoji: '🔥', desc: 'บันทึก 1+ มื้อ/วัน' },
   weight:   { name: 'Weight',      emoji: '⚖️', desc: 'ชั่งน้ำหนัก 1 ครั้ง/วัน' },
-  inTarget: { name: 'In-Target',   emoji: '🎯', desc: 'แคล 80-110% ของเป้า' },
+  inTarget: { name: 'In-Target',   emoji: '🎯', desc: 'พลังงานวันนั้นใกล้เป้า ±250 kcal' },
   protein:  { name: 'Protein',     emoji: '🥩', desc: 'โปรตีน ≥85% ของเป้า' }
 };
 
@@ -1601,15 +1601,20 @@ function activeDatesForStreak(user, type) {
   } else if (type === 'weight') {
     (user.weights || []).forEach(w => out.add(w.date));
   } else if (type === 'inTarget' || type === 'protein') {
-    const calT = effectiveCalorieTarget(user.id);
     const protT = effectiveProteinTarget(user.id);
+    const tdee = calcTDEE(user);
+    const incExercise = activityIncludesExercise(user);
+    const goalAdj = effectiveGoalAdjust(user);
     Object.keys(userLogs).forEach(d => {
       const entries = userLogs[d] || [];
       if (entries.length < 2) return;
       const t = sumEntries(entries);
       if (type === 'inTarget') {
-        const r = calT > 0 ? t.calories / calT : 0;
-        if (r >= 0.8 && r <= 1.1) out.add(d);
+        // Goal-aware: did the day's energy delta land within ~250 kcal of the user's goal?
+        const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(user.id, d);
+        const energyDelta = t.calories - (tdee + exerciseBurn);
+        const goalDelta = energyDelta - goalAdj;
+        if (Math.abs(goalDelta) < 250) out.add(d);
       } else {
         if (protT > 0 && t.protein_g >= protT * 0.85) out.add(d);
       }
@@ -1729,22 +1734,34 @@ function dayTotals(userId, dateKey) {
   return { entries, totals: sumEntries(entries) };
 }
 function weekAggregate(userId, endKey) {
+  const u = state.users.find(x => x.id === userId);
+  const tdee = u ? calcTDEE(u) : 2000;
+  const incExercise = u ? activityIncludesExercise(u) : false;
+  const goalAdj = u ? effectiveGoalAdjust(u) : 0;
   const keys = lastNDaysKeys(7, endKey);
   const days = keys.map(k => {
     const { entries, totals } = dayTotals(userId, k);
-    return { key: k, entries, totals, logged: entries.length > 0 };
+    const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(userId, k);
+    const totalBurn = tdee + exerciseBurn;
+    const energyDelta = totals.calories - totalBurn;     // − = deficit, + = surplus
+    const goalDelta = energyDelta - goalAdj;             // 0 = on goal
+    return { key: k, entries, totals, logged: entries.length > 0, exerciseBurn, totalBurn, energyDelta, goalDelta };
   });
   const loggedDays = days.filter(d => d.logged);
-  const avg = loggedDays.length === 0
-    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 }
+  const N = loggedDays.length;
+  const avg = N === 0
+    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, exerciseBurn: 0, energyDelta: 0, goalDelta: 0 }
     : {
-        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / loggedDays.length,
-        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / loggedDays.length,
-        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / loggedDays.length,
-        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / loggedDays.length,
-        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / loggedDays.length
+        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / N,
+        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / N,
+        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / N,
+        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / N,
+        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / N,
+        exerciseBurn: loggedDays.reduce((s, d) => s + d.exerciseBurn, 0) / N,
+        energyDelta: loggedDays.reduce((s, d) => s + d.energyDelta, 0) / N,
+        goalDelta: loggedDays.reduce((s, d) => s + d.goalDelta, 0) / N
       };
-  return { days, avg, loggedCount: loggedDays.length };
+  return { days, avg, loggedCount: N };
 }
 function monthKeys(year, monthIdx) {
   const first = new Date(year, monthIdx, 1);
@@ -1754,29 +1771,41 @@ function monthKeys(year, monthIdx) {
   return keys;
 }
 function monthAggregate(userId, year, monthIdx) {
+  const u = state.users.find(x => x.id === userId);
+  const tdee = u ? calcTDEE(u) : 2000;
+  const incExercise = u ? activityIncludesExercise(u) : false;
+  const goalAdj = u ? effectiveGoalAdjust(u) : 0;
   const keys = monthKeys(year, monthIdx);
   const days = keys.map(k => {
     const { entries, totals } = dayTotals(userId, k);
-    return { key: k, entries, totals, logged: entries.length > 0 };
+    const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(userId, k);
+    const totalBurn = tdee + exerciseBurn;
+    const energyDelta = totals.calories - totalBurn;
+    const goalDelta = energyDelta - goalAdj;
+    return { key: k, entries, totals, logged: entries.length > 0, exerciseBurn, totalBurn, energyDelta, goalDelta };
   });
   const loggedDays = days.filter(d => d.logged);
-  const avg = loggedDays.length === 0
-    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 }
+  const N = loggedDays.length;
+  const avg = N === 0
+    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, exerciseBurn: 0, energyDelta: 0, goalDelta: 0 }
     : {
-        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / loggedDays.length,
-        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / loggedDays.length,
-        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / loggedDays.length,
-        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / loggedDays.length,
-        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / loggedDays.length
+        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / N,
+        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / N,
+        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / N,
+        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / N,
+        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / N,
+        exerciseBurn: loggedDays.reduce((s, d) => s + d.exerciseBurn, 0) / N,
+        energyDelta: loggedDays.reduce((s, d) => s + d.energyDelta, 0) / N,
+        goalDelta: loggedDays.reduce((s, d) => s + d.goalDelta, 0) / N
       };
   const totalMeals = loggedDays.reduce((s, d) => s + d.entries.length, 0);
-  const avgMeals = loggedDays.length ? totalMeals / loggedDays.length : 0;
+  const avgMeals = N ? totalMeals / N : 0;
   let streak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     if (days[i].logged) streak++;
     else if (i < days.length - 1) break;
   }
-  return { days, avg, loggedCount: loggedDays.length, totalDays: days.length, avgMeals, streak };
+  return { days, avg, loggedCount: N, totalDays: days.length, avgMeals, streak };
 }
 
 /* ========== SVG CHART (weight line) ========== */
@@ -2330,12 +2359,39 @@ function streakStripHtml(user) {
   `;
 }
 
-function weeklyStripHtml(user, calTarget) {
+function weeklyStripHtml(user, baseTarget) {
   const agg = weekAggregate(user.id);
   const today = todayKey();
+  const goalAdj = effectiveGoalAdjust(user);
+  const goalCat = goalCategory(user);
+
+  // Per-day bar: height = eaten/dayBudget %, color = goal-aware zone
   const bars = agg.days.map(d => {
-    const pct = d.logged && calTarget ? (d.totals.calories / calTarget) * 100 : 0;
-    const cls = !d.logged ? '' : pct > 110 ? 'over' : pct < 75 ? 'low' : pct < 90 ? 'warn' : 'ok';
+    const dayBudget = baseTarget + d.exerciseBurn;
+    const pct = d.logged && dayBudget ? (d.totals.calories / dayBudget) * 100 : 0;
+    let cls = '';
+    if (d.logged) {
+      // Map goalDelta into the same zones the dashboard ring uses
+      if (goalCat === 'lose') {
+        if (d.goalDelta < -500)      cls = 'low';   // way under (warning)
+        else if (d.goalDelta < -150) cls = 'ok';    // bonus deficit
+        else if (d.goalDelta < 150)  cls = 'ok';    // on goal
+        else if (d.goalDelta < 400)  cls = 'warn';  // a bit over
+        else                          cls = 'over';  // way over
+      } else if (goalCat === 'gain') {
+        if (d.goalDelta < -300)      cls = 'warn';  // not enough
+        else if (d.goalDelta < -100) cls = 'warn';  // close
+        else if (d.goalDelta < 200)  cls = 'ok';    // on goal
+        else if (d.goalDelta < 500)  cls = 'warn';  // slight over
+        else                          cls = 'over';  // way over
+      } else {
+        if (d.goalDelta < -400)      cls = 'low';
+        else if (d.goalDelta < -150) cls = 'ok';
+        else if (d.goalDelta < 150)  cls = 'ok';
+        else if (d.goalDelta < 400)  cls = 'warn';
+        else                          cls = 'over';
+      }
+    }
     const h = Math.min(100, Math.max(d.logged ? 4 : 0, pct));
     const date = keyToDate(d.key);
     const dow = DOW[date.getDay()];
@@ -2348,24 +2404,38 @@ function weeklyStripHtml(user, calTarget) {
       </div>
     `;
   }).join('');
-  const gap = calTarget - agg.avg.calories;
-  const projKg = agg.loggedCount > 0 ? (gap * 30) / KCAL_PER_KG_FAT : 0;
+
+  // Avg context: compare avg energyDelta vs goalAdj (i.e., avg.goalDelta)
+  // 30-day projection from avg energy delta (true delta, includes exercise)
+  const avgGoalDelta = agg.avg.goalDelta;
+  const avgEnergyDelta = agg.avg.energyDelta;
+  const projKg = agg.loggedCount > 0 ? (avgEnergyDelta * 30) / KCAL_PER_KG_FAT : 0;
   let contextMsg = '';
   if (agg.loggedCount === 0) {
     contextMsg = 'ยังไม่มีข้อมูลสัปดาห์นี้';
-  } else if (gap > 700) {
-    contextMsg = '⚠️ ขาดดุลหนัก (>700 kcal/วัน) อาจเสียกล้ามเนื้อ';
-  } else if (gap > 300) {
-    contextMsg = `ลดน้ำหนักปลอดภัย · คาด ~${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
-  } else if (gap > 100) {
-    contextMsg = `ขาดดุลเล็กน้อย · คาด ~${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
-  } else if (gap > -100) {
-    contextMsg = 'รักษาน้ำหนัก ✓';
-  } else if (gap > -400) {
-    contextMsg = `เกินเป้าเล็กน้อย · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  } else if (goalCat === 'lose') {
+    if (avgGoalDelta < -500)      contextMsg = `⚠️ ขาดดุลเยอะเกินไป · คาด ${projKg.toFixed(1)} kg ใน 30 วัน`;
+    else if (avgGoalDelta < -150) contextMsg = `💪 ขาดดุลเกินเป้า — bonus · คาด ${projKg.toFixed(1)} kg ใน 30 วัน`;
+    else if (avgGoalDelta < 150)  contextMsg = `🎯 ตามเป้าเป๊ะ · คาด ${projKg.toFixed(1)} kg ใน 30 วัน`;
+    else if (avgGoalDelta < 400)  contextMsg = `กินเกินแผนนิด ๆ · คาด ${projKg > 0 ? '+' : ''}${projKg.toFixed(1)} kg ใน 30 วัน`;
+    else                           contextMsg = `⚠️ กินเกินแผนเยอะ · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+  } else if (goalCat === 'gain') {
+    if (avgGoalDelta < -300)      contextMsg = `⚠️ ยังกินไม่ถึง surplus · เพิ่มอีก ${fmt(-avgGoalDelta)} kcal/วัน`;
+    else if (avgGoalDelta < -100) contextMsg = `เกือบถึงเป้า surplus`;
+    else if (avgGoalDelta < 200)  contextMsg = `💪 ตามเป้าเพิ่มกล้าม · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+    else if (avgGoalDelta < 500)  contextMsg = `กินเกินเป้า — ระวังไขมัน · +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+    else                           contextMsg = `⚠️ กินเยอะเกินเป้ามาก · +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
   } else {
-    contextMsg = `⚠️ กินเกินเยอะ · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
+    if (Math.abs(avgGoalDelta) < 150) contextMsg = '⚖️ สมดุลดี รักษาน้ำหนักได้';
+    else if (avgGoalDelta < 0)        contextMsg = `ขาดดุล · คาด ${projKg.toFixed(1)} kg ใน 30 วัน`;
+    else                               contextMsg = `เกินสมดุล · คาด +${Math.abs(projKg).toFixed(1)} kg ใน 30 วัน`;
   }
+
+  // Avg row: show eaten + (if any exercise) the dynamic budget context
+  const avgEx = Math.round(agg.avg.exerciseBurn);
+  const avgDeltaStr = avgEnergyDelta === 0 ? '0' : (avgEnergyDelta < 0 ? '−' : '+') + fmt(Math.abs(avgEnergyDelta));
+  const avgDeltaColor = avgEnergyDelta < 0 ? 'var(--green)' : avgEnergyDelta > 0 ? 'var(--amber)' : 'var(--ink)';
+
   return `
     <div class="card">
       <div class="row between" style="margin-bottom:4px">
@@ -2374,7 +2444,9 @@ function weeklyStripHtml(user, calTarget) {
       </div>
       <div class="week-strip">${bars}</div>
       <div style="font-size:13px;line-height:1.7">
-        <div class="row between"><span class="muted">เฉลี่ย</span><b>${fmt(agg.avg.calories)} / ${fmt(calTarget)} kcal</b></div>
+        <div class="row between"><span class="muted">กินเฉลี่ย</span><b>${fmt(agg.avg.calories)} kcal/วัน</b></div>
+        ${avgEx > 0 ? `<div class="row between"><span class="muted">ออกกำลังเฉลี่ย</span><b>+${fmt(avgEx)} kcal/วัน</b></div>` : ''}
+        <div class="row between"><span class="muted">ส่วนต่างเฉลี่ย</span><b style="color:${avgDeltaColor}">${avgDeltaStr} kcal/วัน</b></div>
         <div class="hint" style="font-size:13px;color:var(--ink-2);margin-top:4px">💡 ${contextMsg}</div>
       </div>
     </div>
@@ -3733,8 +3805,13 @@ function renderFavEdit() {
 }
 
 function renderHistory() {
+  const u = currentUser();
   const userLogs = state.logs[state.currentUserId] || {};
   const dates = Object.keys(userLogs).sort().reverse().slice(0, 60);
+  const baseTarget = effectiveCalorieTarget(state.currentUserId);
+  const tdee = u ? calcTDEE(u) : 2000;
+  const incExercise = u ? activityIncludesExercise(u) : false;
+  const goalAdj = u ? effectiveGoalAdjust(u) : 0;
   return `
     <div class="screen">
       <div class="header">
@@ -3746,18 +3823,21 @@ function renderHistory() {
       ` : dates.map(d => {
         const entries = userLogs[d] || [];
         const totals = sumEntries(entries);
-        const target = effectiveCalorieTarget(state.currentUserId);
-        const pct = target ? Math.round((totals.calories / target) * 100) : 0;
+        const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(state.currentUserId, d);
+        const dayBudget = baseTarget + exerciseBurn;
+        const pct = dayBudget ? Math.round((totals.calories / dayBudget) * 100) : 0;
+        const goalDelta = totals.calories - (tdee + exerciseBurn) - goalAdj;
+        const inZone = Math.abs(goalDelta) < 250;
         return `
           <div class="card tight" data-act="view-history-day" data-v="${d}" style="cursor:pointer">
             <div class="row between">
               <div>
-                <div style="font-weight:600">${formatDateTH(d)}${d === todayKey() ? ' <span class="badge">วันนี้</span>' : ''}</div>
-                <div class="muted" style="font-size:13px">${entries.length} รายการ · โปรตีน ${fmt(totals.protein_g)}g</div>
+                <div style="font-weight:600">${formatDateTH(d)}${d === todayKey() ? ' <span class="badge">วันนี้</span>' : ''}${inZone ? ' <span style="color:var(--green);font-size:12px">🎯</span>' : ''}</div>
+                <div class="muted" style="font-size:13px">${entries.length} รายการ · โปรตีน ${fmt(totals.protein_g)}g${exerciseBurn > 0 ? ` · ออกกำลัง ${fmt(exerciseBurn)} kcal` : ''}</div>
               </div>
               <div style="text-align:right">
                 <div style="font-weight:700;color:var(--primary-dark);font-size:17px">${fmt(totals.calories)}</div>
-                <div class="muted" style="font-size:12px">${pct}% ของเป้า</div>
+                <div class="muted" style="font-size:12px">${pct}% ของงบ${exerciseBurn > 0 ? ` (${fmt(dayBudget)})` : ''}</div>
               </div>
             </div>
           </div>
@@ -3771,9 +3851,19 @@ function renderHistory() {
 
 function renderHistoryDay() {
   const date = state.tmp.date;
+  const u = currentUser();
   const entries = ((state.logs[state.currentUserId] || {})[date] || []).slice();
   const totals = sumEntries(entries);
-  const target = effectiveCalorieTarget(state.currentUserId);
+  const baseTarget = effectiveCalorieTarget(state.currentUserId);
+  const tdee = u ? calcTDEE(u) : 2000;
+  const incExercise = u ? activityIncludesExercise(u) : false;
+  const goalAdj = u ? effectiveGoalAdjust(u) : 0;
+  const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(state.currentUserId, date);
+  const dayBudget = baseTarget + exerciseBurn;
+  const totalBurn = tdee + exerciseBurn;
+  const energyDelta = totals.calories - totalBurn;
+  const goalDelta = energyDelta - goalAdj;
+  const deltaColor = energyDelta < 0 ? 'var(--green)' : energyDelta > 0 ? 'var(--amber)' : 'var(--ink)';
   return `
     <div class="screen">
       <div class="header">
@@ -3781,8 +3871,13 @@ function renderHistoryDay() {
         <h1 style="flex:1">${formatDateTH(date)}</h1>
       </div>
       <div class="card">
-        <div class="row between"><span>แคลอรี่รวม</span><b style="color:var(--primary-dark);font-size:20px">${fmt(totals.calories)} kcal</b></div>
-        <div class="row between"><span class="muted">เป้า</span><span>${fmt(target)} kcal</span></div>
+        <div class="row between"><span>แคลอรี่กิน</span><b style="color:var(--primary-dark);font-size:20px">${fmt(totals.calories)} kcal</b></div>
+        <div class="row between"><span class="muted">งบรายวัน</span><span>${fmt(dayBudget)} kcal${exerciseBurn > 0 ? ` <span class="muted" style="font-size:12px">(${fmt(baseTarget)} + ${fmt(exerciseBurn)} ออกกำลัง)</span>` : ''}</span></div>
+        ${entries.length > 0 ? `
+          <div class="row between"><span class="muted">เผารวม</span><span>${fmt(totalBurn)} kcal</span></div>
+          <div class="row between"><span>ส่วนต่าง</span><b style="color:${deltaColor}">${energyDelta === 0 ? '0' : (energyDelta < 0 ? '−' : '+') + fmt(Math.abs(energyDelta))} kcal</b></div>
+          <div class="row between"><span class="muted">เป้า</span><span class="muted">${goalAdj > 0 ? '+' : ''}${goalAdj} kcal/วัน · vs goal ${goalDelta === 0 ? '0' : (goalDelta < 0 ? '−' : '+') + fmt(Math.abs(goalDelta))}</span></div>
+        ` : ''}
         <div class="facts">
           <div><div class="v">${fmt(totals.protein_g, 1)} ก.</div><div class="l">โปรตีน</div></div>
           <div><div class="v">${fmt(totals.carbs_g, 1)} ก.</div><div class="l">คาร์บ</div></div>
@@ -3803,7 +3898,6 @@ function renderReports() {
   const year = t.year != null ? t.year : now.getFullYear();
   const monthIdx = t.monthIdx != null ? t.monthIdx : now.getMonth();
   const agg = monthAggregate(u.id, year, monthIdx);
-  const calTarget = effectiveCalorieTarget(u.id);
   const protTarget = effectiveProteinTarget(u.id);
   const monthNames = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const monthLabel = `${monthNames[monthIdx]} ${year + 543}`;
@@ -3815,27 +3909,33 @@ function renderReports() {
   const wEnd = monthWeights[monthWeights.length - 1];
   const wChange = (wStart && wEnd) ? (wEnd.weight_kg - wStart.weight_kg) : null;
 
-  const kcalGap = calTarget - agg.avg.calories;     // + = ate under target, − = ate over
-  const projKg = agg.loggedCount > 0 ? (kcalGap * 30) / KCAL_PER_KG_FAT : 0;
-  const goalCat = goalCategory(u);                  // 'lose' | 'gain' | 'maintain'
+  // Real energy delta (includes exercise per day) — projection from this is accurate
+  const avgEnergyDelta = agg.avg.energyDelta;        // − = avg deficit, + = avg surplus
+  const avgGoalDelta = agg.avg.goalDelta;            // 0 = average day on goal
+  const avgExerciseBurn = Math.round(agg.avg.exerciseBurn);
+  const projKg = agg.loggedCount > 0 ? (avgEnergyDelta * 30) / KCAL_PER_KG_FAT : 0;
+  const goalCat = goalCategory(u);                   // 'lose' | 'gain' | 'maintain'
   const goalAdjRpt = effectiveGoalAdjust(u);
+  const tdeeRpt = calcTDEE(u);
 
-  // Goal-aware status framing — same philosophy as the dashboard ring
+  // Goal-aware status framing using real energy delta (matches dashboard ring)
   let rptStatus, rptStatusColor;
   if (goalCat === 'lose') {
-    if (kcalGap > 250) { rptStatus = '💪 ขาดดุลเกินแผน — ลดเร็วกว่าคาด'; rptStatusColor = 'var(--green)'; }
-    else if (kcalGap > -150) { rptStatus = '🎯 ตามแผนเป๊ะ'; rptStatusColor = 'var(--green)'; }
-    else if (kcalGap > -400) { rptStatus = 'กินเกินแผนเล็กน้อย'; rptStatusColor = 'var(--amber)'; }
-    else { rptStatus = '⚠️ กินเกินแผนเยอะ — น้ำหนักอาจไม่ลด'; rptStatusColor = 'var(--red)'; }
+    if (avgGoalDelta < -500)      { rptStatus = '⚠️ ขาดดุลเยอะเกินไป — เสี่ยงเสียกล้าม'; rptStatusColor = 'var(--red)'; }
+    else if (avgGoalDelta < -150) { rptStatus = '💪 ขาดดุลเกินแผน — ลดเร็วกว่าคาด'; rptStatusColor = 'var(--green)'; }
+    else if (avgGoalDelta < 150)  { rptStatus = '🎯 ตามแผนเป๊ะ'; rptStatusColor = 'var(--green)'; }
+    else if (avgGoalDelta < 400)  { rptStatus = 'กินเกินแผนเล็กน้อย'; rptStatusColor = 'var(--amber)'; }
+    else                           { rptStatus = '⚠️ กินเกินแผนเยอะ — น้ำหนักอาจไม่ลด'; rptStatusColor = 'var(--red)'; }
   } else if (goalCat === 'gain') {
-    if (kcalGap > 200) { rptStatus = '⚠️ ยังกินไม่ถึงเป้า surplus'; rptStatusColor = 'var(--amber)'; }
-    else if (kcalGap > -200) { rptStatus = '💪 ตามเป้าเพิ่มกล้าม'; rptStatusColor = 'var(--green)'; }
-    else if (kcalGap > -500) { rptStatus = 'กินเกินเป้า — ระวังไขมันเยอะ'; rptStatusColor = 'var(--amber)'; }
-    else { rptStatus = '⚠️ กินเยอะเกินเป้ามาก'; rptStatusColor = 'var(--red)'; }
+    if (avgGoalDelta < -300)      { rptStatus = '⚠️ ยังกินไม่ถึงเป้า surplus'; rptStatusColor = 'var(--amber)'; }
+    else if (avgGoalDelta < -100) { rptStatus = 'เกือบถึงเป้า surplus'; rptStatusColor = 'var(--amber)'; }
+    else if (avgGoalDelta < 200)  { rptStatus = '💪 ตามเป้าเพิ่มกล้าม'; rptStatusColor = 'var(--green)'; }
+    else if (avgGoalDelta < 500)  { rptStatus = 'กินเกินเป้า — ระวังไขมันเยอะ'; rptStatusColor = 'var(--amber)'; }
+    else                           { rptStatus = '⚠️ กินเยอะเกินเป้ามาก'; rptStatusColor = 'var(--red)'; }
   } else {
-    if (Math.abs(kcalGap) < 150) { rptStatus = '⚖️ สมดุลดี'; rptStatusColor = 'var(--green)'; }
-    else if (kcalGap > 0) { rptStatus = 'ขาดดุล — น้ำหนักจะลดช้าๆ'; rptStatusColor = 'var(--amber)'; }
-    else { rptStatus = 'เกินสมดุล — น้ำหนักจะเพิ่ม'; rptStatusColor = 'var(--amber)'; }
+    if (Math.abs(avgGoalDelta) < 150) { rptStatus = '⚖️ สมดุลดี'; rptStatusColor = 'var(--green)'; }
+    else if (avgGoalDelta < 0)        { rptStatus = 'ขาดดุล — น้ำหนักจะลดช้าๆ'; rptStatusColor = 'var(--amber)'; }
+    else                               { rptStatus = 'เกินสมดุล — น้ำหนักจะเพิ่ม'; rptStatusColor = 'var(--amber)'; }
   }
   const rptStatusBg = rptStatusColor === 'var(--green)' ? 'var(--green-soft)'
                     : rptStatusColor === 'var(--red)' ? 'var(--red-soft)' : 'var(--amber-soft)';
@@ -3890,15 +3990,16 @@ function renderReports() {
       ${agg.loggedCount > 0 ? `
         <div class="stat-card">
           <h3>🔥 แคลอรี่ ${helpHtml('deficit')}</h3>
-          <div class="stat-row"><span>เฉลี่ย/วัน</span><b>${fmt(agg.avg.calories)} kcal</b></div>
-          <div class="stat-row"><span>เป้ารายวัน</span><span>${fmt(calTarget)} kcal${goalAdjRpt !== 0 ? ` <span class="muted" style="font-size:12px">(TDEE ${fmt(calcTDEE(u))} ${goalAdjRpt > 0 ? '+' : ''}${goalAdjRpt})</span>` : ''}</span></div>
-          <div class="stat-row"><span>vs เป้า</span><b style="color:${kcalGap >= 0 ? 'var(--green)' : 'var(--red)'}">${kcalGap >= 0 ? 'ใต้เป้า −' : 'เหนือเป้า +'}${fmt(Math.abs(kcalGap))} kcal/วัน</b></div>
+          <div class="stat-row"><span>กินเฉลี่ย/วัน</span><b>${fmt(agg.avg.calories)} kcal</b></div>
+          <div class="stat-row"><span>เผารวมเฉลี่ย/วัน</span><span>${fmt(tdeeRpt + avgExerciseBurn)} kcal${avgExerciseBurn > 0 ? ` <span class="muted" style="font-size:12px">(TDEE ${fmt(tdeeRpt)} + ${fmt(avgExerciseBurn)} ออกกำลัง)</span>` : ''}</span></div>
+          <div class="stat-row"><span>ส่วนต่างเฉลี่ย</span><b style="color:${avgEnergyDelta < 0 ? 'var(--green)' : avgEnergyDelta > 0 ? 'var(--amber)' : 'var(--ink)'}">${avgEnergyDelta === 0 ? '0' : (avgEnergyDelta < 0 ? '−' : '+') + fmt(Math.abs(avgEnergyDelta))} kcal/วัน</b></div>
+          <div class="stat-row"><span class="muted">เป้าหมาย</span><span class="muted">${goalAdjRpt > 0 ? '+' : ''}${goalAdjRpt} kcal/วัน</span></div>
           <div style="background:${rptStatusBg};color:${rptStatusColor};font-weight:600;font-size:14px;padding:10px 12px;border-radius:10px;margin-top:10px;text-align:center">${h(rptStatus)}</div>
           <div class="hint mt" style="font-size:13px;line-height:1.7">
-            💡 ${fmt(Math.abs(kcalGap))} × 30 ÷ ${KCAL_PER_KG_FAT} = ~${Math.abs(projKg).toFixed(2)} kg ที่ควรเปลี่ยนจากแคลอย่างเดียว
+            💡 ${avgEnergyDelta < 0 ? '−' : '+'}${fmt(Math.abs(avgEnergyDelta))} × 30 ÷ ${KCAL_PER_KG_FAT} = ${projKg < 0 ? '' : '+'}${projKg.toFixed(2)} kg คาดการณ์ใน 30 วัน (จากแคลอย่างเดียว)
           </div>
-          ${wChange !== null && Math.abs(wChange) > Math.abs(projKg) + 0.5 ? `
-            <div class="callout info mt">น้ำหนักเปลี่ยนจริง ${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg — ส่วนต่างจากที่คำนวณจากแคล = การออกกำลัง + น้ำในร่างกาย</div>
+          ${wChange !== null && Math.abs(wChange - projKg) > 0.5 ? `
+            <div class="callout info mt">น้ำหนักเปลี่ยนจริง ${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg vs คาดจากแคล ${projKg > 0 ? '+' : ''}${projKg.toFixed(1)} kg — ส่วนต่าง = น้ำในร่างกาย / ความแม่นในการบันทึก</div>
           ` : ''}
         </div>
 
@@ -4044,10 +4145,19 @@ function renderStreaks() {
   if (!u) return '';
   ensureStreakState(u);
   const types = ['logging','weight','inTarget','protein'];
-  const calT = effectiveCalorieTarget(u.id);
   const protT = effectiveProteinTarget(u.id);
   const todayLogs = todayEntries();
   const todayTotals = sumEntries(todayLogs);
+  // Today's goal-zone — same source of truth as dashboard ring
+  const todayBaseTarget = effectiveCalorieTarget(u.id);
+  const todayBurned = activityIncludesExercise(u) ? 0 : sumActivitiesBurn(u.id);
+  const todayZone = goalZoneEval({
+    eaten: todayTotals.calories,
+    baseTarget: todayBaseTarget,
+    exerciseBurn: todayBurned,
+    goalAdj: effectiveGoalAdjust(u),
+    tdee: calcTDEE(u)
+  });
   const ss = u.streakState;
   const lateHour = new Date().getHours() >= 20;
 
@@ -4065,10 +4175,10 @@ function renderStreaks() {
     }
     if (type === 'inTarget') {
       if (todayLogs.length < 2) return { cls: '', text: 'ต้องบันทึกอย่างน้อย 2 มื้อ' };
-      const r = calT > 0 ? todayTotals.calories / calT : 0;
-      if (r < 0.8) return { cls: 'warn', text: `🟡 ใกล้ครบ (${fmt(todayTotals.calories)}/${fmt(Math.round(calT * 0.8))}-${fmt(Math.round(calT * 1.1))})` };
-      if (r > 1.1) return { cls: 'bad', text: `❌ เกินเป้า ${fmt(Math.round(todayTotals.calories - calT * 1.1))} kcal` };
-      return { cls: 'ok', text: '✓ อยู่ในเป้า' };
+      const gd = todayZone.goalDelta;
+      if (Math.abs(gd) < 250) return { cls: 'ok', text: `✓ อยู่ในเป้า (${gd === 0 ? '0' : (gd < 0 ? '−' : '+') + fmt(Math.abs(gd))} จากเป้า)` };
+      if (gd <= -250) return { cls: 'warn', text: `🟡 ขาดดุลเกินเป้า ${fmt(-gd)} kcal — กินเพิ่มอีกหน่อย` };
+      return { cls: 'bad', text: `❌ เกินเป้า ${fmt(gd)} kcal` };
     }
     if (type === 'protein') {
       if (todayLogs.length < 2) return { cls: '', text: 'ต้องบันทึกอย่างน้อย 2 มื้อ' };
