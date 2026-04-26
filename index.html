@@ -675,7 +675,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.9.1';
+const VERSION = 'v1.10.0';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -705,13 +705,14 @@ const BRANDED_SUB_CATEGORY = {
 };
 
 const ADDONS = [
-  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 130, protein_g: 8, carbs_g: 1, fat_g: 11, sugar_g: 0 },
-  { id: 'egg_omelet', name: 'ไข่เจียว', emoji: '🍳', calories: 230, protein_g: 16, carbs_g: 3, fat_g: 17, sugar_g: 1 },
+  // v1.10.0 — calibrated to match standalone meal items (egg_omelet = +ไข่เจียว 1 ฟอง)
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 120, protein_g: 8, carbs_g: 1, fat_g: 9, sugar_g: 0 },
+  { id: 'egg_omelet', name: 'ไข่เจียว 1 ฟอง', emoji: '🍳', calories: 140, protein_g: 7, carbs_g: 1, fat_g: 11, sugar_g: 0 },
   { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 },
-  { id: 'cheese', name: 'ชีส', emoji: '🧀', calories: 110, protein_g: 6, carbs_g: 1, fat_g: 9, sugar_g: 1 },
-  { id: 'rice_extra', name: 'ข้าวเพิ่ม', emoji: '🍚', calories: 210, protein_g: 4, carbs_g: 45, fat_g: 0.5, sugar_g: 0 },
-  { id: 'sticky_rice', name: 'ข้าวเหนียว', emoji: '🍙', calories: 200, protein_g: 4, carbs_g: 44, fat_g: 0.5, sugar_g: 0 },
-  { id: 'no_rice', name: 'ไม่ใส่ข้าว', emoji: '❌', calories: -250, protein_g: -5, carbs_g: -55, fat_g: -1, sugar_g: 0 },
+  { id: 'cheese', name: 'ชีส 1 slice (20g)', emoji: '🧀', calories: 85, protein_g: 5, carbs_g: 1, fat_g: 7, sugar_g: 0 },
+  { id: 'rice_extra', name: 'ข้าวเพิ่ม 1 ทัพพี', emoji: '🍚', calories: 110, protein_g: 2, carbs_g: 22, fat_g: 0, sugar_g: 0 },
+  { id: 'sticky_rice', name: 'ข้าวเหนียว 1 ก้อน (80g)', emoji: '🍙', calories: 145, protein_g: 3, carbs_g: 30, fat_g: 0, sugar_g: 0 },
+  { id: 'no_rice', name: 'ไม่ใส่ข้าว', emoji: '❌', calories: -195, protein_g: -4, carbs_g: -42, fat_g: -1, sugar_g: 0 },
   { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2, sugar_g: 1 },
   { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0, sugar_g: 1 },
   { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5, sugar_g: 10 }
@@ -937,10 +938,11 @@ const TOOLTIPS = {
 };
 
 const SIZE_PRESETS = [
-  { pct: 75, label: 'ครึ่งเดียว' },
+  // v1.10.0 — realistic Thai street-food ratios (was 75/100/150/200)
+  { pct: 75, label: 'น้อย' },
   { pct: 100, label: 'ปกติ' },
-  { pct: 150, label: 'พิเศษ' },
-  { pct: 200, label: '2 เท่า' }
+  { pct: 130, label: 'พิเศษ' },
+  { pct: 160, label: 'จัมโบ้' }
 ];
 
 const AVATARS = ['🧑', '👩', '👨', '👴', '👵', '🧒', '👧', '👦', '🧔', '👩‍🦳', '👨‍🦱', '👩‍🦱', '🤵', '👰', '👨‍💼', '👩‍💼', '👨‍🍳', '👩‍🍳', '🏃', '💪'];
@@ -1929,6 +1931,8 @@ function addLogEntry(entry, dateKey = todayKey()) {
   entry.id = entry.id || uid('e');
   entry.dateKey = dateKey;
   entry.loggedAt = Date.now();
+  // v1.10.0 — tag new entries with nutrition data version (old entries stay unchanged)
+  if (!entry.nutrition_version) entry.nutrition_version = 'v1.10.0';
   state.logs[state.currentUserId][dateKey].push(entry);
   if (u && beforeSnap) checkAndCelebrateMilestones(u, beforeSnap);
   persist();
@@ -3526,21 +3530,55 @@ function renderMealDetail() {
         <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก. · น้ำตาล ${fmt(sugar, 1)} ก.${sugar > 20 ? ` ≈ ${Math.round(sugar / 4)} ช้อนชา` : ''}</div>
       </div>
 
-      ${Array.isArray(meal.customizations) && meal.customizations.length ? `
-        <h2>🛠️ ปรับแต่ง</h2>
-        ${meal.customizations.map(c => {
+      ${Array.isArray(meal.customizations) && meal.customizations.length ? (() => {
+        // v1.10.0 — group customizations with the same groupId into mutually-exclusive radio.
+        // Customizations without groupId remain checkboxes (legacy behavior).
+        const groups = {};
+        const ungrouped = [];
+        meal.customizations.forEach(c => {
+          if (c.groupId) {
+            if (!groups[c.groupId]) groups[c.groupId] = [];
+            groups[c.groupId].push(c);
+          } else {
+            ungrouped.push(c);
+          }
+        });
+        const renderItem = (c, isRadio) => {
           const on = customizations.includes(c.id);
           const sign = (c.calChange || 0) >= 0 ? '+' : '';
+          const noteHtml = c.note ? `<div class="d" style="font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.4">${h(c.note)}</div>` : '';
           return `
-            <div class="addon ${on ? 'on' : ''}" data-act="toggle-customization" data-v="${c.id}">
-              <div class="emo">⚙️</div>
-              <div class="n">${h(c.label)}</div>
+            <div class="addon ${on ? 'on' : ''}" data-act="${isRadio ? 'toggle-radio-customization' : 'toggle-customization'}" data-v="${c.id}"${isRadio ? ` data-group="${h(c.groupId)}"` : ''}>
+              <div class="emo">${isRadio ? (on ? '●' : '○') : '⚙️'}</div>
+              <div class="n">${h(c.label)}${noteHtml}</div>
               <div class="c" style="color:${(c.calChange || 0) < 0 ? 'var(--green)' : (c.calChange || 0) > 0 ? 'var(--primary-dark)' : 'var(--muted)'}">${(c.calChange || 0) === 0 ? '~ 0' : sign + fmt(c.calChange) + ' kcal'}</div>
               <div class="chk">${on ? '✓' : ''}</div>
             </div>
           `;
-        }).join('')}
-      ` : ''}
+        };
+        const groupHeaders = {
+          chicken_rice_skin: '🍗 ไม่หนัง?',
+          duck_skin: '🦆 ไม่หนังเป็ด?',
+          pork_leg_skin_fat: '🍖 ไม่หนังไม่มัน?',
+          crispy_pork_skin_fat: '🥓 หนัง/มันหมูกรอบ?',
+          pork_belly_skin_fat: '🥓 ลอกหนัง/มันสามชั้น?',
+          red_pork_fat: '🍖 ส่วนมันหมูแดง?',
+          fried_chicken_skin_batter: '🍗 หนัง/แป้งทอด?'
+        };
+        let html = '<h2>🛠️ ปรับแต่ง</h2>';
+        Object.keys(groups).forEach(gid => {
+          const header = groupHeaders[gid] || '⚙️ เลือก 1 ตัวเลือก';
+          html += `<div style="font-size:13px;color:var(--ink-2);font-weight:600;margin:10px 0 6px">${h(header)} <span class="muted" style="font-weight:400;font-size:11.5px">(เลือกได้ 1 ข้อ)</span></div>`;
+          html += groups[gid].map(c => renderItem(c, true)).join('');
+        });
+        if (ungrouped.length) {
+          if (Object.keys(groups).length) {
+            html += `<div style="font-size:13px;color:var(--ink-2);font-weight:600;margin:12px 0 6px">เพิ่มเติม</div>`;
+          }
+          html += ungrouped.map(c => renderItem(c, false)).join('');
+        }
+        return html;
+      })() : ''}
 
       <h2>ขนาดแต่ละจาน</h2>
       <div class="size-grid">
@@ -5221,6 +5259,25 @@ const actions = {
     render();
   },
 
+  // v1.10.0 — radio behavior for customizations sharing a groupId
+  // Click toggles the option, but also removes any sibling in the same group.
+  'toggle-radio-customization': (e, btn) => {
+    const id = btn.dataset.v;
+    const groupId = btn.dataset.group;
+    state.tmp.customizations = state.tmp.customizations || [];
+    const meal = state.tmp.meal || findMeal(state.tmp.mealId);
+    if (!meal || !Array.isArray(meal.customizations)) return;
+    const siblingIds = meal.customizations
+      .filter(c => c.groupId === groupId)
+      .map(c => c.id);
+    const wasOn = state.tmp.customizations.includes(id);
+    // Remove all siblings in this group
+    state.tmp.customizations = state.tmp.customizations.filter(cid => !siblingIds.includes(cid));
+    // Add back the clicked one only if it was off (toggle semantics — click again to deselect)
+    if (!wasOn) state.tmp.customizations.push(id);
+    render();
+  },
+
   'qty-inc': (e, btn) => {
     const key = btn.dataset.v;
     if (key === 'main') {
@@ -5771,7 +5828,8 @@ const actions = {
       setTimeout(() => location.reload(), 200);
     }).catch(() => location.reload());
   },
-  'dismiss-update': () => hideUpdateBanner()
+  'dismiss-update': () => hideUpdateBanner(),
+  'dismiss-v110-notice': () => dismissV110Notice()
 };
 
 function collectManualDraft() {
@@ -5940,6 +5998,19 @@ async function main() {
   }
   render();
 
+  // v1.10.0 — show migration notice once if user has prior data
+  try {
+    const seen = localStorage.getItem('pracal_v1_10_notice_seen');
+    if (!seen && state.users.length > 0) {
+      setTimeout(() => showV110Notice(), 1200);
+    }
+  } catch {}
+
+  // v1.10.0 — console verification (sanity checks for key meals/drinks)
+  if (typeof window !== 'undefined') {
+    try { runV110VerificationTests(); } catch (e) { console.warn('[v1.10 verify]', e); }
+  }
+
   // Service worker
   if ('serviceWorker' in navigator) {
     try {
@@ -5978,6 +6049,91 @@ function showUpdateBanner() {
 }
 function hideUpdateBanner() {
   document.getElementById('update-banner')?.remove();
+}
+
+// v1.10.0 — one-time migration notice for users with prior data
+function showV110Notice() {
+  if (document.getElementById('v110-notice')) return;
+  const el = document.createElement('div');
+  el.id = 'v110-notice';
+  el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.25);padding:20px 22px;z-index:1500;max-width:340px;width:calc(100% - 32px);font-family:inherit;line-height:1.6;animation:fadeIn 220ms ease';
+  el.innerHTML = `
+    <div style="font-size:18px;font-weight:700;color:var(--primary-dark);margin-bottom:8px">📊 ปรับค่าแคลอรี่ให้แม่นยำขึ้น (v1.10)</div>
+    <div style="font-size:14px;color:var(--ink-2)">
+      • คำนวณจากปริมาณเสิร์ฟจริง + ส่วนผสมตาม Thai FCD/USDA<br>
+      • เพิ่มระบบปรับแต่ง <b>ไม่หนัง/ไม่มัน</b> ให้ตรงกับร้านอาหารไทยมากขึ้น<br>
+      • ปรับเครื่องดื่มไทยให้แยก<b>แก้วคาเฟ่</b>กับ<b>แก้วรถเข็น 22oz</b><br>
+      <span class="muted" style="font-size:12px">ข้อมูลเก่ายังคงเดิม ไม่ถูกคำนวณใหม่</span>
+    </div>
+    <button class="btn block mt" type="button" data-act="dismiss-v110-notice" style="margin-top:14px">เข้าใจแล้ว</button>
+  `;
+  // Backdrop
+  const bd = document.createElement('div');
+  bd.id = 'v110-backdrop';
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1499;animation:fadeIn 220ms ease';
+  bd.addEventListener('click', dismissV110Notice);
+  document.body.appendChild(bd);
+  document.body.appendChild(el);
+}
+function dismissV110Notice() {
+  document.getElementById('v110-notice')?.remove();
+  document.getElementById('v110-backdrop')?.remove();
+  try { localStorage.setItem('pracal_v1_10_notice_seen', '1'); } catch {}
+}
+
+// v1.10.0 — Console verification — sanity checks for new portion/calorie defaults
+function runV110VerificationTests() {
+  const findById = id => state.preloadedMeals.find(m => m.id === id);
+  const test = (name, actual, expected, tol = 30) => {
+    const ok = Math.abs(actual - expected) <= tol;
+    const log = ok ? console.log : console.warn;
+    log(`[v1.10] ${ok ? '✓' : '✗'} ${name}: ${actual} (expected ~${expected}, tol ±${tol})`);
+    return ok;
+  };
+  // Compute total cal from base + customization deltas (simulating calcEntryTotals at sizePct=100)
+  const sim = (id, cIds = []) => {
+    const m = findById(id);
+    if (!m) return null;
+    let cal = m.baseCalories || 0;
+    (cIds || []).forEach(cid => {
+      const c = (m.customizations || []).find(x => x.id === cid);
+      if (c) cal += c.calChange || 0;
+    });
+    return cal;
+  };
+  console.group('[v1.10] Verification tests');
+  // Rice
+  test('ข้าวกะเพราไก่ base', sim('r01'), 610);
+  test('ข้าวมันไก่ base', sim('r04'), 600);
+  test('ข้าวมันไก่ + no_skin_default', sim('r04', ['no_skin_default']), 490);
+  test('ข้าวมันไก่ + no_skin_more', sim('r04', ['no_skin_more']), 470);
+  test('ข้าวขาหมู base', sim('r07'), 660);
+  test('ข้าวขาหมู + no_skin_fat_default', sim('r07', ['no_skin_fat_default']), 440);
+  test('ข้าวขาหมู + no_skin_fat_only', sim('r07', ['no_skin_fat_only']), 350);
+  test('ข้าวขาหมู + lean_meat_replace', sim('r07', ['lean_meat_replace']), 510);
+  test('ข้าวหน้าเป็ด base', sim('r16'), 690);
+  test('ข้าวหน้าเป็ด + no_skin_default', sim('r16', ['no_skin_default']), 540);
+  test('ข้าวหน้าเป็ด + no_skin_only', sim('r16', ['no_skin_only']), 510);
+  test('ข้าวหมูกรอบ base', sim('r06'), 970);
+  test('ข้าวหมูกรอบ + no_skin_fat_default', sim('r06', ['no_skin_fat_default']), 790);
+  test('ข้าวหมูกรอบ + no_skin_fat_more', sim('r06', ['no_skin_fat_more']), 720);
+  test('ข้าวหมูสามชั้น base', sim('r23'), 805);
+  test('ข้าวหมูสามชั้น + no_skin_fat_default', sim('r23', ['no_skin_fat_default']), 525);
+  test('ข้าวหมูสามชั้น + no_skin_fat_more', sim('r23', ['no_skin_fat_more']), 425);
+  test('ข้าวหมูแดง base', sim('r05'), 590);
+  test('ข้าวหมูแดง + lean_select_default', sim('r05', ['lean_select_default']), 530);
+  test('ข้าวไก่ทอด base', sim('r22'), 650);
+  test('ข้าวไก่ทอด + less_skin_batter_some', sim('r22', ['less_skin_batter_some']), 550);
+  test('ข้าวไก่ทอด + less_skin_batter_more', sim('r22', ['less_skin_batter_more']), 450);
+  // Drinks
+  test('ชาไทยเย็น (รถเข็น 22oz)', sim('d21'), 400);
+  test('ชาไทยเย็น (คาเฟ่)', sim('d26'), 260);
+  test('ชาไทย street + less_sweet', sim('d21', ['less_sweet']), 320);
+  test('ชาไทย street + very_sweet', sim('d21', ['very_sweet']), 480);
+  test('ชาเขียวเย็น (รถเข็น 22oz)', sim('d20'), 390);
+  test('ชาดำเย็น (รถเข็น 22oz)', sim('d19'), 220);
+  test('กาแฟโบราณ (รถเข็น 22oz)', sim('d27'), 420);
+  console.groupEnd();
 }
 
 // Browser back button

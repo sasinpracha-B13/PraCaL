@@ -1,257 +1,266 @@
 {
-  "version": "1.7.6",
+  "version": "1.10.0",
+  "nutrition_version": "v1.10.0",
+  "size_multipliers": {
+    "small_pct": 75,
+    "normal_pct": 100,
+    "large_pct": 130,
+    "jumbo_pct": 160
+  },
   "meals": [
-    { "id": "r01", "name": "ข้าวกะเพราไก่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 980, "baseWeight_g": 400, "protein_g": 48, "carbs_g": 105, "fat_g": 42, "sugar_g": 8, "customizations": [
-      { "id": "no_egg", "label": "ไม่ใส่ไข่ดาว", "calChange": -110, "proteinChange": -8, "carbChange": -1, "fatChange": -8 },
-      { "id": "swap_omelet", "label": "เปลี่ยนเป็นไข่เจียว", "calChange": 40, "fatChange": 4 },
-      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -210, "proteinChange": -4, "carbChange": -45 },
+    { "id": "r01", "name": "ข้าวกะเพราไก่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 610, "baseWeight_g": 360, "protein_g": 27, "carbs_g": 65, "fat_g": 24, "sugar_g": 6, "calorie_range": { "min": 520, "max": 760 }, "portion_basis": ["ข้าวสวย 180g", "ไก่ 85g", "น้ำมัน 18g", "ผัก/ซอส 60g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -195, "proteinChange": -4, "carbChange": -42, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 },
       { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
     ] },
-    { "id": "r02", "name": "ข้าวกะเพราหมู", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 1050, "baseWeight_g": 400, "protein_g": 48, "carbs_g": 105, "fat_g": 48, "sugar_g": 8, "customizations": [
-      { "id": "no_egg", "label": "ไม่ใส่ไข่ดาว", "calChange": -110, "proteinChange": -8, "carbChange": -1, "fatChange": -8 },
-      { "id": "swap_omelet", "label": "เปลี่ยนเป็นไข่เจียว", "calChange": 40, "fatChange": 4 },
-      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -210, "proteinChange": -4, "carbChange": -45 },
+    { "id": "r02", "name": "ข้าวกะเพราหมู", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 660, "baseWeight_g": 360, "protein_g": 24, "carbs_g": 65, "fat_g": 31, "sugar_g": 6, "calorie_range": { "min": 560, "max": 800 }, "portion_basis": ["ข้าวสวย 180g", "หมูสับ 85g", "น้ำมัน 18g", "ผัก/ซอส 60g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -195, "proteinChange": -4, "carbChange": -42, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 },
       { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
     ] },
-    { "id": "r03", "name": "ข้าวกะเพราเนื้อ", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 1050, "baseWeight_g": 400, "protein_g": 50, "carbs_g": 105, "fat_g": 48, "sugar_g": 8, "customizations": [
-      { "id": "no_egg", "label": "ไม่ใส่ไข่ดาว", "calChange": -110, "proteinChange": -8, "carbChange": -1, "fatChange": -8 },
-      { "id": "swap_omelet", "label": "เปลี่ยนเป็นไข่เจียว", "calChange": 40, "fatChange": 4 },
-      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -210, "proteinChange": -4, "carbChange": -45 },
+    { "id": "r03", "name": "ข้าวกะเพราเนื้อ", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 670, "baseWeight_g": 360, "protein_g": 28, "carbs_g": 65, "fat_g": 31, "sugar_g": 6, "calorie_range": { "min": 570, "max": 810 }, "portion_basis": ["ข้าวสวย 180g", "เนื้อ 85g", "น้ำมัน 18g", "ผัก/ซอส 60g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -195, "proteinChange": -4, "carbChange": -42, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 },
       { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
     ] },
-    { "id": "r04", "name": "ข้าวมันไก่", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 870, "baseWeight_g": 400, "protein_g": 43, "carbs_g": 100, "fat_g": 38, "sugar_g": 4, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -130, "proteinChange": -4, "fatChange": -13 },
+    { "id": "r04", "name": "ข้าวมันไก่", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 600, "baseWeight_g": 380, "protein_g": 27, "carbs_g": 75, "fat_g": 22, "sugar_g": 3, "calorie_range": { "min": 500, "max": 750 }, "portion_basis": ["ข้าวมัน 180-200g", "ไก่ต้มติดหนัง 90-110g", "น้ำจิ้ม", "ซุป"], "customizations": [
+      { "id": "no_skin_default", "label": "ไม่หนัง — ร้านเอาออกตามปกติ", "groupId": "chicken_rice_skin", "note": "สั่งไม่หนังทั่วไป ร้านมักเอาหนังออก ไม่ได้เพิ่มไก่", "calChange": -110, "proteinChange": -3, "carbChange": 0, "fatChange": -11, "sugarChange": 0, "gramsChange": -25 },
+      { "id": "no_skin_more", "label": "ไม่หนังแบบเอาออกเยอะ", "groupId": "chicken_rice_skin", "calChange": -130, "proteinChange": -4, "carbChange": 0, "fatChange": -13, "sugarChange": 0, "gramsChange": -30 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อไก่แทนชัดเจน (advanced)", "groupId": "chicken_rice_skin", "note": "ใช้เมื่อบอกร้านชัดเจน — uncommon", "calChange": -50, "proteinChange": 2, "carbChange": 0, "fatChange": -8, "sugarChange": 0 },
       { "id": "plain_rice", "label": "ข้าวเปล่า (ไม่ใส่น้ำมันไก่)", "calChange": -60, "fatChange": -7 }
     ] },
-    { "id": "r05", "name": "ข้าวหมูแดง", "emoji": "🍖", "category": "rice_dishes", "baseCalories": 920, "baseWeight_g": 400, "protein_g": 46, "carbs_g": 105, "fat_g": 40, "sugar_g": 18, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -100, "proteinChange": -2, "fatChange": -10 },
+    { "id": "r05", "name": "ข้าวหมูแดง", "emoji": "🍖", "category": "rice_dishes", "baseCalories": 590, "baseWeight_g": 350, "protein_g": 26, "carbs_g": 75, "fat_g": 15, "sugar_g": 14, "calorie_range": { "min": 500, "max": 700 }, "portion_basis": ["ข้าวสวย 180g", "หมูแดง 80g", "ไข่ครึ่งฟอง", "ซอสหวาน", "ผัก"], "customizations": [
+      { "id": "lean_select_default", "label": "เลือกชิ้นไม่ติดมัน / ร้านจัดให้", "groupId": "red_pork_fat", "note": "หมูแดงไม่มีหนังชัด — ระบุที่มัน", "calChange": -60, "proteinChange": -1, "carbChange": 0, "fatChange": -6, "sugarChange": 0, "gramsChange": -10 },
+      { "id": "no_fat_more", "label": "เอาส่วนมันออกเยอะ", "groupId": "red_pork_fat", "calChange": -80, "proteinChange": -2, "carbChange": 0, "fatChange": -8, "sugarChange": 0, "gramsChange": -15 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อแทนชัดเจน (advanced)", "groupId": "red_pork_fat", "note": "uncommon", "calChange": -30, "proteinChange": 3, "carbChange": 0, "fatChange": -6, "sugarChange": 0 },
       { "id": "no_egg", "label": "ไม่ใส่ไข่ต้ม", "calChange": -75, "proteinChange": -6, "carbChange": -1, "fatChange": -5 }
     ] },
-    { "id": "r06", "name": "ข้าวหมูกรอบ", "emoji": "🥓", "category": "rice_dishes", "baseCalories": 1050, "baseWeight_g": 400, "protein_g": 47, "carbs_g": 100, "fat_g": 54, "sugar_g": 8, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง (ลอกออก)", "calChange": -230, "proteinChange": -3, "fatChange": -23 },
-      { "id": "partial_skin", "label": "ลอกหนังบางส่วน", "calChange": -115, "proteinChange": -2, "fatChange": -12 }
+    { "id": "r06", "name": "ข้าวหมูกรอบ", "emoji": "🥓", "category": "rice_dishes", "baseCalories": 970, "baseWeight_g": 370, "protein_g": 25, "carbs_g": 65, "fat_g": 65, "sugar_g": 4, "calorie_range": { "min": 820, "max": 1150 }, "portion_basis": ["ข้าวสวย 180-200g", "หมูกรอบ 90-100g", "ผักคะน้า/ซอส"], "customizations": [
+      { "id": "no_skin_fat_default", "label": "เอาหนัง/มันออกเท่าที่ทำได้", "groupId": "crispy_pork_skin_fat", "note": "ตรงกับการสั่งทั่วไป ร้านอาจเลือกชิ้นเนื้อเยอะขึ้นเล็กน้อย แต่ไม่ควร assume ว่าได้เนื้อแทนเต็ม", "calChange": -180, "proteinChange": -2, "carbChange": 0, "fatChange": -19, "sugarChange": 0, "gramsChange": -35 },
+      { "id": "no_skin_fat_more", "label": "เอาออกเยอะจริงๆ", "groupId": "crispy_pork_skin_fat", "calChange": -250, "proteinChange": -3, "carbChange": 0, "fatChange": -25, "sugarChange": 0, "gramsChange": -50 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อแทนชัดเจน (advanced)", "groupId": "crispy_pork_skin_fat", "note": "uncommon", "calChange": -120, "proteinChange": 5, "carbChange": 0, "fatChange": -18, "sugarChange": 0 }
     ] },
-    { "id": "r07", "name": "ข้าวขาหมู", "emoji": "🍖", "category": "rice_dishes", "baseCalories": 1050, "baseWeight_g": 450, "protein_g": 50, "carbs_g": 100, "fat_g": 56, "sugar_g": 12, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -180, "proteinChange": -2, "fatChange": -18 },
-      { "id": "no_fat", "label": "ไม่มัน", "calChange": -130, "fatChange": -14 },
-      { "id": "no_skin_no_fat", "label": "ไม่หนังไม่มัน", "calChange": -310, "proteinChange": -2, "fatChange": -32 }
+    { "id": "r07", "name": "ข้าวขาหมู", "emoji": "🍖", "category": "rice_dishes", "baseCalories": 660, "baseWeight_g": 400, "protein_g": 30, "carbs_g": 75, "fat_g": 24, "sugar_g": 8, "calorie_range": { "min": 520, "max": 850 }, "portion_basis": ["ข้าวสวย 180g", "ขาหมูติดหนัง/มัน 100g", "ไข่พะโล้ครึ่งฟอง", "ผักดอง", "น้ำพะโล้"], "customizations": [
+      { "id": "no_skin_fat_default", "label": "ไม่หนังไม่มัน — ร้านจัดให้ / ไม่แน่ใจ", "groupId": "pork_leg_skin_fat", "note": "ค่ากลางสำหรับกรณีไม่รู้ว่าร้านเอาออกเฉยๆหรือชดเชยเนื้อแดงบางส่วน", "calChange": -220, "proteinChange": 1, "carbChange": 0, "fatChange": -25, "sugarChange": 0, "gramsChange": -35 },
+      { "id": "no_skin_fat_only", "label": "เอาหนัง/มันออกเฉยๆ", "groupId": "pork_leg_skin_fat", "note": "จานเล็กลง โปรตีนน้อยลง", "calChange": -310, "proteinChange": -2, "carbChange": 0, "fatChange": -32, "sugarChange": 0, "gramsChange": -70 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อแดงแทนชัดเจน", "groupId": "pork_leg_skin_fat", "note": "ใช้เมื่อบอกร้านชัดเจนว่าไม่เอาหนัง/มัน ขอเนื้อแดงแทน", "calChange": -150, "proteinChange": 6, "carbChange": 0, "fatChange": -22, "sugarChange": 0 }
     ] },
-    { "id": "r08", "name": "ข้าวผัดหมู", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 880, "baseWeight_g": 400, "protein_g": 42, "carbs_g": 110, "fat_g": 34, "sugar_g": 6 },
-    { "id": "r09", "name": "ข้าวผัดไข่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 720, "baseWeight_g": 380, "protein_g": 22, "carbs_g": 100, "fat_g": 26, "sugar_g": 4 },
-    { "id": "r10", "name": "ข้าวผัดกุ้ง", "emoji": "🍤", "category": "rice_dishes", "baseCalories": 800, "baseWeight_g": 400, "protein_g": 46, "carbs_g": 100, "fat_g": 28, "sugar_g": 6 },
-    { "id": "r11", "name": "ข้าวผัดปู", "emoji": "🦀", "category": "rice_dishes", "baseCalories": 850, "baseWeight_g": 400, "protein_g": 41, "carbs_g": 105, "fat_g": 31, "sugar_g": 6 },
-    { "id": "r12", "name": "ข้าวไข่เจียว", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 700, "baseWeight_g": 350, "protein_g": 25, "carbs_g": 80, "fat_g": 30, "sugar_g": 2 },
-    { "id": "r13", "name": "ข้าวคลุกกะปิ", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 780, "baseWeight_g": 400, "protein_g": 40, "carbs_g": 102, "fat_g": 28, "sugar_g": 5 },
-    { "id": "r14", "name": "ข้าวแกงเขียวหวานไก่", "emoji": "🍛", "category": "rice_dishes", "baseCalories": 850, "baseWeight_g": 450, "protein_g": 41, "carbs_g": 86, "fat_g": 40, "sugar_g": 10, "customizations": [
+    { "id": "r08", "name": "ข้าวผัดหมู", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 640, "baseWeight_g": 400, "protein_g": 23, "carbs_g": 75, "fat_g": 25, "sugar_g": 4, "calorie_range": { "min": 550, "max": 780 }, "portion_basis": ["ข้าวสวย 220g", "หมูชิ้น 60g", "ไข่ 1 ฟอง", "น้ำมัน 14g", "ผัก/ซอส 50g"] },
+    { "id": "r09", "name": "ข้าวผัดไข่", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 560, "baseWeight_g": 380, "protein_g": 16, "carbs_g": 80, "fat_g": 20, "sugar_g": 3 },
+    { "id": "r10", "name": "ข้าวผัดกุ้ง", "emoji": "🍤", "category": "rice_dishes", "baseCalories": 620, "baseWeight_g": 400, "protein_g": 27, "carbs_g": 75, "fat_g": 21, "sugar_g": 4, "calorie_range": { "min": 530, "max": 750 }, "portion_basis": ["ข้าวสวย 220g", "กุ้ง 70g", "ไข่ 1 ฟอง", "น้ำมัน 14g", "ผัก/ซอส 50g"] },
+    { "id": "r11", "name": "ข้าวผัดปู", "emoji": "🦀", "category": "rice_dishes", "baseCalories": 590, "baseWeight_g": 380, "protein_g": 24, "carbs_g": 72, "fat_g": 22, "sugar_g": 4 },
+    { "id": "r12", "name": "ข้าวไข่เจียว", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 510, "baseWeight_g": 320, "protein_g": 18, "carbs_g": 65, "fat_g": 22, "sugar_g": 1 },
+    { "id": "r13", "name": "ข้าวคลุกกะปิ", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 555, "baseWeight_g": 380, "protein_g": 22, "carbs_g": 75, "fat_g": 16, "sugar_g": 6 },
+    { "id": "r14", "name": "ข้าวแกงเขียวหวานไก่", "emoji": "🍛", "category": "rice_dishes", "baseCalories": 680, "baseWeight_g": 400, "protein_g": 28, "carbs_g": 70, "fat_g": 30, "sugar_g": 8, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
-      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -210, "proteinChange": -4, "carbChange": -45 }
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -195, "proteinChange": -4, "carbChange": -42, "fatChange": -1 }
     ] },
-    { "id": "r15", "name": "ข้าวแกงกะหรี่ญี่ปุ่น", "emoji": "🍛", "category": "rice_dishes", "baseCalories": 950, "baseWeight_g": 450, "protein_g": 32, "carbs_g": 110, "fat_g": 40, "sugar_g": 14 },
-    { "id": "r16", "name": "ข้าวหน้าเป็ด", "emoji": "🦆", "category": "rice_dishes", "baseCalories": 880, "baseWeight_g": 420, "protein_g": 50, "carbs_g": 92, "fat_g": 36, "sugar_g": 14, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -170, "proteinChange": -3, "fatChange": -17 },
+    { "id": "r15", "name": "ข้าวแกงกะหรี่ญี่ปุ่น", "emoji": "🍛", "category": "rice_dishes", "baseCalories": 780, "baseWeight_g": 420, "protein_g": 28, "carbs_g": 100, "fat_g": 32, "sugar_g": 12 },
+    { "id": "r16", "name": "ข้าวหน้าเป็ด", "emoji": "🦆", "category": "rice_dishes", "baseCalories": 690, "baseWeight_g": 400, "protein_g": 30, "carbs_g": 75, "fat_g": 27, "sugar_g": 12, "calorie_range": { "min": 570, "max": 850 }, "portion_basis": ["ข้าวสวย 180-200g", "เป็ดย่างติดหนัง 80g", "น้ำซอสหวาน", "ผัก"], "customizations": [
+      { "id": "no_skin_default", "label": "ไม่หนัง — ร้านจัดให้ / ไม่แน่ใจ", "groupId": "duck_skin", "calChange": -150, "proteinChange": -2, "carbChange": 0, "fatChange": -15, "sugarChange": 0, "gramsChange": -30 },
+      { "id": "no_skin_only", "label": "เอาหนังออกเฉยๆ", "groupId": "duck_skin", "calChange": -180, "proteinChange": -3, "carbChange": 0, "fatChange": -18, "sugarChange": 0, "gramsChange": -40 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อเป็ดแทนชัดเจน (advanced)", "groupId": "duck_skin", "note": "uncommon", "calChange": -80, "proteinChange": 5, "carbChange": 0, "fatChange": -13, "sugarChange": 0 },
       { "id": "less_sauce", "label": "ซอสน้อย", "calChange": -45, "carbChange": -11, "sugarChange": -11 }
     ] },
-    { "id": "r17", "name": "ข้าวต้ม", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 350, "baseWeight_g": 450, "protein_g": 18, "carbs_g": 55, "fat_g": 6, "sugar_g": 2 },
-    { "id": "r18", "name": "ข้าวต้มกุ้ง", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 360, "baseWeight_g": 450, "protein_g": 26, "carbs_g": 50, "fat_g": 6, "sugar_g": 2 },
-    { "id": "r19", "name": "ข้าวสวย (1 จาน)", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 280, "baseWeight_g": 220, "protein_g": 6, "carbs_g": 60, "fat_g": 0.5, "sugar_g": 0 },
-    { "id": "r20", "name": "ข้าวผัดอเมริกัน", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 1250, "baseWeight_g": 500, "protein_g": 52, "carbs_g": 130, "fat_g": 58, "sugar_g": 12 },
-    { "id": "r21", "name": "ข้าวกะเพราทะเล", "emoji": "🦐", "category": "rice_dishes", "baseCalories": 900, "baseWeight_g": 400, "protein_g": 52, "carbs_g": 100, "fat_g": 36, "sugar_g": 7, "customizations": [
-      { "id": "no_egg", "label": "ไม่ใส่ไข่ดาว", "calChange": -110, "proteinChange": -8, "carbChange": -1, "fatChange": -8 },
-      { "id": "swap_omelet", "label": "เปลี่ยนเป็นไข่เจียว", "calChange": 40, "fatChange": 4 },
-      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -210, "proteinChange": -4, "carbChange": -45 },
+    { "id": "r17", "name": "ข้าวต้ม", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 205, "baseWeight_g": 400, "protein_g": 12, "carbs_g": 35, "fat_g": 4, "sugar_g": 1 },
+    { "id": "r18", "name": "ข้าวต้มกุ้ง", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 280, "baseWeight_g": 400, "protein_g": 22, "carbs_g": 38, "fat_g": 5, "sugar_g": 1 },
+    { "id": "r19", "name": "ข้าวสวย (1 จาน)", "emoji": "🍚", "category": "rice_dishes", "baseCalories": 260, "baseWeight_g": 200, "protein_g": 5, "carbs_g": 56, "fat_g": 0.5, "sugar_g": 0 },
+    { "id": "r20", "name": "ข้าวผัดอเมริกัน", "emoji": "🍳", "category": "rice_dishes", "baseCalories": 910, "baseWeight_g": 450, "protein_g": 35, "carbs_g": 90, "fat_g": 42, "sugar_g": 8, "calorie_range": { "min": 800, "max": 1100 } },
+    { "id": "r21", "name": "ข้าวกะเพราทะเล", "emoji": "🦐", "category": "rice_dishes", "baseCalories": 600, "baseWeight_g": 370, "protein_g": 30, "carbs_g": 65, "fat_g": 21, "sugar_g": 5, "calorie_range": { "min": 500, "max": 730 }, "portion_basis": ["ข้าวสวย 180g", "กุ้ง/ปลาหมึก 100g", "น้ำมัน 18g", "ผัก/ซอส 60g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -195, "proteinChange": -4, "carbChange": -42, "fatChange": -1 },
       { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
     ] },
-    { "id": "r22", "name": "ข้าวไก่ทอด", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 1050, "baseWeight_g": 400, "protein_g": 56, "carbs_g": 100, "fat_g": 47, "sugar_g": 6, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -180, "proteinChange": -5, "fatChange": -18 },
+    { "id": "r22", "name": "ข้าวไก่ทอด", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 650, "baseWeight_g": 380, "protein_g": 32, "carbs_g": 70, "fat_g": 22, "sugar_g": 4, "calorie_range": { "min": 560, "max": 800 }, "customizations": [
+      { "id": "less_skin_batter_some", "label": "ลอกหนัง/แป้งทอดออกบางส่วน", "groupId": "fried_chicken_skin_batter", "calChange": -100, "proteinChange": -2, "carbChange": 0, "fatChange": -10, "sugarChange": 0, "gramsChange": -20 },
+      { "id": "less_skin_batter_more", "label": "ลอกหนัง/แป้งทอดออกเยอะ", "groupId": "fried_chicken_skin_batter", "calChange": -200, "proteinChange": -5, "carbChange": 0, "fatChange": -19, "sugarChange": 0, "gramsChange": -45 },
       { "id": "smaller_piece", "label": "ปีกแทนน่อง (ชิ้นเล็ก)", "calChange": -100, "proteinChange": -7, "fatChange": -7 }
     ] },
-    { "id": "r23", "name": "ข้าวหมูสามชั้น", "emoji": "🥓", "category": "rice_dishes", "baseCalories": 1220, "baseWeight_g": 450, "protein_g": 46, "carbs_g": 98, "fat_g": 66, "sugar_g": 8, "customizations": [
-      { "id": "no_skin", "label": "ลอกหนัง", "calChange": -180, "proteinChange": -2, "fatChange": -18 },
-      { "id": "no_fat", "label": "ลอกมัน", "calChange": -220, "fatChange": -23 },
-      { "id": "no_skin_no_fat", "label": "ลอกหนัง+มัน", "calChange": -400, "proteinChange": -2, "fatChange": -41 }
+    { "id": "r23", "name": "ข้าวหมูสามชั้น", "emoji": "🥓", "category": "rice_dishes", "baseCalories": 805, "baseWeight_g": 400, "protein_g": 22, "carbs_g": 70, "fat_g": 50, "sugar_g": 6, "calorie_range": { "min": 680, "max": 1000 }, "customizations": [
+      { "id": "no_skin_fat_default", "label": "ลอกหนัง/มันออกเท่าที่ทำได้", "groupId": "pork_belly_skin_fat", "calChange": -280, "proteinChange": -3, "carbChange": 0, "fatChange": -30, "sugarChange": 0, "gramsChange": -55 },
+      { "id": "no_skin_fat_more", "label": "ลอกออกเยอะจริงๆ", "groupId": "pork_belly_skin_fat", "calChange": -380, "proteinChange": -4, "carbChange": 0, "fatChange": -41, "sugarChange": 0, "gramsChange": -75 },
+      { "id": "lean_meat_replace", "label": "ขอเนื้อแทนชัดเจน (advanced)", "groupId": "pork_belly_skin_fat", "note": "uncommon", "calChange": -180, "proteinChange": 8, "carbChange": 0, "fatChange": -28, "sugarChange": 0 }
     ] },
-    { "id": "r24", "name": "โจ๊กหมู", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 330, "baseWeight_g": 450, "protein_g": 22, "carbs_g": 48, "fat_g": 6, "sugar_g": 2 },
+    { "id": "r24", "name": "โจ๊กหมู", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 315, "baseWeight_g": 400, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 1 },
 
-    { "id": "n01", "name": "ก๋วยเตี๋ยวเรือ", "emoji": "🍜", "category": "noodles", "baseCalories": 480, "baseWeight_g": 420, "protein_g": 30, "carbs_g": 58, "fat_g": 16, "sugar_g": 5, "customizations": [
+    { "id": "n01", "name": "ก๋วยเตี๋ยวเรือ", "emoji": "🍜", "category": "noodles", "baseCalories": 300, "baseWeight_g": 380, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 4, "calorie_range": { "min": 240, "max": 400 }, "portion_basis": ["เส้นเล็ก 80g cooked", "หมู/ลูกชิ้น/เลือด", "น้ำซุป", "ผัก"], "customizations": [
       { "id": "clear_broth", "label": "น้ำใส", "calChange": -50, "carbChange": -2, "fatChange": -4 },
-      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -140, "proteinChange": -4, "carbChange": -29, "fatChange": -1 },
+      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -45, "proteinChange": -2, "carbChange": -10, "fatChange": -1 },
       { "id": "no_blood", "label": "ไม่ใส่เลือด", "calChange": -35, "proteinChange": -4, "carbChange": -1 }
     ] },
-    { "id": "n02", "name": "ก๋วยเตี๋ยวต้มยำ", "emoji": "🍜", "category": "noodles", "baseCalories": 580, "baseWeight_g": 450, "protein_g": 34, "carbs_g": 68, "fat_g": 17, "sugar_g": 8, "customizations": [
+    { "id": "n02", "name": "ก๋วยเตี๋ยวต้มยำหมู", "emoji": "🍜", "category": "noodles", "baseCalories": 340, "baseWeight_g": 400, "protein_g": 20, "carbs_g": 45, "fat_g": 9, "sugar_g": 5, "customizations": [
       { "id": "clear_broth", "label": "น้ำใส", "calChange": -50, "carbChange": -2, "fatChange": -4 },
-      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -140, "proteinChange": -4, "carbChange": -29, "fatChange": -1 }
+      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -45, "proteinChange": -2, "carbChange": -10, "fatChange": -1 }
     ] },
-    { "id": "n03", "name": "ก๋วยเตี๋ยวน้ำใส", "emoji": "🍜", "category": "noodles", "baseCalories": 460, "baseWeight_g": 420, "protein_g": 28, "carbs_g": 60, "fat_g": 12, "sugar_g": 3, "customizations": [
-      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -140, "proteinChange": -4, "carbChange": -29, "fatChange": -1 },
+    { "id": "n03", "name": "ก๋วยเตี๋ยวน้ำใส", "emoji": "🍜", "category": "noodles", "baseCalories": 290, "baseWeight_g": 380, "protein_g": 18, "carbs_g": 40, "fat_g": 7, "sugar_g": 3, "customizations": [
+      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -45, "proteinChange": -2, "carbChange": -10, "fatChange": -1 },
       { "id": "no_pork_ball", "label": "ไม่ใส่ลูกชิ้น", "calChange": -50, "proteinChange": -5 }
     ] },
-    { "id": "n04", "name": "ก๋วยเตี๋ยวหมูสับ", "emoji": "🍜", "category": "noodles", "baseCalories": 500, "baseWeight_g": 420, "protein_g": 30, "carbs_g": 62, "fat_g": 14, "sugar_g": 4, "customizations": [
+    { "id": "n04", "name": "ก๋วยเตี๋ยวหมูสับ", "emoji": "🍜", "category": "noodles", "baseCalories": 320, "baseWeight_g": 380, "protein_g": 20, "carbs_g": 42, "fat_g": 9, "sugar_g": 4, "customizations": [
       { "id": "clear_broth", "label": "น้ำใส", "calChange": -50, "carbChange": -2, "fatChange": -4 },
-      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -140, "proteinChange": -4, "carbChange": -29, "fatChange": -1 }
+      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -45, "proteinChange": -2, "carbChange": -10, "fatChange": -1 }
     ] },
-    { "id": "n05", "name": "ก๋วยเตี๋ยวเย็นตาโฟ", "emoji": "🍜", "category": "noodles", "baseCalories": 640, "baseWeight_g": 500, "protein_g": 39, "carbs_g": 74, "fat_g": 22, "sugar_g": 6, "customizations": [
-      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -140, "proteinChange": -4, "carbChange": -29, "fatChange": -1 },
+    { "id": "n05", "name": "ก๋วยเตี๋ยวเย็นตาโฟ", "emoji": "🍜", "category": "noodles", "baseCalories": 370, "baseWeight_g": 450, "protein_g": 22, "carbs_g": 50, "fat_g": 9, "sugar_g": 6, "customizations": [
+      { "id": "glass_noodle", "label": "วุ้นเส้นแทนเส้นใหญ่", "calChange": -45, "proteinChange": -2, "carbChange": -10, "fatChange": -1 },
       { "id": "no_blood", "label": "ไม่ใส่เลือด", "calChange": -35, "proteinChange": -4, "carbChange": -1 }
     ] },
-    { "id": "n06", "name": "ผัดไทยไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 820, "baseWeight_g": 400, "protein_g": 42, "carbs_g": 100, "fat_g": 30, "sugar_g": 22, "customizations": [
+    { "id": "n06", "name": "ผัดไทยไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 680, "baseWeight_g": 380, "protein_g": 29, "carbs_g": 73, "fat_g": 24, "sugar_g": 18, "calorie_range": { "min": 600, "max": 900 }, "customizations": [
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_dried_shrimp", "label": "กุ้งแห้งน้อย", "calChange": -25, "proteinChange": -3, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n07", "name": "ผัดซีอิ๊วหมู", "emoji": "🍝", "category": "noodles", "baseCalories": 950, "baseWeight_g": 450, "protein_g": 48, "carbs_g": 100, "fat_g": 40, "sugar_g": 10, "customizations": [
+    { "id": "n07", "name": "ผัดซีอิ๊วหมู", "emoji": "🍝", "category": "noodles", "baseCalories": 660, "baseWeight_g": 420, "protein_g": 24, "carbs_g": 70, "fat_g": 27, "sugar_g": 7, "calorie_range": { "min": 550, "max": 820 }, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n08", "name": "ราดหน้าหมู", "emoji": "🍝", "category": "noodles", "baseCalories": 680, "baseWeight_g": 500, "protein_g": 35, "carbs_g": 85, "fat_g": 24, "sugar_g": 8, "customizations": [
+    { "id": "n08", "name": "ราดหน้าหมู", "emoji": "🍝", "category": "noodles", "baseCalories": 550, "baseWeight_g": 450, "protein_g": 24, "carbs_g": 62, "fat_g": 19, "sugar_g": 7, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n09", "name": "ราดหน้าทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 700, "baseWeight_g": 500, "protein_g": 42, "carbs_g": 80, "fat_g": 24, "sugar_g": 8, "customizations": [
+    { "id": "n09", "name": "ราดหน้าทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 560, "baseWeight_g": 450, "protein_g": 28, "carbs_g": 62, "fat_g": 19, "sugar_g": 7, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n10", "name": "บะหมี่หมูแดง", "emoji": "🍜", "category": "noodles", "baseCalories": 700, "baseWeight_g": 450, "protein_g": 36, "carbs_g": 78, "fat_g": 26, "sugar_g": 12, "customizations": [
+    { "id": "n10", "name": "บะหมี่หมูแดง", "emoji": "🍜", "category": "noodles", "baseCalories": 370, "baseWeight_g": 380, "protein_g": 23, "carbs_g": 47, "fat_g": 11, "sugar_g": 8, "customizations": [
       { "id": "no_red_pork", "label": "ไม่ใส่หมูแดง", "calChange": -100, "proteinChange": -10, "carbChange": -2, "fatChange": -5, "sugarChange": -2 },
       { "id": "clear_broth", "label": "น้ำใส", "calChange": -50, "carbChange": -2, "fatChange": -4 }
     ] },
-    { "id": "n11", "name": "บะหมี่เกี๊ยว", "emoji": "🥟", "category": "noodles", "baseCalories": 580, "baseWeight_g": 450, "protein_g": 33, "carbs_g": 70, "fat_g": 21, "sugar_g": 5 },
-    { "id": "n12", "name": "ขนมจีนน้ำยา", "emoji": "🍜", "category": "noodles", "baseCalories": 580, "baseWeight_g": 450, "protein_g": 22, "carbs_g": 72, "fat_g": 22, "sugar_g": 6, "customizations": [
+    { "id": "n11", "name": "บะหมี่เกี๊ยว", "emoji": "🥟", "category": "noodles", "baseCalories": 420, "baseWeight_g": 400, "protein_g": 23, "carbs_g": 52, "fat_g": 13, "sugar_g": 5 },
+    { "id": "n12", "name": "ขนมจีนน้ำยา", "emoji": "🍜", "category": "noodles", "baseCalories": 480, "baseWeight_g": 420, "protein_g": 20, "carbs_g": 65, "fat_g": 18, "sugar_g": 6, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 }
     ] },
-    { "id": "n13", "name": "สุกี้น้ำ", "emoji": "🍲", "category": "noodles", "baseCalories": 420, "baseWeight_g": 500, "protein_g": 32, "carbs_g": 45, "fat_g": 13, "sugar_g": 8 },
-    { "id": "n14", "name": "ก๋วยเตี๋ยวคั่วไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 850, "baseWeight_g": 450, "protein_g": 40, "carbs_g": 95, "fat_g": 32, "sugar_g": 7, "customizations": [
+    { "id": "n13", "name": "สุกี้น้ำ", "emoji": "🍲", "category": "noodles", "baseCalories": 380, "baseWeight_g": 480, "protein_g": 28, "carbs_g": 42, "fat_g": 11, "sugar_g": 7 },
+    { "id": "n14", "name": "ก๋วยเตี๋ยวคั่วไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 620, "baseWeight_g": 420, "protein_g": 26, "carbs_g": 68, "fat_g": 24, "sugar_g": 6, "calorie_range": { "min": 520, "max": 780 }, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n15", "name": "ผัดซีอิ๊วไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 880, "baseWeight_g": 450, "protein_g": 44, "carbs_g": 99, "fat_g": 35, "sugar_g": 10, "customizations": [
+    { "id": "n15", "name": "ผัดซีอิ๊วไก่", "emoji": "🍝", "category": "noodles", "baseCalories": 670, "baseWeight_g": 420, "protein_g": 26, "carbs_g": 70, "fat_g": 28, "sugar_g": 7, "calorie_range": { "min": 560, "max": 830 }, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n16", "name": "ราดหน้ากุ้ง", "emoji": "🍝", "category": "noodles", "baseCalories": 620, "baseWeight_g": 500, "protein_g": 38, "carbs_g": 76, "fat_g": 21, "sugar_g": 7, "customizations": [
+    { "id": "n16", "name": "ราดหน้ากุ้ง", "emoji": "🍝", "category": "noodles", "baseCalories": 530, "baseWeight_g": 450, "protein_g": 26, "carbs_g": 62, "fat_g": 17, "sugar_g": 6, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n17", "name": "ผัดไทยกุ้ง", "emoji": "🍝", "category": "noodles", "baseCalories": 850, "baseWeight_g": 400, "protein_g": 44, "carbs_g": 99, "fat_g": 32, "sugar_g": 22, "customizations": [
+    { "id": "n17", "name": "ผัดไทยกุ้ง", "emoji": "🍝", "category": "noodles", "baseCalories": 650, "baseWeight_g": 380, "protein_g": 29, "carbs_g": 73, "fat_g": 22, "sugar_g": 18, "calorie_range": { "min": 570, "max": 850 }, "customizations": [
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_dried_shrimp", "label": "กุ้งแห้งน้อย", "calChange": -25, "proteinChange": -3, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -120, "fatChange": -14 }
     ] },
-    { "id": "n18", "name": "หมี่หยก", "emoji": "🍜", "category": "noodles", "baseCalories": 520, "baseWeight_g": 400, "protein_g": 26, "carbs_g": 68, "fat_g": 18, "sugar_g": 6 },
+    { "id": "n18", "name": "หมี่หยก", "emoji": "🍜", "category": "noodles", "baseCalories": 335, "baseWeight_g": 350, "protein_g": 18, "carbs_g": 40, "fat_g": 9, "sugar_g": 4 },
 
-    { "id": "s01", "name": "ส้มตำไทย", "emoji": "🥗", "category": "salads", "baseCalories": 220, "baseWeight_g": 280, "protein_g": 10, "carbs_g": 36, "fat_g": 5, "sugar_g": 18, "customizations": [
+    { "id": "s01", "name": "ส้มตำไทย", "emoji": "🥗", "category": "salads", "baseCalories": 240, "baseWeight_g": 250, "protein_g": 8, "carbs_g": 35, "fat_g": 6, "sugar_g": 20, "customizations": [
       { "id": "no_dried_shrimp", "label": "ไม่ใส่กุ้งแห้ง", "calChange": -40, "proteinChange": -5 },
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -45, "carbChange": -11, "sugarChange": -11 },
       { "id": "no_sugar", "label": "ไม่ใส่น้ำตาลเลย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
       { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
     ] },
-    { "id": "s02", "name": "ส้มตำปู", "emoji": "🦀", "category": "salads", "baseCalories": 200, "baseWeight_g": 280, "protein_g": 14, "carbs_g": 28, "fat_g": 3, "sugar_g": 14, "customizations": [
+    { "id": "s02", "name": "ส้มตำปู", "emoji": "🦀", "category": "salads", "baseCalories": 165, "baseWeight_g": 250, "protein_g": 12, "carbs_g": 28, "fat_g": 4, "sugar_g": 12, "customizations": [
       { "id": "no_dried_shrimp", "label": "ไม่ใส่กุ้งแห้ง", "calChange": -40, "proteinChange": -5 },
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -45, "carbChange": -11, "sugarChange": -11 },
       { "id": "no_sugar", "label": "ไม่ใส่น้ำตาลเลย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
       { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
     ] },
-    { "id": "s03", "name": "ส้มตำปลาร้า", "emoji": "🥗", "category": "salads", "baseCalories": 250, "baseWeight_g": 280, "protein_g": 16, "carbs_g": 35, "fat_g": 5, "sugar_g": 12, "customizations": [
+    { "id": "s03", "name": "ส้มตำปลาร้า", "emoji": "🥗", "category": "salads", "baseCalories": 205, "baseWeight_g": 250, "protein_g": 14, "carbs_g": 30, "fat_g": 5, "sugar_g": 10, "customizations": [
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -45, "carbChange": -11, "sugarChange": -11 },
       { "id": "no_sugar", "label": "ไม่ใส่น้ำตาลเลย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
       { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
     ] },
-    { "id": "s04", "name": "ลาบหมู", "emoji": "🥗", "category": "salads", "baseCalories": 380, "baseWeight_g": 250, "protein_g": 37, "carbs_g": 16, "fat_g": 21, "sugar_g": 5, "customizations": [
+    { "id": "s04", "name": "ลาบหมู", "emoji": "🥗", "category": "salads", "baseCalories": 280, "baseWeight_g": 200, "protein_g": 24, "carbs_g": 9, "fat_g": 15, "sugar_g": 3, "calorie_range": { "min": 220, "max": 380 }, "customizations": [
       { "id": "no_offal", "label": "ไม่ใส่เครื่องใน", "calChange": -50, "proteinChange": -4, "fatChange": -4 },
       { "id": "less_rice", "label": "ข้าวคั่วน้อย", "calChange": -18, "carbChange": -3 }
     ] },
-    { "id": "s05", "name": "ลาบไก่", "emoji": "🥗", "category": "salads", "baseCalories": 320, "baseWeight_g": 250, "protein_g": 40, "carbs_g": 13, "fat_g": 13, "sugar_g": 5, "customizations": [
+    { "id": "s05", "name": "ลาบไก่", "emoji": "🥗", "category": "salads", "baseCalories": 250, "baseWeight_g": 200, "protein_g": 29, "carbs_g": 8, "fat_g": 9, "sugar_g": 3, "calorie_range": { "min": 210, "max": 330 }, "customizations": [
       { "id": "no_offal", "label": "ไม่ใส่เครื่องใน", "calChange": -50, "proteinChange": -4, "fatChange": -4 },
       { "id": "less_rice", "label": "ข้าวคั่วน้อย", "calChange": -18, "carbChange": -3 }
     ] },
-    { "id": "s06", "name": "น้ำตกหมู", "emoji": "🥗", "category": "salads", "baseCalories": 360, "baseWeight_g": 250, "protein_g": 36, "carbs_g": 15, "fat_g": 19, "sugar_g": 5, "customizations": [
+    { "id": "s06", "name": "น้ำตกหมู", "emoji": "🥗", "category": "salads", "baseCalories": 300, "baseWeight_g": 200, "protein_g": 25, "carbs_g": 8, "fat_g": 17, "sugar_g": 3, "calorie_range": { "min": 240, "max": 400 }, "customizations": [
       { "id": "less_rice", "label": "ข้าวคั่วน้อย", "calChange": -18, "carbChange": -3 }
     ] },
-    { "id": "s07", "name": "ยำวุ้นเส้น", "emoji": "🥗", "category": "salads", "baseCalories": 420, "baseWeight_g": 300, "protein_g": 26, "carbs_g": 52, "fat_g": 13, "sugar_g": 12, "customizations": [
+    { "id": "s07", "name": "ยำวุ้นเส้น", "emoji": "🥗", "category": "salads", "baseCalories": 300, "baseWeight_g": 250, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 8, "customizations": [
       { "id": "no_pork", "label": "ไม่ใส่หมูสับ", "calChange": -80, "proteinChange": -8, "fatChange": -5 },
       { "id": "no_shrimp", "label": "ไม่ใส่กุ้ง", "calChange": -50, "proteinChange": -11, "fatChange": -1 },
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 }
     ] },
-    { "id": "s08", "name": "ยำรวมมิตรทะเล", "emoji": "🦐", "category": "salads", "baseCalories": 320, "baseWeight_g": 300, "protein_g": 32, "carbs_g": 26, "fat_g": 10, "sugar_g": 10 },
-    { "id": "s09", "name": "ยำไส้กรอก", "emoji": "🌭", "category": "salads", "baseCalories": 420, "baseWeight_g": 280, "protein_g": 18, "carbs_g": 32, "fat_g": 24, "sugar_g": 10 },
-    { "id": "s10", "name": "ยำมาม่า", "emoji": "🍜", "category": "salads", "baseCalories": 480, "baseWeight_g": 320, "protein_g": 20, "carbs_g": 50, "fat_g": 22, "sugar_g": 10 },
-    { "id": "s11", "name": "ยำซีฟู้ด", "emoji": "🦐", "category": "salads", "baseCalories": 240, "baseWeight_g": 300, "protein_g": 32, "carbs_g": 18, "fat_g": 6, "sugar_g": 8 },
-    { "id": "s12", "name": "ยำหมูยอ", "emoji": "🌭", "category": "salads", "baseCalories": 340, "baseWeight_g": 280, "protein_g": 26, "carbs_g": 30, "fat_g": 13, "sugar_g": 10 },
-    { "id": "s13", "name": "สลัดอกไก่", "emoji": "🥗", "category": "salads", "baseCalories": 380, "baseWeight_g": 350, "protein_g": 42, "carbs_g": 22, "fat_g": 13, "sugar_g": 6 },
+    { "id": "s08", "name": "ยำรวมมิตรทะเล", "emoji": "🦐", "category": "salads", "baseCalories": 300, "baseWeight_g": 280, "protein_g": 32, "carbs_g": 22, "fat_g": 8, "sugar_g": 10 },
+    { "id": "s09", "name": "ยำไส้กรอก", "emoji": "🌭", "category": "salads", "baseCalories": 380, "baseWeight_g": 250, "protein_g": 16, "carbs_g": 28, "fat_g": 22, "sugar_g": 9 },
+    { "id": "s10", "name": "ยำมาม่า", "emoji": "🍜", "category": "salads", "baseCalories": 440, "baseWeight_g": 300, "protein_g": 18, "carbs_g": 48, "fat_g": 20, "sugar_g": 9 },
+    { "id": "s11", "name": "ยำซีฟู้ด", "emoji": "🦐", "category": "salads", "baseCalories": 170, "baseWeight_g": 250, "protein_g": 24, "carbs_g": 14, "fat_g": 3, "sugar_g": 6 },
+    { "id": "s12", "name": "ยำหมูยอ", "emoji": "🌭", "category": "salads", "baseCalories": 300, "baseWeight_g": 250, "protein_g": 18, "carbs_g": 22, "fat_g": 15, "sugar_g": 8 },
+    { "id": "s13", "name": "สลัดอกไก่", "emoji": "🥗", "category": "salads", "baseCalories": 430, "baseWeight_g": 350, "protein_g": 38, "carbs_g": 18, "fat_g": 18, "sugar_g": 5 },
 
-    { "id": "m01", "name": "ต้มยำกุ้งน้ำข้น", "emoji": "🍲", "category": "mains", "baseCalories": 650, "baseWeight_g": 400, "protein_g": 32, "carbs_g": 26, "fat_g": 47, "sugar_g": 6, "customizations": [
-      { "id": "clear_broth", "label": "น้ำใสแทนน้ำข้น", "calChange": -350, "proteinChange": -2, "carbChange": -10, "fatChange": -32, "sugarChange": -1 },
-      { "id": "no_coconut", "label": "ไม่ใส่กะทิ", "calChange": -230, "proteinChange": -2, "carbChange": -3, "fatChange": -24 },
+    { "id": "m01", "name": "ต้มยำกุ้งน้ำข้น", "emoji": "🍲", "category": "mains", "baseCalories": 310, "baseWeight_g": 350, "protein_g": 20, "carbs_g": 14, "fat_g": 18, "sugar_g": 4, "customizations": [
+      { "id": "clear_broth", "label": "น้ำใสแทนน้ำข้น", "calChange": -190, "proteinChange": -2, "carbChange": -8, "fatChange": -16, "sugarChange": -1 },
+      { "id": "no_coconut", "label": "ไม่ใส่กะทิ", "calChange": -120, "proteinChange": -2, "carbChange": -3, "fatChange": -12 },
       { "id": "more_shrimp", "label": "เพิ่มกุ้ง 5 ตัว", "calChange": 50, "proteinChange": 11, "fatChange": 1 }
     ] },
-    { "id": "m02", "name": "ต้มข่าไก่", "emoji": "🍲", "category": "mains", "baseCalories": 570, "baseWeight_g": 400, "protein_g": 32, "carbs_g": 18, "fat_g": 41, "sugar_g": 5, "customizations": [
+    { "id": "m02", "name": "ต้มข่าไก่", "emoji": "🍲", "category": "mains", "baseCalories": 390, "baseWeight_g": 350, "protein_g": 22, "carbs_g": 8, "fat_g": 25, "sugar_g": 3, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 }
     ] },
-    { "id": "m03", "name": "แกงเขียวหวานไก่", "emoji": "🍛", "category": "mains", "baseCalories": 650, "baseWeight_g": 400, "protein_g": 34, "carbs_g": 22, "fat_g": 47, "sugar_g": 8, "customizations": [
+    { "id": "m03", "name": "แกงเขียวหวานไก่", "emoji": "🍛", "category": "mains", "baseCalories": 485, "baseWeight_g": 350, "protein_g": 24, "carbs_g": 14, "fat_g": 32, "sugar_g": 6, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
       { "id": "more_coconut", "label": "เข้มข้น", "calChange": 115, "proteinChange": 1, "carbChange": 2, "fatChange": 12 }
     ] },
-    { "id": "m04", "name": "แกงแดง", "emoji": "🍛", "category": "mains", "baseCalories": 620, "baseWeight_g": 400, "protein_g": 30, "carbs_g": 18, "fat_g": 44, "sugar_g": 8, "customizations": [
+    { "id": "m04", "name": "แกงแดง", "emoji": "🍛", "category": "mains", "baseCalories": 470, "baseWeight_g": 350, "protein_g": 24, "carbs_g": 14, "fat_g": 32, "sugar_g": 6, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
       { "id": "more_coconut", "label": "เข้มข้น", "calChange": 115, "proteinChange": 1, "carbChange": 2, "fatChange": 12 }
     ] },
-    { "id": "m05", "name": "แกงมัสมั่นไก่", "emoji": "🍛", "category": "mains", "baseCalories": 850, "baseWeight_g": 400, "protein_g": 35, "carbs_g": 38, "fat_g": 62, "sugar_g": 14, "customizations": [
+    { "id": "m05", "name": "แกงมัสมั่นไก่", "emoji": "🍛", "category": "mains", "baseCalories": 610, "baseWeight_g": 350, "protein_g": 24, "carbs_g": 30, "fat_g": 38, "sugar_g": 10, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
       { "id": "more_coconut", "label": "เข้มข้น", "calChange": 115, "proteinChange": 1, "carbChange": 2, "fatChange": 12 }
     ] },
     { "id": "m06", "name": "แกงส้ม", "emoji": "🍲", "category": "mains", "baseCalories": 220, "baseWeight_g": 400, "protein_g": 22, "carbs_g": 16, "fat_g": 6, "sugar_g": 6 },
     { "id": "m07", "name": "แกงเลียง", "emoji": "🍲", "category": "mains", "baseCalories": 180, "baseWeight_g": 400, "protein_g": 14, "carbs_g": 18, "fat_g": 5, "sugar_g": 3 },
-    { "id": "m08", "name": "ปลาทอดน้ำปลา", "emoji": "🐟", "category": "mains", "baseCalories": 500, "baseWeight_g": 300, "protein_g": 48, "carbs_g": 8, "fat_g": 30, "sugar_g": 2, "customizations": [
+    { "id": "m08", "name": "ปลาทอดน้ำปลา", "emoji": "🐟", "category": "mains", "baseCalories": 490, "baseWeight_g": 250, "protein_g": 35, "carbs_g": 5, "fat_g": 30, "sugar_g": 1, "customizations": [
       { "id": "less_oil", "label": "ทอดน้ำมันน้อย / อบ", "calChange": -100, "fatChange": -11 },
       { "id": "double_fry", "label": "ทอดสองชั้น (กรอบพิเศษ)", "calChange": 60, "carbChange": 1, "fatChange": 6 }
     ] },
-    { "id": "m09", "name": "ไก่ย่าง (1/4 ตัว)", "emoji": "🍗", "category": "mains", "baseCalories": 340, "baseWeight_g": 200, "protein_g": 38, "carbs_g": 3, "fat_g": 20, "sugar_g": 1, "customizations": [
+    { "id": "m09", "name": "ไก่ย่าง (1/4 ตัว)", "emoji": "🍗", "category": "mains", "baseCalories": 340, "baseWeight_g": 180, "protein_g": 28, "carbs_g": 2, "fat_g": 22, "sugar_g": 1, "customizations": [
       { "id": "no_skin", "label": "ไม่หนัง", "calChange": -130, "proteinChange": -4, "fatChange": -13 }
     ] },
-    { "id": "m10", "name": "หมูปิ้ง (3 ไม้)", "emoji": "🍢", "category": "mains", "baseCalories": 280, "baseWeight_g": 150, "protein_g": 28, "carbs_g": 9, "fat_g": 15, "sugar_g": 5 },
-    { "id": "m11", "name": "ไข่ดาว (1 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 130, "baseWeight_g": 55, "protein_g": 8, "carbs_g": 1, "fat_g": 11, "sugar_g": 0, "customizations": [
-      { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 }
+    { "id": "m10", "name": "หมูปิ้ง (3 ไม้)", "emoji": "🍢", "category": "mains", "baseCalories": 240, "baseWeight_g": 130, "protein_g": 22, "carbs_g": 8, "fat_g": 12, "sugar_g": 4 },
+    { "id": "m11", "name": "ไข่ดาว (1 ฟอง)", "emoji": "🍳", "category": "mains", "baseCalories": 120, "baseWeight_g": 50, "protein_g": 7, "carbs_g": 1, "fat_g": 9, "sugar_g": 0, "customizations": [
+      { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -50, "fatChange": -6 }
     ] },
-    { "id": "m12", "name": "ไข่เจียว (ร้านข้าว)", "emoji": "🍳", "category": "mains", "baseCalories": 420, "baseWeight_g": 130, "protein_g": 18, "carbs_g": 3, "fat_g": 36, "sugar_g": 1, "customizations": [
+    { "id": "m12", "name": "ไข่เจียว (ร้านข้าว)", "emoji": "🍳", "category": "mains", "baseCalories": 280, "baseWeight_g": 110, "protein_g": 14, "carbs_g": 2, "fat_g": 22, "sugar_g": 1, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 },
       { "id": "with_pork", "label": "ใส่หมูสับ", "calChange": 80, "proteinChange": 8, "fatChange": 5 },
       { "id": "with_veg", "label": "ใส่ผัก", "calChange": 20, "proteinChange": 1, "carbChange": 4, "sugarChange": 2 }
     ] },
     { "id": "m13", "name": "ผัดผักรวม", "emoji": "🥬", "category": "mains", "baseCalories": 180, "baseWeight_g": 220, "protein_g": 6, "carbs_g": 14, "fat_g": 12, "sugar_g": 4 },
-    { "id": "m14", "name": "ผัดกะเพราหมูสับ", "emoji": "🌶️", "category": "mains", "baseCalories": 480, "baseWeight_g": 200, "protein_g": 28, "carbs_g": 10, "fat_g": 36, "sugar_g": 5, "customizations": [
+    { "id": "m14", "name": "ผัดกะเพราหมูสับ", "emoji": "🌶️", "category": "mains", "baseCalories": 430, "baseWeight_g": 180, "protein_g": 22, "carbs_g": 8, "fat_g": 32, "sugar_g": 5, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -7 },
       { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
     ] },
     { "id": "m15", "name": "ต้มเลือดหมู", "emoji": "🍲", "category": "mains", "baseCalories": 220, "baseWeight_g": 400, "protein_g": 22, "carbs_g": 10, "fat_g": 10, "sugar_g": 2 },
-    { "id": "m16", "name": "ต้มยำกุ้งน้ำใส", "emoji": "🍲", "category": "mains", "baseCalories": 300, "baseWeight_g": 400, "protein_g": 32, "carbs_g": 16, "fat_g": 12, "sugar_g": 5, "customizations": [
+    { "id": "m16", "name": "ต้มยำกุ้งน้ำใส", "emoji": "🍲", "category": "mains", "baseCalories": 120, "baseWeight_g": 350, "protein_g": 18, "carbs_g": 6, "fat_g": 2, "sugar_g": 3, "customizations": [
       { "id": "more_shrimp", "label": "เพิ่มกุ้ง 5 ตัว", "calChange": 50, "proteinChange": 11, "fatChange": 1 }
     ] },
-    { "id": "m17", "name": "แกงเผ็ดเป็ดย่าง", "emoji": "🦆", "category": "mains", "baseCalories": 750, "baseWeight_g": 400, "protein_g": 39, "carbs_g": 22, "fat_g": 56, "sugar_g": 10, "customizations": [
+    { "id": "m17", "name": "แกงเผ็ดเป็ดย่าง", "emoji": "🦆", "category": "mains", "baseCalories": 525, "baseWeight_g": 350, "protein_g": 26, "carbs_g": 14, "fat_g": 32, "sugar_g": 6, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
       { "id": "more_coconut", "label": "เข้มข้น", "calChange": 115, "proteinChange": 1, "carbChange": 2, "fatChange": 12 }
     ] },
-    { "id": "m18", "name": "ปลาทอดราดพริก", "emoji": "🐟", "category": "mains", "baseCalories": 620, "baseWeight_g": 350, "protein_g": 42, "carbs_g": 18, "fat_g": 42, "sugar_g": 10, "customizations": [
+    { "id": "m18", "name": "ปลาทอดราดพริก", "emoji": "🐟", "category": "mains", "baseCalories": 585, "baseWeight_g": 300, "protein_g": 32, "carbs_g": 18, "fat_g": 32, "sugar_g": 10, "customizations": [
       { "id": "less_oil", "label": "ทอดน้ำมันน้อย", "calChange": -100, "fatChange": -11 },
       { "id": "double_fry", "label": "ทอดสองชั้น", "calChange": 60, "carbChange": 1, "fatChange": 6 }
     ] },
-    { "id": "m19", "name": "หมูทอดกระเทียม", "emoji": "🥓", "category": "mains", "baseCalories": 560, "baseWeight_g": 250, "protein_g": 43, "carbs_g": 12, "fat_g": 35, "sugar_g": 3, "customizations": [
+    { "id": "m19", "name": "หมูทอดกระเทียม", "emoji": "🥓", "category": "mains", "baseCalories": 465, "baseWeight_g": 200, "protein_g": 30, "carbs_g": 8, "fat_g": 30, "sugar_g": 2, "customizations": [
       { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -80, "fatChange": -9 },
       { "id": "no_fried_garlic", "label": "ไม่ใส่กระเทียมเจียว", "calChange": -40, "carbChange": -1, "fatChange": -4 }
     ] },
-    { "id": "m20", "name": "ไก่ทอด (1 ชิ้น)", "emoji": "🍗", "category": "mains", "baseCalories": 400, "baseWeight_g": 150, "protein_g": 30, "carbs_g": 16, "fat_g": 23, "sugar_g": 2, "customizations": [
-      { "id": "no_skin", "label": "ไม่หนัง", "calChange": -130, "proteinChange": -4, "fatChange": -13 },
+    { "id": "m20", "name": "ไก่ทอด (1 ชิ้น)", "emoji": "🍗", "category": "mains", "baseCalories": 385, "baseWeight_g": 120, "protein_g": 25, "carbs_g": 14, "fat_g": 22, "sugar_g": 1, "customizations": [
+      { "id": "less_skin_batter_some", "label": "ลอกหนัง/แป้งทอดออกบางส่วน", "groupId": "fried_chicken_skin_batter", "calChange": -100, "proteinChange": -2, "carbChange": 0, "fatChange": -10, "sugarChange": 0, "gramsChange": -20 },
+      { "id": "less_skin_batter_more", "label": "ลอกหนัง/แป้งทอดออกเยอะ", "groupId": "fried_chicken_skin_batter", "calChange": -200, "proteinChange": -5, "carbChange": 0, "fatChange": -19, "sugarChange": 0, "gramsChange": -45 },
       { "id": "oven_baked", "label": "ไก่ย่างแทน (อบ)", "calChange": -150, "fatChange": -17 }
     ] },
     { "id": "m21", "name": "ไข่ต้ม (1 ฟอง)", "emoji": "🥚", "category": "mains", "baseCalories": 75, "baseWeight_g": 50, "protein_g": 6, "carbs_g": 1, "fat_g": 5, "sugar_g": 0 },
 
-    { "id": "d01", "name": "ชาเย็น", "emoji": "🥤", "category": "drinks", "baseCalories": 280, "baseWeight_g": 350, "protein_g": 4, "carbs_g": 42, "fat_g": 10, "sugar_g": 38, "customizations": [
+    { "id": "d01", "name": "ชาเย็น (legacy)", "emoji": "🥤", "category": "drinks", "baseCalories": 280, "baseWeight_g": 350, "protein_g": 4, "carbs_g": 42, "fat_g": 10, "sugar_g": 38, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -76, "carbChange": -19, "sugarChange": -19 }
     ] },
-    { "id": "d02", "name": "กาแฟเย็น", "emoji": "☕", "category": "drinks", "baseCalories": 290, "baseWeight_g": 350, "protein_g": 4, "carbs_g": 40, "fat_g": 12, "sugar_g": 38, "customizations": [
+    { "id": "d02", "name": "กาแฟเย็น (legacy)", "emoji": "☕", "category": "drinks", "baseCalories": 290, "baseWeight_g": 350, "protein_g": 4, "carbs_g": 40, "fat_g": 12, "sugar_g": 38, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -76, "carbChange": -19, "sugarChange": -19 }
     ] },
     { "id": "d03", "name": "กาแฟดำร้อน", "emoji": "☕", "category": "drinks", "baseCalories": 5, "baseWeight_g": 200, "protein_g": 0, "carbs_g": 1, "fat_g": 0, "sugar_g": 0 },
-    { "id": "d04", "name": "โอเลี้ยง", "emoji": "🥤", "category": "drinks", "baseCalories": 140, "baseWeight_g": 300, "protein_g": 0, "carbs_g": 36, "fat_g": 0, "sugar_g": 34, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -68, "carbChange": -17, "sugarChange": -17 }
+    { "id": "d04", "name": "โอเลี้ยง (รถเข็น 22oz)", "emoji": "🥤", "category": "drinks", "baseCalories": 220, "baseWeight_g": 650, "protein_g": 0, "carbs_g": 55, "fat_g": 0, "sugar_g": 52, "size_profile": "street_22oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -70, "carbChange": -17, "sugarChange": -17 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 60, "carbChange": 15, "sugarChange": 15 }
     ] },
     { "id": "d05", "name": "ชามะนาว", "emoji": "🍋", "category": "drinks", "baseCalories": 130, "baseWeight_g": 300, "protein_g": 0, "carbs_g": 32, "fat_g": 0, "sugar_g": 30, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -60, "carbChange": -15, "sugarChange": -15 }
@@ -260,70 +269,115 @@
     { "id": "d07", "name": "นมถั่วเหลือง", "emoji": "🥛", "category": "drinks", "baseCalories": 130, "baseWeight_g": 240, "protein_g": 7, "carbs_g": 16, "fat_g": 4, "sugar_g": 13, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -20, "carbChange": -5, "sugarChange": -5 }
     ] },
-    { "id": "d08", "name": "น้ำส้มคั้น", "emoji": "🍊", "category": "drinks", "baseCalories": 130, "baseWeight_g": 240, "protein_g": 2, "carbs_g": 30, "fat_g": 0, "sugar_g": 26 },
-    { "id": "d09", "name": "น้ำมะพร้าว", "emoji": "🥥", "category": "drinks", "baseCalories": 55, "baseWeight_g": 240, "protein_g": 1, "carbs_g": 12, "fat_g": 0.5, "sugar_g": 11 },
-    { "id": "d10", "name": "โค้ก (1 กระป๋อง)", "emoji": "🥤", "category": "drinks", "baseCalories": 140, "baseWeight_g": 325, "protein_g": 0, "carbs_g": 35, "fat_g": 0, "sugar_g": 35 },
+    { "id": "d08", "name": "น้ำส้มคั้น 250ml", "emoji": "🍊", "category": "drinks", "baseCalories": 115, "baseWeight_g": 250, "protein_g": 2, "carbs_g": 26, "fat_g": 0, "sugar_g": 22 },
+    { "id": "d09", "name": "น้ำมะพร้าว 250ml", "emoji": "🥥", "category": "drinks", "baseCalories": 50, "baseWeight_g": 250, "protein_g": 1, "carbs_g": 12, "fat_g": 0, "sugar_g": 11 },
+    { "id": "d10", "name": "โค้ก 325ml", "emoji": "🥤", "category": "drinks", "baseCalories": 140, "baseWeight_g": 325, "protein_g": 0, "carbs_g": 39, "fat_g": 0, "sugar_g": 39 },
     { "id": "d11", "name": "น้ำเปล่า", "emoji": "💧", "category": "drinks", "baseCalories": 0, "baseWeight_g": 240, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "sugar_g": 0 },
-    { "id": "d12", "name": "ชาไทย (หวานน้อย)", "emoji": "🍵", "category": "drinks", "baseCalories": 180, "baseWeight_g": 300, "protein_g": 3, "carbs_g": 26, "fat_g": 7, "sugar_g": 22 },
+    { "id": "d12", "name": "ชาไทย หวานน้อย (legacy)", "emoji": "🍵", "category": "drinks", "baseCalories": 180, "baseWeight_g": 300, "protein_g": 3, "carbs_g": 26, "fat_g": 7, "sugar_g": 22 },
     { "id": "d13", "name": "แตงโมปั่น", "emoji": "🍉", "category": "drinks", "baseCalories": 140, "baseWeight_g": 300, "protein_g": 2, "carbs_g": 32, "fat_g": 0.5, "sugar_g": 28, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -16, "carbChange": -4, "sugarChange": -4 }
     ] },
     { "id": "d14", "name": "สไปรต์", "emoji": "🥤", "category": "drinks", "baseCalories": 140, "baseWeight_g": 325, "protein_g": 0, "carbs_g": 35, "fat_g": 0, "sugar_g": 35 },
-    { "id": "d15", "name": "กาแฟดำเย็น", "emoji": "☕", "category": "drinks", "baseCalories": 10, "baseWeight_g": 300, "protein_g": 0, "carbs_g": 2, "fat_g": 0, "sugar_g": 0 },
-    { "id": "d16", "name": "กาแฟใส่นม (เล็ก)", "emoji": "☕", "category": "drinks", "baseCalories": 130, "baseWeight_g": 220, "protein_g": 4, "carbs_g": 13, "fat_g": 6, "sugar_g": 11, "customizations": [
+    { "id": "d15", "name": "กาแฟดำเย็น / อเมริกาโน่ไม่หวาน", "emoji": "☕", "category": "drinks", "baseCalories": 5, "baseWeight_g": 350, "protein_g": 0, "carbs_g": 1, "fat_g": 0, "sugar_g": 0 },
+    { "id": "d16", "name": "กาแฟใส่นม", "emoji": "☕", "category": "drinks", "baseCalories": 120, "baseWeight_g": 200, "protein_g": 3, "carbs_g": 15, "fat_g": 4, "sugar_g": 14, "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -24, "carbChange": -6, "sugarChange": -6 },
       { "id": "no_sugar", "label": "ไม่หวาน", "calChange": -48, "carbChange": -12, "sugarChange": -12 },
       { "id": "low_fat_milk", "label": "นมไขมันต่ำ", "calChange": -50, "carbChange": 2, "fatChange": -6, "sugarChange": 2 },
       { "id": "soy_milk", "label": "นมถั่วเหลือง", "calChange": -40, "proteinChange": -2, "carbChange": 3, "fatChange": -3, "sugarChange": 2 }
     ] },
-    { "id": "d17", "name": "ลาเต้", "emoji": "☕", "category": "drinks", "baseCalories": 220, "baseWeight_g": 350, "protein_g": 11, "carbs_g": 24, "fat_g": 9, "sugar_g": 19, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -32, "carbChange": -8, "sugarChange": -8 },
-      { "id": "no_sugar", "label": "ไม่หวาน", "calChange": -64, "carbChange": -16, "sugarChange": -16 },
+    { "id": "d17", "name": "ลาเต้ (คาเฟ่ 16oz)", "emoji": "☕", "category": "drinks", "baseCalories": 220, "baseWeight_g": 470, "protein_g": 9, "carbs_g": 24, "fat_g": 8, "sugar_g": 18, "size_profile": "cafe_16oz", "customizations": [
+      { "id": "unsweetened", "label": "ไม่หวาน", "calChange": -80, "carbChange": -20, "sugarChange": -20 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 40, "carbChange": 10, "sugarChange": 10 },
       { "id": "low_fat_milk", "label": "นมไขมันต่ำ", "calChange": -50, "carbChange": 2, "fatChange": -6, "sugarChange": 2 },
       { "id": "soy_milk", "label": "นมถั่วเหลือง", "calChange": -40, "proteinChange": -2, "carbChange": 3, "fatChange": -3, "sugarChange": 2 },
       { "id": "no_milk", "label": "ไม่ใส่นม (อเมริกาโน่)", "calChange": -150, "proteinChange": -10, "carbChange": -18, "fatChange": -8, "sugarChange": -16 }
     ] },
-    { "id": "d18", "name": "คาปูชิโน", "emoji": "☕", "category": "drinks", "baseCalories": 190, "baseWeight_g": 300, "protein_g": 9, "carbs_g": 19, "fat_g": 8, "sugar_g": 16, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -32, "carbChange": -8, "sugarChange": -8 },
-      { "id": "no_sugar", "label": "ไม่หวาน", "calChange": -64, "carbChange": -16, "sugarChange": -16 },
+    { "id": "d18", "name": "คาปูชิโน (คาเฟ่ 16oz)", "emoji": "☕", "category": "drinks", "baseCalories": 190, "baseWeight_g": 450, "protein_g": 7, "carbs_g": 20, "fat_g": 7, "sugar_g": 15, "size_profile": "cafe_16oz", "customizations": [
+      { "id": "unsweetened", "label": "ไม่หวาน", "calChange": -60, "carbChange": -15, "sugarChange": -15 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 50, "carbChange": 13, "sugarChange": 13 },
       { "id": "low_fat_milk", "label": "นมไขมันต่ำ", "calChange": -50, "carbChange": 2, "fatChange": -6, "sugarChange": 2 },
       { "id": "soy_milk", "label": "นมถั่วเหลือง", "calChange": -40, "proteinChange": -2, "carbChange": 3, "fatChange": -3, "sugarChange": 2 }
     ] },
-    { "id": "d19", "name": "ชาดำเย็นหวาน", "emoji": "🍵", "category": "drinks", "baseCalories": 230, "baseWeight_g": 350, "protein_g": 0, "carbs_g": 55, "fat_g": 0, "sugar_g": 50, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -48, "carbChange": -12, "sugarChange": -12 },
-      { "id": "no_sugar", "label": "ไม่หวาน", "calChange": -96, "carbChange": -24, "sugarChange": -24 }
+    { "id": "d19", "name": "ชาดำเย็นหวาน (รถเข็น 22oz)", "emoji": "🍵", "category": "drinks", "baseCalories": 220, "baseWeight_g": 650, "protein_g": 0, "carbs_g": 55, "fat_g": 0, "sugar_g": 52, "size_profile": "street_22oz", "note_drink": "ชาดำเย็นปกติไม่ใส่นมข้นหวาน แต่แก้วรถเข็นใช้น้ำตาล/ไซรัปเยอะกว่าแก้วคาเฟ่", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -70, "carbChange": -17, "sugarChange": -17 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 60, "carbChange": 15, "sugarChange": 15 },
+      { "id": "no_sugar", "label": "ไม่หวาน", "calChange": -180, "carbChange": -45, "sugarChange": -45 }
     ] },
-    { "id": "d20", "name": "ชาเขียวเย็น", "emoji": "🍵", "category": "drinks", "baseCalories": 230, "baseWeight_g": 350, "protein_g": 3, "carbs_g": 44, "fat_g": 4, "sugar_g": 40, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -48, "carbChange": -12, "sugarChange": -12 },
-      { "id": "no_sweet", "label": "ไม่หวาน", "calChange": -96, "carbChange": -24, "sugarChange": -24 }
+    { "id": "d20", "name": "ชาเขียวเย็นหวาน (รถเข็น 22oz)", "emoji": "🍵", "category": "drinks", "baseCalories": 390, "baseWeight_g": 650, "protein_g": 5, "carbs_g": 62, "fat_g": 13, "sugar_g": 55, "size_profile": "street_22oz", "note_drink": "Thai-style green milk tea ไม่ใช่ชาเขียวใส", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -80, "carbChange": -20, "sugarChange": -20 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 70, "carbChange": 18, "sugarChange": 18 }
     ] },
-    { "id": "d21", "name": "ชาไทยเย็น (หวาน)", "emoji": "🧋", "category": "drinks", "baseCalories": 350, "baseWeight_g": 350, "protein_g": 6, "carbs_g": 58, "fat_g": 11, "sugar_g": 50, "customizations": [
-      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -48, "carbChange": -12, "sugarChange": -12 },
-      { "id": "no_condensed_milk", "label": "ไม่ใส่นมข้นหวาน", "calChange": -95, "proteinChange": -2, "carbChange": -16, "fatChange": -3, "sugarChange": -22 },
-      { "id": "no_sweet_no_milk", "label": "ไม่หวานเลย (ไม่นม + ไม่น้ำตาล)", "calChange": -191, "proteinChange": -2, "carbChange": -40, "fatChange": -3, "sugarChange": -46 }
+    { "id": "d21", "name": "ชาไทยเย็น (รถเข็น 22oz)", "emoji": "🧋", "category": "drinks", "baseCalories": 400, "baseWeight_g": 650, "protein_g": 6, "carbs_g": 63, "fat_g": 13, "sugar_g": 58, "size_profile": "street_22oz", "calorie_range": { "min": 300, "max": 520 }, "note_drink": "แก้วรถเข็น 22oz มีน้ำแข็งเยอะ แต่ปริมาณนมข้น/น้ำตาลมักมากกว่าแก้วคาเฟ่ 1.5-2 เท่า", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -80, "carbChange": -20, "sugarChange": -20 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 80, "carbChange": 20, "sugarChange": 20 },
+      { "id": "no_condensed_milk", "label": "ไม่ใส่นมข้นหวาน", "calChange": -110, "proteinChange": -2, "carbChange": -19, "fatChange": -3, "sugarChange": -25 }
     ] },
-    { "id": "d22", "name": "เบียร์ (1 ขวด ~330ml)", "emoji": "🍺", "category": "drinks", "baseCalories": 180, "baseWeight_g": 330, "protein_g": 1, "carbs_g": 14, "fat_g": 0, "sugar_g": 0 },
+    { "id": "d22", "name": "เบียร์ (1 ขวด 330ml)", "emoji": "🍺", "category": "drinks", "baseCalories": 150, "baseWeight_g": 330, "protein_g": 1, "carbs_g": 12, "fat_g": 0, "sugar_g": 0 },
     { "id": "d23", "name": "น้ำเปล่าอัดลม", "emoji": "💧", "category": "drinks", "baseCalories": 0, "baseWeight_g": 325, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "sugar_g": 0 },
+    { "id": "d24", "name": "ชาดำเย็นหวาน (คาเฟ่ 12-16oz)", "emoji": "🍵", "category": "drinks", "baseCalories": 120, "baseWeight_g": 400, "protein_g": 0, "carbs_g": 30, "fat_g": 0, "sugar_g": 28, "size_profile": "cafe_12_16oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -40, "carbChange": -10, "sugarChange": -10 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 35, "carbChange": 9, "sugarChange": 9 }
+    ] },
+    { "id": "d25", "name": "ชาเขียวเย็นหวาน (คาเฟ่ 12-16oz)", "emoji": "🍵", "category": "drinks", "baseCalories": 260, "baseWeight_g": 400, "protein_g": 4, "carbs_g": 42, "fat_g": 9, "sugar_g": 38, "size_profile": "cafe_12_16oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -55, "carbChange": -14, "sugarChange": -14 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 50, "carbChange": 13, "sugarChange": 13 }
+    ] },
+    { "id": "d26", "name": "ชาไทยเย็น (คาเฟ่ 12-16oz)", "emoji": "🧋", "category": "drinks", "baseCalories": 260, "baseWeight_g": 400, "protein_g": 4, "carbs_g": 42, "fat_g": 9, "sugar_g": 38, "size_profile": "cafe_12_16oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -55, "carbChange": -14, "sugarChange": -14 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 55, "carbChange": 14, "sugarChange": 14 },
+      { "id": "no_condensed_milk", "label": "ไม่ใส่นมข้นหวาน", "calChange": -75, "proteinChange": -2, "carbChange": -13, "fatChange": -2, "sugarChange": -16 }
+    ] },
+    { "id": "d27", "name": "กาแฟโบราณเย็น (รถเข็น 22oz)", "emoji": "☕", "category": "drinks", "baseCalories": 420, "baseWeight_g": 650, "protein_g": 5, "carbs_g": 65, "fat_g": 15, "sugar_g": 58, "size_profile": "street_22oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 80, "carbChange": 20, "sugarChange": 20 }
+    ] },
+    { "id": "d28", "name": "กาแฟโบราณเย็น (คาเฟ่ small)", "emoji": "☕", "category": "drinks", "baseCalories": 280, "baseWeight_g": 400, "protein_g": 4, "carbs_g": 44, "fat_g": 10, "sugar_g": 38, "size_profile": "cafe_small", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -60, "carbChange": -15, "sugarChange": -15 }
+    ] },
+    { "id": "d29", "name": "เนสกาแฟเย็น (รถเข็น 22oz)", "emoji": "☕", "category": "drinks", "baseCalories": 400, "baseWeight_g": 650, "protein_g": 5, "carbs_g": 62, "fat_g": 14, "sugar_g": 56, "size_profile": "street_22oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -80, "carbChange": -20, "sugarChange": -20 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 80, "carbChange": 20, "sugarChange": 20 }
+    ] },
+    { "id": "d30", "name": "นมชมพู (รถเข็น 22oz)", "emoji": "🥛", "category": "drinks", "baseCalories": 430, "baseWeight_g": 650, "protein_g": 8, "carbs_g": 70, "fat_g": 13, "sugar_g": 65, "size_profile": "street_22oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 90, "carbChange": 22, "sugarChange": 22 }
+    ] },
+    { "id": "d31", "name": "นมชมพู (คาเฟ่ small)", "emoji": "🥛", "category": "drinks", "baseCalories": 280, "baseWeight_g": 400, "protein_g": 6, "carbs_g": 47, "fat_g": 9, "sugar_g": 43, "size_profile": "cafe_small", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -60, "carbChange": -15, "sugarChange": -15 }
+    ] },
+    { "id": "d32", "name": "โกโก้เย็น (รถเข็น 22oz)", "emoji": "🍫", "category": "drinks", "baseCalories": 450, "baseWeight_g": 650, "protein_g": 8, "carbs_g": 68, "fat_g": 16, "sugar_g": 58, "size_profile": "street_22oz", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
+      { "id": "very_sweet", "label": "หวานมาก", "calChange": 90, "carbChange": 22, "sugarChange": 22 }
+    ] },
+    { "id": "d33", "name": "โกโก้เย็น (คาเฟ่ small)", "emoji": "🍫", "category": "drinks", "baseCalories": 300, "baseWeight_g": 400, "protein_g": 6, "carbs_g": 46, "fat_g": 11, "sugar_g": 39, "size_profile": "cafe_small", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -60, "carbChange": -15, "sugarChange": -15 }
+    ] },
+    { "id": "d34", "name": "อเมริกาโน่หวาน", "emoji": "☕", "category": "drinks", "baseCalories": 100, "baseWeight_g": 350, "protein_g": 0, "carbs_g": 25, "fat_g": 0, "sugar_g": 25, "calorie_range": { "min": 80, "max": 140 }, "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -40, "carbChange": -10, "sugarChange": -10 }
+    ] },
+    { "id": "d35", "name": "โอเลี้ยง (คาเฟ่ small)", "emoji": "🥤", "category": "drinks", "baseCalories": 120, "baseWeight_g": 350, "protein_g": 0, "carbs_g": 30, "fat_g": 0, "sugar_g": 28, "size_profile": "cafe_small", "customizations": [
+      { "id": "less_sweet", "label": "หวานน้อย", "calChange": -40, "carbChange": -10, "sugarChange": -10 }
+    ] },
 
     { "id": "k01", "name": "ขนมปังปิ้ง (1 แผ่น)", "emoji": "🍞", "category": "snacks", "baseCalories": 150, "baseWeight_g": 40, "protein_g": 4, "carbs_g": 22, "fat_g": 5, "sugar_g": 2 },
     { "id": "k02", "name": "แซนด์วิชแฮมชีส", "emoji": "🥪", "category": "snacks", "baseCalories": 380, "baseWeight_g": 150, "protein_g": 16, "carbs_g": 36, "fat_g": 20, "sugar_g": 5 },
     { "id": "k03", "name": "บราวนี่ (1 ชิ้น)", "emoji": "🍫", "category": "snacks", "baseCalories": 350, "baseWeight_g": 80, "protein_g": 4, "carbs_g": 44, "fat_g": 18, "sugar_g": 30 },
     { "id": "k04", "name": "เค้กช็อกโกแลต", "emoji": "🍰", "category": "snacks", "baseCalories": 420, "baseWeight_g": 110, "protein_g": 5, "carbs_g": 50, "fat_g": 22, "sugar_g": 38 },
-    { "id": "k05", "name": "มันฝรั่งทอด (ห่อเล็ก)", "emoji": "🥔", "category": "snacks", "baseCalories": 160, "baseWeight_g": 30, "protein_g": 2, "carbs_g": 16, "fat_g": 10, "sugar_g": 1 },
-    { "id": "k06", "name": "ไอศกรีม (1 ลูก)", "emoji": "🍨", "category": "snacks", "baseCalories": 230, "baseWeight_g": 80, "protein_g": 4, "carbs_g": 28, "fat_g": 12, "sugar_g": 22 },
-    { "id": "k07", "name": "โดนัท (1 ชิ้น)", "emoji": "🍩", "category": "snacks", "baseCalories": 290, "baseWeight_g": 65, "protein_g": 5, "carbs_g": 35, "fat_g": 16, "sugar_g": 16 },
+    { "id": "k05", "name": "มันฝรั่งทอด (ห่อเล็ก)", "emoji": "🥔", "category": "snacks", "baseCalories": 170, "baseWeight_g": 30, "protein_g": 2, "carbs_g": 16, "fat_g": 11, "sugar_g": 1 },
+    { "id": "k06", "name": "ไอศกรีม (1 ลูก)", "emoji": "🍨", "category": "snacks", "baseCalories": 175, "baseWeight_g": 80, "protein_g": 4, "carbs_g": 22, "fat_g": 9, "sugar_g": 18 },
+    { "id": "k07", "name": "โดนัท (1 ชิ้น)", "emoji": "🍩", "category": "snacks", "baseCalories": 280, "baseWeight_g": 70, "protein_g": 4, "carbs_g": 32, "fat_g": 16, "sugar_g": 14 },
     { "id": "k08", "name": "ขนมครก (5 ชิ้น)", "emoji": "🥮", "category": "snacks", "baseCalories": 320, "baseWeight_g": 110, "protein_g": 4, "carbs_g": 38, "fat_g": 16, "sugar_g": 18 },
-    { "id": "k09", "name": "ข้าวเหนียวมะม่วง", "emoji": "🥭", "category": "snacks", "baseCalories": 520, "baseWeight_g": 250, "protein_g": 5, "carbs_g": 98, "fat_g": 13, "sugar_g": 50, "customizations": [
+    { "id": "k09", "name": "ข้าวเหนียวมะม่วง", "emoji": "🥭", "category": "snacks", "baseCalories": 430, "baseWeight_g": 250, "protein_g": 5, "carbs_g": 80, "fat_g": 12, "sugar_g": 38, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -90, "proteinChange": -1, "carbChange": -1, "fatChange": -10 },
       { "id": "no_coconut", "label": "ไม่ใส่กะทิ", "calChange": -185, "proteinChange": -2, "carbChange": -2, "fatChange": -19 },
       { "id": "less_rice", "label": "ข้าวเหนียวน้อย", "calChange": -120, "proteinChange": -2, "carbChange": -25, "fatChange": -2 }
     ] },
-    { "id": "k10", "name": "กล้วยบวชชี", "emoji": "🍌", "category": "snacks", "baseCalories": 440, "baseWeight_g": 300, "protein_g": 4, "carbs_g": 75, "fat_g": 17, "sugar_g": 44, "customizations": [
+    { "id": "k10", "name": "กล้วยบวชชี", "emoji": "🍌", "category": "snacks", "baseCalories": 440, "baseWeight_g": 300, "protein_g": 4, "carbs_g": 65, "fat_g": 16, "sugar_g": 38, "customizations": [
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 }
     ] },
-    { "id": "k11", "name": "ขนมปังปิ้งเนยน้ำตาล", "emoji": "🍞", "category": "snacks", "baseCalories": 330, "baseWeight_g": 120, "protein_g": 6, "carbs_g": 43, "fat_g": 14, "sugar_g": 19 },
-    { "id": "k12", "name": "เค้กชิ้นเล็ก", "emoji": "🍰", "category": "snacks", "baseCalories": 420, "baseWeight_g": 120, "protein_g": 5, "carbs_g": 52, "fat_g": 23, "sugar_g": 34 },
-    { "id": "k13", "name": "คุกกี้ (3 ชิ้น)", "emoji": "🍪", "category": "snacks", "baseCalories": 210, "baseWeight_g": 60, "protein_g": 2, "carbs_g": 26, "fat_g": 10, "sugar_g": 15 },
+    { "id": "k11", "name": "ขนมปังปิ้งเนยน้ำตาล", "emoji": "🍞", "category": "snacks", "baseCalories": 345, "baseWeight_g": 120, "protein_g": 6, "carbs_g": 42, "fat_g": 16, "sugar_g": 18 },
+    { "id": "k12", "name": "เค้กชิ้นเล็ก", "emoji": "🍰", "category": "snacks", "baseCalories": 385, "baseWeight_g": 100, "protein_g": 5, "carbs_g": 48, "fat_g": 20, "sugar_g": 30 },
+    { "id": "k13", "name": "คุกกี้ (3 ชิ้น)", "emoji": "🍪", "category": "snacks", "baseCalories": 225, "baseWeight_g": 45, "protein_g": 3, "carbs_g": 28, "fat_g": 11, "sugar_g": 14 },
 
     { "id": "f01", "name": "กล้วยหอม (1 ลูก)", "emoji": "🍌", "category": "fruits", "baseCalories": 100, "baseWeight_g": 120, "protein_g": 1, "carbs_g": 24, "fat_g": 0.3, "sugar_g": 14 },
     { "id": "f02", "name": "แอปเปิ้ล (1 ลูก)", "emoji": "🍎", "category": "fruits", "baseCalories": 80, "baseWeight_g": 180, "protein_g": 0.5, "carbs_g": 20, "fat_g": 0.3, "sugar_g": 16 },
