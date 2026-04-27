@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.3';
+const VERSION = 'v1.10.4';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2906,12 +2906,14 @@ function renderAddChoose() {
 }
 
 function renderSpecialChoose() {
+  const t = state.tmp;
   return `
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
         <h1>🎉 บันทึกมื้อพิเศษ</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
       <div class="callout info">
         มื้อพิเศษ = ชาบู / บุฟเฟ่ / ร้านอาหาร / ฟาสต์ฟู้ด<br>
         สำหรับมื้อที่ไม่ใช่อาหารจานเดียวปกติ
@@ -2955,6 +2957,7 @@ function renderSpecialQuick() {
           <button class="icon-btn" data-act="back">←</button>
           <h1>⚡ Quick — เลือกประเภท</h1>
         </div>
+        ${backdateBannerHtml(t.targetDate)}
         ${Object.entries(SPECIAL_MEAL_PRESETS).map(([id, p]) => `
           <div class="card tight" data-act="set-special-cat" data-v="${id}" style="cursor:pointer">
             <div class="row">
@@ -2983,6 +2986,7 @@ function renderSpecialQuick() {
         <button class="icon-btn" data-act="reset-special-cat">←</button>
         <h1 style="flex:1">${preset.emoji} ${h(preset.name)}</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
 
       <h2>ขนาดที่กิน</h2>
       ${preset.sizes.map(s => `
@@ -3044,6 +3048,7 @@ function renderSpecialDetail() {
         <button class="icon-btn" data-act="back">←</button>
         <h1>📝 รายละเอียดมื้อพิเศษ</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
 
       <div class="card">
         <div class="field">
@@ -3118,6 +3123,7 @@ function renderSpecialAddConfig() {
         <button class="icon-btn" data-act="back">←</button>
         <h1 style="flex:1">${meal.emoji || '🍽️'} ${h(meal.name)}</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
 
       <div class="card">
         <div class="row between">
@@ -4028,6 +4034,7 @@ function renderHistoryDay() {
         <div class="card mt" style="border:1.5px dashed var(--primary);background:var(--primary-soft)">
           <div style="font-weight:600;font-size:14px;color:var(--primary-dark);margin-bottom:8px">📅 บันทึกย้อนหลังสำหรับวันนี้</div>
           <button class="btn block" data-act="nav-add-meal-backdate" style="margin-bottom:8px">+ เพิ่มเมนูย้อนหลัง</button>
+          <button class="btn secondary block" data-act="nav-add-special-backdate" style="margin-bottom:8px;background:linear-gradient(135deg,#fde7c8,#fbcb8d);color:#5a2e00;border:1.5px solid #e8a766">🎉 เพิ่มมื้อพิเศษย้อนหลัง</button>
           ${allowsActivityLog ? `<button class="btn secondary block" data-act="nav-add-activity-backdate">+ เพิ่มกิจกรรมย้อนหลัง</button>` : ''}
         </div>
       ` : ''}
@@ -4985,6 +4992,12 @@ const actions = {
       targetDate: date
     });
   },
+  // v1.10.4 — special meals (quick + detailed) backdated to a past day
+  'nav-add-special-backdate': () => {
+    const date = state.tmp.date;
+    if (!date) return;
+    go('special-choose', { targetDate: date });
+  },
   // v1.10.3 — delete activity from a specific past date (uses data-date)
   'delete-activity-historical': (e, btn) => {
     if (!confirm('ลบกิจกรรมนี้?')) return;
@@ -5122,8 +5135,15 @@ const actions = {
     toast('Reset แล้ว');
     render();
   },
-  'nav-special-quick': () => go('special-quick', { specialCat: null, specialSizeId: null, specialAddons: [] }),
-  'nav-special-detail': () => go('special-detail', { specialDetail: { customName: '', category: 'thai_multi_dish', items: [] } }),
+  'nav-special-quick': () => {
+    // v1.10.4 — forward targetDate if backdating
+    const targetDate = state.tmp.targetDate || null;
+    go('special-quick', { specialCat: null, specialSizeId: null, specialAddons: [], targetDate });
+  },
+  'nav-special-detail': () => {
+    const targetDate = state.tmp.targetDate || null;
+    go('special-detail', { specialDetail: { customName: '', category: 'thai_multi_dish', items: [] }, targetDate });
+  },
 
   'set-special-cat': (e, btn) => { state.tmp.specialCat = btn.dataset.v; state.tmp.specialSizeId = null; state.tmp.specialAddons = []; render(); },
   'reset-special-cat': () => { state.tmp.specialCat = null; state.tmp.specialSizeId = null; state.tmp.specialAddons = []; render(); },
@@ -5158,12 +5178,23 @@ const actions = {
       protein_g: totalP, carbs_g: totalC, fat_g: totalF, sugar_g: totalS,
       category: 'special'
     };
+    // v1.10.4 — honor targetDate when backdating special-quick meals
+    const today = todayKey();
+    const targetDate = state.tmp.targetDate && state.tmp.targetDate !== today ? state.tmp.targetDate : null;
     addLogEntry({
       mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap,
       special: { method: 'quick', category: cat, sizeId, addons: addons.slice() }
-    });
-    coachingToast(totalCal);
-    goHome();
+    }, targetDate || today);
+    if (targetDate) {
+      toast(`เพิ่มมื้อพิเศษไปวันที่ ${formatDateTH(targetDate)} แล้ว ✅`);
+      state.stack = [];
+      state.view = 'history-day';
+      state.tmp = { date: targetDate };
+      render();
+    } else {
+      coachingToast(totalCal);
+      goHome();
+    }
   },
 
   'set-sd-category': (e, btn) => {
@@ -5175,10 +5206,12 @@ const actions = {
     const nameInput = document.getElementById('sd-name');
     if (nameInput) state.tmp.specialDetail.customName = nameInput.value.trim();
     // v1.10.1 — pass pickMode + specialDetail through go() (state.tmp gets replaced otherwise)
+    // v1.10.4 — also forward targetDate so backdate context survives library round-trip
     go('library', {
       cat: 'all', query: '',
       pickMode: 'special-add',
-      specialDetail: state.tmp.specialDetail
+      specialDetail: state.tmp.specialDetail,
+      targetDate: state.tmp.targetDate || null
     });
   },
   // v1.10.1 — cart chip on library jumps back to special-detail summary.
@@ -5223,14 +5256,17 @@ const actions = {
     toast(`เพิ่ม ${d.meal.name} แล้ว ✓`);
     // v1.10.1 — return to library so user can keep adding without bouncing back to summary.
     // Stack still has special-detail entry (with shared sd ref) → ← from library goes to summary.
+    // v1.10.4 — preserve targetDate so backdate banner stays visible across the loop.
     const cat = state.tmp.returnCat || 'all';
     const query = state.tmp.returnQuery || '';
+    const targetDate = state.tmp.targetDate || null;
     state.stack = state.stack.filter(s => s.view !== 'library' && s.view !== 'special-add-config');
     state.view = 'library';
     state.tmp = {
       cat, query,
       pickMode: 'special-add',
-      specialDetail: sd
+      specialDetail: sd,
+      targetDate
     };
     render();
   },
@@ -5264,12 +5300,23 @@ const actions = {
       fat_g: Math.round(totalF * 10) / 10, sugar_g: Math.round(totalS * 10) / 10,
       category: 'special'
     };
+    // v1.10.4 — honor targetDate when backdating special-detail meals
+    const today = todayKey();
+    const targetDate = state.tmp.targetDate && state.tmp.targetDate !== today ? state.tmp.targetDate : null;
     addLogEntry({
       mealId, sizePct: 100, quantity: 1, addons: [], snapshot: snap,
       special: { method: 'detailed', category: sd.category, customName: sd.customName, items: sd.items.slice(), itemSummary: itemNames }
-    });
-    coachingToast(totalCal);
-    goHome();
+    }, targetDate || today);
+    if (targetDate) {
+      toast(`เพิ่มมื้อพิเศษไปวันที่ ${formatDateTH(targetDate)} แล้ว ✅`);
+      state.stack = [];
+      state.view = 'history-day';
+      state.tmp = { date: targetDate };
+      render();
+    } else {
+      coachingToast(totalCal);
+      goHome();
+    }
   },
   'nav-ocr-with-barcode': () => replace('ocr', { barcode: state.tmp.barcode || null }),
   'nav-manual-scan': () => replace('manual', { draft: { name: '', emoji: '🏷️', category: 'custom' }, barcodeHint: state.tmp.barcode }),
@@ -5406,11 +5453,13 @@ const actions = {
     if (state.tmp.pickMode === 'special-add') {
       const sdReturn = state.tmp.specialDetail;
       // v1.10.1 — preserve current library filters so we can restore on return
+      // v1.10.4 — also preserve targetDate for backdate flow
       go('special-add-config', {
         sdItemDraft: { meal: m, sizePct: 100, quantity: 1, sharedBy: 1 },
         specialDetailReturn: sdReturn,
         returnCat: state.tmp.cat || 'all',
-        returnQuery: state.tmp.query || ''
+        returnQuery: state.tmp.query || '',
+        targetDate: state.tmp.targetDate || null
       });
       return;
     }
