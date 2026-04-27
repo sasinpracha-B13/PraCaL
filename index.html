@@ -132,6 +132,17 @@
   .ring .num small { color: var(--muted); font-size: 13px; margin-top: 2px; }
   .ring-labels { flex: 1; font-size: 15px; color: var(--ink-2); line-height: 1.8; }
   .ring-labels .v { color: var(--ink); font-weight: 600; }
+  /* v1.10.3 — backdate banner shown when logging to a past day */
+  .backdate-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; margin-bottom: 10px;
+    background: #fef3c7;
+    border: 1.5px solid #f59e0b;
+    border-radius: 12px;
+    font-size: 14px;
+    color: #92400e;
+  }
+  .backdate-banner b { color: #78350f; }
   /* v1.10.1 — special-detail cart chip on library */
   .special-cart-chip {
     display: flex; align-items: center; gap: 10px;
@@ -692,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.10.3';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1276,6 +1287,11 @@ function effectiveCalorieTarget(userId) {
   const u = state.users.find(x => x.id === userId);
   if (!u) return 2000;
   return defaultCalorieTarget(u);
+}
+// v1.10.3 — banner shown across add flows when targetDate is a past day
+function backdateBannerHtml(targetDate) {
+  if (!targetDate || targetDate === todayKey()) return '';
+  return `<div class="backdate-banner">📅 กำลังเพิ่มสำหรับ <b>${formatDateTH(targetDate)}</b> (ย้อนหลัง)</div>`;
 }
 // Daily effective target = base target + today's logged exercise (if user is allowed to log)
 // This is the "budget" the ring visualizes — it grows when the user exercises.
@@ -3343,6 +3359,7 @@ function renderLibrary() {
         <button class="icon-btn" data-act="back">←</button>
         <h1>${t.pickMode === 'special-add' ? 'เลือกเมนูเพิ่มในรายการ' : 'เลือกเมนู'}</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
       ${specialCartChip}
       <div class="search-box mb">
         <span class="icon">🔍</span>
@@ -3563,6 +3580,7 @@ function renderMealDetail() {
         <h1 style="flex:1">${meal.emoji || '🍽️'} ${h(meal.name)}</h1>
         <button class="icon-btn" data-act="toggle-fav" data-id="${meal.id}" aria-label="เมนูประจำ" title="เมนูประจำ">${isFav ? '⭐' : '☆'}</button>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
 
       <div class="card">
         <div class="row between">
@@ -3753,6 +3771,7 @@ function renderAddActivity() {
         <button class="icon-btn" data-act="back">←</button>
         <h1>💪 บันทึกกิจกรรม</h1>
       </div>
+      ${backdateBannerHtml(t.targetDate)}
 
       <div class="card">
         <label>ประเภทกิจกรรม</label>
@@ -3949,11 +3968,23 @@ function renderHistoryDay() {
   const energyDelta = totals.calories - totalBurn;
   const goalDelta = energyDelta - goalAdj;
   const deltaColor = energyDelta < 0 ? 'var(--green)' : energyDelta > 0 ? 'var(--amber)' : 'var(--ink)';
+
+  // v1.10.3 — backdate eligibility (today doesn't need this UI; > 30 days is locked)
+  const today = todayKey();
+  const isToday = date === today;
+  const isFuture = date > today;
+  const ago = isFuture ? -1 : daysBetween(date, today);
+  const canBackdate = !isToday && !isFuture && ago <= 30;
+
+  // Activities for this day (for review + delete)
+  const dayActs = todayActivities(state.currentUserId, date);
+  const allowsActivityLog = u && !incExercise;
+
   return `
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1 style="flex:1">${formatDateTH(date)}</h1>
+        <h1 style="flex:1">${formatDateTH(date)}${isToday ? ' <span class="badge">วันนี้</span>' : ''}</h1>
       </div>
       <div class="card">
         <div class="row between"><span>แคลอรี่กิน</span><b style="color:var(--primary-dark);font-size:20px">${fmt(totals.calories)} kcal</b></div>
@@ -3969,7 +4000,40 @@ function renderHistoryDay() {
           <div><div class="v">${fmt(totals.fat_g, 1)} ก.</div><div class="l">ไขมัน</div></div>
         </div>
       </div>
-      ${entries.length === 0 ? `<div class="empty muted">ไม่มีรายการ</div>` : entries.map(e => logEntryHtml(e)).join('')}
+
+      <h2 style="margin-top:14px">🍽️ มื้ออาหาร (${entries.length})</h2>
+      ${entries.length === 0 ? `<div class="card empty"><div class="muted">ไม่มีรายการ</div></div>` : entries.map(e => logEntryHtml(e)).join('')}
+
+      ${dayActs.length > 0 ? `
+        <h2 style="margin-top:14px">💪 กิจกรรม (${dayActs.length} · เผา ${fmt(exerciseBurn)} kcal)</h2>
+        ${dayActs.map(a => {
+          const at = ACTIVITY_TYPES.find(x => x.id === a.type) || ACTIVITY_TYPES[ACTIVITY_TYPES.length - 1];
+          const intLabel = a.intensity ? ACTIVITY_INTENSITY_LABELS[a.intensity]?.name : '';
+          const sourceTag = a.source === 'manual' ? (a.sourceNote || 'manual') : 'MET';
+          return `
+            <div class="activity-item">
+              <div class="emo">${at.emoji}</div>
+              <div class="body">
+                <div class="name">${h(at.name)}${intLabel ? ' ' + h(intLabel) : ''} · ${a.durationMin || 0} นาที</div>
+                <div class="sub">จาก ${h(sourceTag)}</div>
+              </div>
+              <div class="burn">-${fmt(a.caloriesBurned)} kcal</div>
+              <button class="del" data-act="delete-activity-historical" data-id="${a.id}" data-date="${date}" aria-label="ลบ">🗑️</button>
+            </div>
+          `;
+        }).join('')}
+      ` : ''}
+
+      ${canBackdate ? `
+        <div class="card mt" style="border:1.5px dashed var(--primary);background:var(--primary-soft)">
+          <div style="font-weight:600;font-size:14px;color:var(--primary-dark);margin-bottom:8px">📅 บันทึกย้อนหลังสำหรับวันนี้</div>
+          <button class="btn block" data-act="nav-add-meal-backdate" style="margin-bottom:8px">+ เพิ่มเมนูย้อนหลัง</button>
+          ${allowsActivityLog ? `<button class="btn secondary block" data-act="nav-add-activity-backdate">+ เพิ่มกิจกรรมย้อนหลัง</button>` : ''}
+        </div>
+      ` : ''}
+      ${isFuture ? `<div class="callout" style="background:var(--amber-soft);color:#92400e">⚠️ วันในอนาคต — ยังบันทึกไม่ได้</div>` : ''}
+      ${!isToday && !isFuture && ago > 30 ? `<div class="callout" style="background:var(--amber-soft);color:#92400e">⚠️ ย้อนหลังเกิน 30 วัน — ไม่สามารถเพิ่มรายการใหม่ได้ (แก้ของเดิมได้ผ่านปุ่มลบ)</div>` : ''}
+
       <div style="height:30px"></div>
     </div>
   `;
@@ -4901,6 +4965,35 @@ const actions = {
     go('add-activity', { actType: 'running', actCalcMode: 'met', actIntensity: 'moderate', actDuration: 30, actCalInput: 0 });
   },
 
+  // v1.10.3 — backdate flows: jump to library / add-activity with targetDate pinned
+  'nav-add-meal-backdate': () => {
+    const date = state.tmp.date;
+    if (!date) return;
+    go('library', { cat: 'all', query: '', targetDate: date });
+  },
+  'nav-add-activity-backdate': () => {
+    const u = currentUser();
+    if (u && activityIncludesExercise(u)) {
+      toast('ระดับกิจกรรมปัจจุบันรวมออกกำลังอยู่แล้ว', true);
+      return;
+    }
+    const date = state.tmp.date;
+    if (!date) return;
+    go('add-activity', {
+      actType: 'running', actCalcMode: 'met', actIntensity: 'moderate',
+      actDuration: 30, actCalInput: 0,
+      targetDate: date
+    });
+  },
+  // v1.10.3 — delete activity from a specific past date (uses data-date)
+  'delete-activity-historical': (e, btn) => {
+    if (!confirm('ลบกิจกรรมนี้?')) return;
+    const date = btn.dataset.date || todayKey();
+    deleteActivity(btn.dataset.id, date);
+    render();
+    toast('ลบแล้ว');
+  },
+
   'set-act-type': (e, btn) => { state.tmp.actType = btn.dataset.v; render(); },
   'set-act-mode': (e, btn) => { state.tmp.actCalcMode = btn.dataset.v; render(); },
   'set-act-intensity': (e, btn) => { state.tmp.actIntensity = btn.dataset.v; render(); },
@@ -4932,14 +5025,25 @@ const actions = {
     }
     if (cal <= 0) return toast('แคลต้องมากกว่า 0', true);
     if (duration <= 0) return toast('กรอกระยะเวลา', true);
+    // v1.10.3 — backdate-aware activity save
+    const today = todayKey();
+    const targetDate = state.tmp.targetDate && state.tmp.targetDate !== today ? state.tmp.targetDate : null;
     addActivity({
       type, intensity, durationMin: duration,
       caloriesBurned: cal,
       source: mode,
       sourceNote: sourceNote || null
-    });
-    toast(`บันทึกแล้ว · เผา ${fmt(cal)} kcal`);
-    goHome();
+    }, targetDate || today);
+    if (targetDate) {
+      toast(`เพิ่มไปวันที่ ${formatDateTH(targetDate)} แล้ว · เผา ${fmt(cal)} kcal`);
+      state.stack = [];
+      state.view = 'history-day';
+      state.tmp = { date: targetDate };
+      render();
+    } else {
+      toast(`บันทึกแล้ว · เผา ${fmt(cal)} kcal`);
+      goHome();
+    }
   },
   'delete-activity': (e, btn) => {
     if (!confirm('ลบกิจกรรมนี้?')) return;
@@ -5310,7 +5414,11 @@ const actions = {
       });
       return;
     }
-    go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {}, customizations: [] });
+    // v1.10.3 — forward targetDate so backdate flow keeps the chosen day
+    go('meal-detail', {
+      mealId: id, sizePct: 100, quantity: 1, addonCounts: {}, customizations: [],
+      targetDate: state.tmp.targetDate || null
+    });
   },
 
   'toggle-fav': (e, btn) => {
@@ -5390,6 +5498,9 @@ const actions = {
     if (qty < 1) return toast('ตั้งจำนวนอย่างน้อย 1', true);
     const counts = state.tmp.addonCounts || {};
     const addons = Object.keys(counts).filter(k => counts[k] > 0).map(id => ({ id, count: counts[id] }));
+    // v1.10.3 — honor targetDate when backdating; otherwise default = today
+    const today = todayKey();
+    const targetDate = state.tmp.targetDate && state.tmp.targetDate !== today ? state.tmp.targetDate : null;
     addLogEntry({
       mealId: meal.id,
       sizePct: state.tmp.sizePct || 100,
@@ -5397,9 +5508,18 @@ const actions = {
       addons,
       customizations: (state.tmp.customizations || []).slice(),
       snapshot: state.tmp.meal ? { ...meal } : null
-    });
-    toast('บันทึกแล้ว ✅');
-    goHome();
+    }, targetDate || today);
+    if (targetDate) {
+      toast(`เพิ่มไปวันที่ ${formatDateTH(targetDate)} แล้ว ✅`);
+      // Return to history-day for that date so the user can verify and add more
+      state.stack = [];
+      state.view = 'history-day';
+      state.tmp = { date: targetDate };
+      render();
+    } else {
+      toast('บันทึกแล้ว ✅');
+      goHome();
+    }
   },
 
   'update-log': () => {
