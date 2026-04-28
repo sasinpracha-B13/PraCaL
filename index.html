@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.5';
+const VERSION = 'v1.10.6';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -902,6 +902,7 @@ const ONBOARDING_DEFAULT_FAVS = ['r01', 'n01', 'd03', 'f01'];
 const ONBOARDING_MIN_FAVS = 3;
 const ONBOARDING_MAX_FAVS = 999;
 const ONBOARDING_HINT_THRESHOLD = 20;
+const MAX_USERS = 3;  // v1.10.6 — single source of truth (was duplicated 3 places)
 
 function buildOnbCats() {
   const all = allMeals();
@@ -4444,9 +4445,9 @@ function renderUserSwitcher() {
           </div>
         `;
       }).join('')}
-      ${state.users.length < 3 ? `
+      ${state.users.length < MAX_USERS ? `
         <button class="btn secondary block mt" data-act="add-user">+ เพิ่มผู้ใช้</button>
-      ` : `<div class="hint center">สูงสุด 3 ผู้ใช้ต่อเครื่อง</div>`}
+      ` : `<div class="hint center">สูงสุด ${MAX_USERS} ผู้ใช้ต่อเครื่อง</div>`}
       <div style="height:30px"></div>
     </div>
   `;
@@ -5952,7 +5953,7 @@ const actions = {
     goHome();
   },
   'add-user': () => {
-    if (state.users.length >= 3) return toast('สูงสุด 3 ผู้ใช้', true);
+    if (state.users.length >= MAX_USERS) return toast(`สูงสุด ${MAX_USERS} ผู้ใช้`, true);
     go('profile-edit', { isNew: true, user: {}, gender: '', goal: '', avatar: '🧑' });
   },
   'edit-profile': () => go('profile-edit', { isNew: false, user: currentUser() }),
