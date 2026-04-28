@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.4';
+const VERSION = 'v1.10.5';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2878,7 +2878,7 @@ function renderAddChoose() {
         <div class="row"><div style="font-size:40px">📚</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:17px">จากเมนูในระบบ</div>
-            <div class="muted" style="font-size:14px">85 เมนูไทย + 88 สินค้ามีแบรนด์</div>
+            <div class="muted" style="font-size:14px">${fmt(state.preloadedMeals.length)} เมนูไทย + ${fmt(state.brandedProducts.length)} สินค้ามีแบรนด์${state.customMeals.length > 0 ? ` + ${fmt(state.customMeals.length)} ของฉัน` : ''}</div>
           </div>
           <div class="muted" style="font-size:22px">›</div>
         </div>
