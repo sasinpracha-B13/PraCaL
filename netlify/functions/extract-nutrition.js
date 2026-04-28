@@ -148,6 +148,19 @@ Validation (เช็คก่อนตอบ):
       barcode: barcode && typeof barcode === 'string' ? barcode.slice(0, 30) : null
     };
 
+    // v1.10.8 — macro/calorie consistency check (also applies to OCR reads).
+    if (clean.calories > 50) {
+      const macroCal = clean.protein_g * 4 + clean.carbs_g * 4 + clean.fat_g * 9;
+      const diff = Math.abs(macroCal - clean.calories);
+      const tolerancePct = (diff / clean.calories) * 100;
+      if (tolerancePct > 15) {
+        if (clean.confidence === 'high') clean.confidence = 'medium';
+        else if (clean.confidence === 'medium') clean.confidence = 'low';
+        const warn = `⚠️ macro ${Math.round(macroCal)} kcal vs calories ${clean.calories} kcal ห่าง ${tolerancePct.toFixed(0)}% — อาจอ่านฉลากผิด`;
+        clean.notes = clean.notes ? `${clean.notes} · ${warn}` : warn;
+      }
+    }
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
