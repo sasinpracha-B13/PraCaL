@@ -1,5 +1,5 @@
 {
-  "version": "1.10.2",
+  "version": "1.10.9",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -595,6 +595,58 @@
     { "id": "b57", "name": "ชาเย็น (fast food)", "emoji": "🥤", "category": "fastfood", "baseCalories": 250, "baseWeight_g": 450, "protein_g": 3, "carbs_g": 55, "fat_g": 4, "sugar_g": 50 },
     { "id": "b58", "name": "ชามะนาว (fast food)", "emoji": "🍋", "category": "fastfood", "baseCalories": 180, "baseWeight_g": 450, "protein_g": 0, "carbs_g": 45, "fat_g": 0, "sugar_g": 42 },
     { "id": "b59", "name": "กาแฟเย็น (fast food)", "emoji": "☕", "category": "fastfood", "baseCalories": 220, "baseWeight_g": 450, "protein_g": 4, "carbs_g": 38, "fat_g": 6, "sugar_g": 32 },
-    { "id": "b60", "name": "โกโก้เย็น (fast food)", "emoji": "🍫", "category": "fastfood", "baseCalories": 320, "baseWeight_g": 450, "protein_g": 8, "carbs_g": 55, "fat_g": 9, "sugar_g": 48 }
+    { "id": "b60", "name": "โกโก้เย็น (fast food)", "emoji": "🍫", "category": "fastfood", "baseCalories": 320, "baseWeight_g": 450, "protein_g": 8, "carbs_g": 55, "fat_g": 9, "sugar_g": 48 },
+
+    { "id": "m102", "name": "สเต็กหมูพริกไทยดำ (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 850, "baseWeight_g": 350, "protein_g": 43, "carbs_g": 70, "fat_g": 46, "sugar_g": 5 },
+    { "id": "m103", "name": "สเต็กหมูกระเทียม (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 900, "baseWeight_g": 350, "protein_g": 43, "carbs_g": 68, "fat_g": 54, "sugar_g": 2 },
+    { "id": "m104", "name": "สเต็กหมู BBQ (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 880, "baseWeight_g": 360, "protein_g": 43, "carbs_g": 75, "fat_g": 46, "sugar_g": 15 },
+    { "id": "m105", "name": "สเต็กหมูเคลือบน้ำผึ้ง (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1080, "baseWeight_g": 380, "protein_g": 40, "carbs_g": 75, "fat_g": 58, "sugar_g": 28 },
+    { "id": "m106", "name": "สเต็กหมูเทอริยากิ (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 880, "baseWeight_g": 360, "protein_g": 44, "carbs_g": 75, "fat_g": 46, "sugar_g": 14 },
+    { "id": "m107", "name": "สเต็กบอสตันพอร์ก BBQ (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1045, "baseWeight_g": 380, "protein_g": 38, "carbs_g": 75, "fat_g": 62, "sugar_g": 15 },
+    { "id": "m108", "name": "สเต็กแฮมเคลือบน้ำผึ้ง (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1050, "baseWeight_g": 380, "protein_g": 47, "carbs_g": 95, "fat_g": 54, "sugar_g": 30 },
+    { "id": "m109", "name": "ซี่โครงหมู BBQ (อเมริกัน)", "emoji": "🍖", "category": "mains", "baseCalories": 1370, "baseWeight_g": 500, "protein_g": 55, "carbs_g": 75, "fat_g": 75, "sugar_g": 15 },
+    { "id": "m110", "name": "ขาหมูสเต็ก (อเมริกัน)", "emoji": "🍖", "category": "mains", "baseCalories": 1300, "baseWeight_g": 450, "protein_g": 58, "carbs_g": 70, "fat_g": 80, "sugar_g": 5 },
+    { "id": "m111", "name": "ไส้กรอกหมูพริกไทยดำ 2 ชิ้น (อเมริกัน)", "emoji": "🌭", "category": "mains", "baseCalories": 1020, "baseWeight_g": 380, "protein_g": 30, "carbs_g": 70, "fat_g": 65, "sugar_g": 5 },
+    { "id": "m112", "name": "ไส้กรอกหมูรมควัน 2 ชิ้น (อเมริกัน)", "emoji": "🌭", "category": "mains", "baseCalories": 1020, "baseWeight_g": 380, "protein_g": 30, "carbs_g": 70, "fat_g": 65, "sugar_g": 5 },
+    { "id": "m113", "name": "ไส้กรอกคู่ 4 ชิ้น (อเมริกัน)", "emoji": "🌭", "category": "mains", "baseCalories": 1420, "baseWeight_g": 530, "protein_g": 50, "carbs_g": 75, "fat_g": 100, "sugar_g": 5 },
+    { "id": "m114", "name": "สเต็กไก่เบคอนชีส (อเมริกัน)", "emoji": "🍗", "category": "mains", "baseCalories": 1050, "baseWeight_g": 400, "protein_g": 75, "carbs_g": 70, "fat_g": 58, "sugar_g": 4 },
+    { "id": "m115", "name": "สเต็กไก่ย่างพริก (อเมริกัน)", "emoji": "🍗", "category": "mains", "baseCalories": 880, "baseWeight_g": 380, "protein_g": 42, "carbs_g": 68, "fat_g": 45, "sugar_g": 5 },
+    { "id": "m116", "name": "ไก่ทอดสอดไส้แฮมชีส (Cordon Bleu)", "emoji": "🍗", "category": "mains", "baseCalories": 1180, "baseWeight_g": 420, "protein_g": 55, "carbs_g": 80, "fat_g": 60, "sugar_g": 5 },
+    { "id": "m117", "name": "สเต็กไก่ตะไคร้ (อเมริกัน)", "emoji": "🍗", "category": "mains", "baseCalories": 880, "baseWeight_g": 380, "protein_g": 42, "carbs_g": 70, "fat_g": 45, "sugar_g": 5 },
+    { "id": "m118", "name": "สเต็กไก่ฮาวาย สับปะรด (อเมริกัน)", "emoji": "🍍", "category": "mains", "baseCalories": 910, "baseWeight_g": 410, "protein_g": 42, "carbs_g": 90, "fat_g": 40, "sugar_g": 25 },
+    { "id": "m119", "name": "สเต็กไก่เทอริยากิ (อเมริกัน)", "emoji": "🍗", "category": "mains", "baseCalories": 915, "baseWeight_g": 380, "protein_g": 42, "carbs_g": 80, "fat_g": 45, "sugar_g": 15 },
+    { "id": "m120", "name": "สเต็กไก่พริกแซ่บ (อเมริกัน)", "emoji": "🍗", "category": "mains", "baseCalories": 880, "baseWeight_g": 380, "protein_g": 42, "carbs_g": 68, "fat_g": 45, "sugar_g": 5 },
+    { "id": "m121", "name": "ปลากะพงย่างเนย (อเมริกัน)", "emoji": "🐟", "category": "mains", "baseCalories": 910, "baseWeight_g": 450, "protein_g": 50, "carbs_g": 70, "fat_g": 45, "sugar_g": 5 },
+    { "id": "m122", "name": "อาหารทะเลชุบแป้งทอด (อเมริกัน)", "emoji": "🦐", "category": "mains", "baseCalories": 870, "baseWeight_g": 420, "protein_g": 40, "carbs_g": 80, "fat_g": 40, "sugar_g": 5 },
+    { "id": "m123", "name": "ปลาดอรี่ย่างเนย (อเมริกัน)", "emoji": "🐟", "category": "mains", "baseCalories": 890, "baseWeight_g": 450, "protein_g": 50, "carbs_g": 70, "fat_g": 45, "sugar_g": 5 },
+    { "id": "m124", "name": "Fish & Chips (จานสเต็ก)", "emoji": "🐟", "category": "mains", "baseCalories": 1000, "baseWeight_g": 400, "protein_g": 36, "carbs_g": 92, "fat_g": 56, "sugar_g": 5 },
+    { "id": "m125", "name": "Fish & Chips + กุ้งทอด (จานสเต็ก)", "emoji": "🦐", "category": "mains", "baseCalories": 1280, "baseWeight_g": 480, "protein_g": 58, "carbs_g": 100, "fat_g": 70, "sugar_g": 5 },
+    { "id": "m126", "name": "แซลมอนย่างเทอริยากิ (อเมริกัน)", "emoji": "🐟", "category": "mains", "baseCalories": 1030, "baseWeight_g": 450, "protein_g": 50, "carbs_g": 75, "fat_g": 58, "sugar_g": 15 },
+    { "id": "m127", "name": "ปลาดอรี่ย่าง (อเมริกัน)", "emoji": "🐟", "category": "mains", "baseCalories": 750, "baseWeight_g": 450, "protein_g": 48, "carbs_g": 70, "fat_g": 30, "sugar_g": 5 },
+    { "id": "m128", "name": "สเต็กเนื้อสันใน 200g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1140, "baseWeight_g": 480, "protein_g": 58, "carbs_g": 70, "fat_g": 70, "sugar_g": 5 },
+    { "id": "m129", "name": "สเต็กเนื้อ Rib Eye 250g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1365, "baseWeight_g": 530, "protein_g": 64, "carbs_g": 70, "fat_g": 90, "sugar_g": 5 },
+    { "id": "m130", "name": "สเต็กเนื้อ Strip Loin 250g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1290, "baseWeight_g": 530, "protein_g": 65, "carbs_g": 70, "fat_g": 80, "sugar_g": 5 },
+
+    { "id": "n19", "name": "สปาเก็ตตี้เบคอนผัดขี้เมา", "emoji": "🍝", "category": "noodles", "baseCalories": 660, "baseWeight_g": 350, "protein_g": 28, "carbs_g": 50, "fat_g": 38, "sugar_g": 3 },
+    { "id": "n20", "name": "สปาเก็ตตี้ขี้เมาทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 470, "baseWeight_g": 380, "protein_g": 28, "carbs_g": 50, "fat_g": 18, "sugar_g": 3 },
+    { "id": "n21", "name": "สปาเก็ตตี้ต้มยำทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 510, "baseWeight_g": 380, "protein_g": 28, "carbs_g": 55, "fat_g": 22, "sugar_g": 5 },
+    { "id": "n22", "name": "สปาเก็ตตี้ขี้เมาไส้กรอกรมควัน", "emoji": "🍝", "category": "noodles", "baseCalories": 580, "baseWeight_g": 360, "protein_g": 22, "carbs_g": 52, "fat_g": 35, "sugar_g": 3 },
+    { "id": "n23", "name": "สปาเก็ตตี้เบคอน Aglio Olio", "emoji": "🍝", "category": "noodles", "baseCalories": 660, "baseWeight_g": 320, "protein_g": 26, "carbs_g": 48, "fat_g": 40, "sugar_g": 2 },
+
+    { "id": "s14", "name": "สลัดทูน่ายำ", "emoji": "🐟", "category": "salads", "baseCalories": 240, "baseWeight_g": 280, "protein_g": 28, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },
+    { "id": "s15", "name": "สลัดหมูย่างซอสงา", "emoji": "🥗", "category": "salads", "baseCalories": 380, "baseWeight_g": 280, "protein_g": 25, "carbs_g": 20, "fat_g": 23, "sugar_g": 5 },
+    { "id": "s16", "name": "สลัดแอปเปิ้ลครีม", "emoji": "🍎", "category": "salads", "baseCalories": 280, "baseWeight_g": 250, "protein_g": 4, "carbs_g": 30, "fat_g": 18, "sugar_g": 18 },
+    { "id": "s17", "name": "สลัดผักสด (ดรสซิ่งใส)", "emoji": "🥗", "category": "salads", "baseCalories": 150, "baseWeight_g": 260, "protein_g": 4, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },
+    { "id": "s18", "name": "สลัด Caesar", "emoji": "🥗", "category": "salads", "baseCalories": 360, "baseWeight_g": 250, "protein_g": 12, "carbs_g": 20, "fat_g": 25, "sugar_g": 4 },
+
+    { "id": "g22", "name": "ซุปเห็ดครีม", "emoji": "🍲", "category": "soups", "baseCalories": 270, "baseWeight_g": 250, "protein_g": 5, "carbs_g": 18, "fat_g": 22, "sugar_g": 4 },
+    { "id": "g23", "name": "ซุปข้าวโพดครีม", "emoji": "🍲", "category": "soups", "baseCalories": 310, "baseWeight_g": 250, "protein_g": 6, "carbs_g": 28, "fat_g": 18, "sugar_g": 10 },
+
+    { "id": "a27", "name": "มันฝรั่งบด (เนย)", "emoji": "🥔", "category": "appetizers", "baseCalories": 230, "baseWeight_g": 170, "protein_g": 4, "carbs_g": 28, "fat_g": 12, "sugar_g": 2 },
+    { "id": "a28", "name": "ขนมปังชีสปิ้ง 1 ชิ้น", "emoji": "🍞", "category": "appetizers", "baseCalories": 165, "baseWeight_g": 50, "protein_g": 6, "carbs_g": 16, "fat_g": 10, "sugar_g": 2 },
+    { "id": "a29", "name": "สเปนาช-ชีสอบ", "emoji": "🥬", "category": "appetizers", "baseCalories": 300, "baseWeight_g": 200, "protein_g": 16, "carbs_g": 10, "fat_g": 25, "sugar_g": 3 },
+    { "id": "a30", "name": "มันฝรั่งทอดแว่น", "emoji": "🍟", "category": "appetizers", "baseCalories": 310, "baseWeight_g": 130, "protein_g": 3, "carbs_g": 32, "fat_g": 20, "sugar_g": 1 },
+    { "id": "a31", "name": "ปลาหมึกชุบแป้งทอด", "emoji": "🦑", "category": "appetizers", "baseCalories": 410, "baseWeight_g": 200, "protein_g": 22, "carbs_g": 36, "fat_g": 18, "sugar_g": 4 },
+    { "id": "a32", "name": "กุ้งบัตเตอร์ฟลาย 5 ชิ้น", "emoji": "🦐", "category": "appetizers", "baseCalories": 350, "baseWeight_g": 150, "protein_g": 22, "carbs_g": 28, "fat_g": 13, "sugar_g": 4 }
   ]
 }
