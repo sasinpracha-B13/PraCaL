@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.10';
+const VERSION = 'v1.10.11';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -3327,6 +3327,23 @@ function renderLibrary() {
   const t = state.tmp;
   const cat = t.cat || 'all';
   const query = (t.query || '').trim().toLowerCase();
+
+  // v1.10.11 — numeric filters (calorie range, min protein, max sugar)
+  const calMinNum = parseFloat(t.calMin);
+  const calMaxNum = parseFloat(t.calMax);
+  const protMinNum = parseFloat(t.protMin);
+  const sugarMaxNum = parseFloat(t.sugarMax);
+  const calMin = isFinite(calMinNum) && calMinNum > 0 ? calMinNum : 0;
+  const calMax = isFinite(calMaxNum) && calMaxNum > 0 ? calMaxNum : Infinity;
+  const protMin = isFinite(protMinNum) && protMinNum > 0 ? protMinNum : 0;
+  const sugarMax = isFinite(sugarMaxNum) && sugarMaxNum >= 0 ? sugarMaxNum : Infinity;
+  const filterCount =
+    (calMin > 0 ? 1 : 0) +
+    (isFinite(calMax) ? 1 : 0) +
+    (protMin > 0 ? 1 : 0) +
+    (isFinite(sugarMax) ? 1 : 0);
+  const hasFilter = filterCount > 0;
+
   let meals = allMeals();
   if (cat === 'custom') {
     meals = state.customMeals;
@@ -3337,6 +3354,18 @@ function renderLibrary() {
   }
   if (query) {
     meals = meals.filter(m => m.name.toLowerCase().includes(query));
+  }
+  const totalBeforeFilter = meals.length;
+  if (hasFilter) {
+    meals = meals.filter(m => {
+      const cal = m.baseCalories || 0;
+      const prot = m.protein_g || 0;
+      const sugar = m.sugar_g || 0;
+      if (cal < calMin || cal > calMax) return false;
+      if (prot < protMin) return false;
+      if (sugar > sugarMax) return false;
+      return true;
+    });
   }
   meals = meals.slice(0, 300);
 
@@ -3378,6 +3407,33 @@ function renderLibrary() {
         <span class="icon">🔍</span>
         <input id="lib-search" class="input" placeholder="ค้นหา เช่น ข้าวผัด" value="${h(t.query || '')}">
       </div>
+      <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">
+        <button class="btn ghost sm" data-act="toggle-filter" style="font-size:13px;padding:6px 10px;${t.filterOpen ? 'background:var(--primary-soft);border-color:var(--primary);color:var(--primary-dark)' : ''}">
+          🎛️ ตัวกรอง${filterCount > 0 ? ` <span class="badge" style="background:var(--primary);color:#fff;padding:1px 6px;border-radius:8px;font-size:11px;margin-left:2px">${filterCount}</span>` : ''}
+        </button>
+        ${hasFilter ? `<span class="muted" style="font-size:12px">แสดง ${meals.length}/${totalBeforeFilter} รายการ</span>` : ''}
+      </div>
+      ${t.filterOpen ? `
+        <div class="card tight" style="margin-bottom:10px;padding:12px">
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🔥 แคลอรี่ (kcal)</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="filter-cal-min" type="number" inputmode="numeric" class="input" placeholder="ขั้นต่ำ" value="${h(t.calMin || '')}" min="0" max="5000" style="flex:1;height:42px">
+              <span class="muted">—</span>
+              <input id="filter-cal-max" type="number" inputmode="numeric" class="input" placeholder="ขั้นสูง" value="${h(t.calMax || '')}" min="0" max="5000" style="flex:1;height:42px">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🥩 โปรตีนขั้นต่ำ (ก.)</label>
+            <input id="filter-prot-min" type="number" inputmode="decimal" class="input" placeholder="เช่น 20 = เมนูโปรตีนสูง" value="${h(t.protMin || '')}" min="0" max="200" step="1" style="height:42px">
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🍭 น้ำตาลขั้นสูง (ก.)</label>
+            <input id="filter-sugar-max" type="number" inputmode="decimal" class="input" placeholder="เช่น 10 = เมนูหวานน้อย" value="${h(t.sugarMax || '')}" min="0" max="200" step="1" style="height:42px">
+          </div>
+          ${filterCount > 0 ? `<button class="btn secondary block sm" data-act="clear-filters">↺ ล้างตัวกรองทั้งหมด</button>` : '<div class="hint" style="font-size:12px;text-align:center">กรอกค่าเพื่อเริ่มกรอง · เว้นว่างได้</div>'}
+        </div>
+      ` : ''}
       <div class="tabs">
         ${CATEGORIES.map(c => `<button class="${c.id === cat ? 'on' : ''}" data-act="set-cat" data-v="${c.id}">${c.emoji} ${h(c.name)}</button>`).join('')}
       </div>
@@ -5455,6 +5511,18 @@ const actions = {
   },
 
   'set-cat': (e, btn) => { state.tmp.cat = btn.dataset.v; render(); },
+  // v1.10.11 — library filter panel toggle + clear
+  'toggle-filter': () => {
+    state.tmp.filterOpen = !state.tmp.filterOpen;
+    render();
+  },
+  'clear-filters': () => {
+    state.tmp.calMin = '';
+    state.tmp.calMax = '';
+    state.tmp.protMin = '';
+    state.tmp.sugarMax = '';
+    render();
+  },
   'pick-meal': (e, btn) => {
     const id = btn.dataset.id;
     const m = findMeal(id);
@@ -6119,6 +6187,18 @@ document.addEventListener('input', (e) => {
     state.tmp.query = e.target.value;
     clearTimeout(render._t);
     render._t = setTimeout(render, 120);
+  }
+  // v1.10.11 — library numeric filters
+  const filterMap = {
+    'filter-cal-min': 'calMin',
+    'filter-cal-max': 'calMax',
+    'filter-prot-min': 'protMin',
+    'filter-sugar-max': 'sugarMax'
+  };
+  if (e.target.id in filterMap) {
+    state.tmp[filterMap[e.target.id]] = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 200);
   }
   if (e.target.id === 'onb-search') {
     state.tmp.onbSearch = e.target.value;
