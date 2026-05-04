@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.17';
+const VERSION = 'v1.10.18';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1581,6 +1581,75 @@ function nextAlternativeForSlot(currentMealId, slotTarget, proteinGap, excludeId
     .sort((a, b) => b.score - a.score)
     .slice(0, 1)
     .map(x => x.meal)[0];
+}
+
+// v1.10.18 — Pure compute: project a plan config against user profile.
+// Returns BMR/TDEE/target context + projected weight change + health flags.
+// Used by renderMealPlanSetup to render live breakdown + projection.
+function computePlanProjection(u, cfg) {
+  if (!u) return null;
+  const bmr = Math.round(calcBMR(u));
+  const tdee = calcTDEE(u);
+  const profileTarget = effectiveCalorieTarget(u.id);
+  const planTarget = Math.max(0, Number(cfg.calPerDay) || 0);
+  const days = Math.max(1, Number(cfg.days) || 7);
+  const floor = calorieFloor(u);
+  const goal = goalCategory(u);
+  const wKg = Number(u.weight) || 0;
+
+  // Daily delta vs TDEE: negative = deficit (lose), positive = surplus (gain)
+  const dailyDelta = planTarget - tdee;
+  const totalDelta = dailyDelta * days;
+  const weightChangeKg = totalDelta / 7700;
+
+  // Diff vs profile target (what onboarding/profile suggests)
+  const profileDelta = planTarget - profileTarget;
+
+  // Calorie health flag
+  let flag = 'ok';
+  let flagMsg = '';
+  if (planTarget < bmr) {
+    flag = 'danger';
+    flagMsg = `🔴 ต่ำกว่า BMR (${fmt(bmr)} kcal) — เสี่ยงเสียกล้าม + เผาผลาญพัง`;
+  } else if (planTarget < floor) {
+    flag = 'danger';
+    flagMsg = `🔴 ต่ำกว่ามาตรฐาน WHO (${fmt(floor)} kcal สำหรับ${u.gender === 'female' ? 'ผู้หญิง' : 'ผู้ชาย'})`;
+  } else if (planTarget < bmr + 100) {
+    flag = 'caution';
+    flagMsg = `🟡 ใกล้ BMR (${fmt(bmr)}) — ระวังเสียกล้าม`;
+  } else if (planTarget > tdee + 1000) {
+    flag = 'danger';
+    flagMsg = `🔴 เกิน TDEE +1,000 kcal — เพิ่มเร็วเกินไป`;
+  } else if (planTarget > tdee + 500) {
+    flag = 'caution';
+    flagMsg = `🟡 ส่วนเกินสูง — ระวังไขมันสะสม`;
+  } else {
+    flag = 'ok';
+    flagMsg = `🟢 อยู่ในช่วงปลอดภัย`;
+  }
+
+  // Protein adequacy
+  const proteinMin = Math.max(0, Number(cfg.proteinMin) || 0);
+  const proteinPerKg = wKg > 0 ? proteinMin / wKg : 0;
+  const recommendedPerKg = goal === 'lose' ? 1.4 : goal === 'gain' ? 1.8 : 1.0;
+  let proteinFlag = 'ok';
+  let proteinMsg = '';
+  if (proteinPerKg < 0.8) {
+    proteinFlag = 'danger';
+    proteinMsg = `🔴 โปรตีน ${proteinPerKg.toFixed(1)}g/kg ต่ำกว่า WHO 0.8g/kg`;
+  } else if (proteinPerKg < recommendedPerKg) {
+    proteinFlag = 'caution';
+    proteinMsg = `🟡 แนะนำ ≥${recommendedPerKg.toFixed(1)}g/kg สำหรับเป้า${goal === 'lose' ? 'ลด' : goal === 'gain' ? 'เพิ่ม' : 'คง'}น้ำหนัก`;
+  } else {
+    proteinFlag = 'ok';
+    proteinMsg = `🟢 โปรตีนเพียงพอ (${proteinPerKg.toFixed(1)}g/kg)`;
+  }
+
+  return {
+    bmr, tdee, profileTarget, planTarget, dailyDelta, totalDelta,
+    weightChangeKg, profileDelta, days, floor, goal, wKg,
+    flag, flagMsg, proteinFlag, proteinMsg, proteinPerKg, recommendedPerKg
+  };
 }
 
 // v1.10.13 — Suggest meals that fit the user's remaining budget for today.
@@ -2937,6 +3006,17 @@ function renderDashboard() {
         `;
       })()}
 
+      <div class="card" data-act="nav-meal-plan-setup" style="background:linear-gradient(135deg,#e0e7ff,#fce7f3);cursor:pointer;border:1.5px solid #818cf8;padding:12px 14px;margin-top:8px">
+        <div class="row" style="gap:10px;align-items:center">
+          <div style="font-size:28px">📋</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;color:#3730a3">สร้างแผนอาหาร</div>
+            <div class="muted" style="font-size:12.5px">วันนี้ 3 มื้อ · หรือล่วงหน้า 3-14 วัน · เลือกตามแคล/โปรตีน</div>
+          </div>
+          <div style="color:#3730a3;font-weight:700;font-size:18px">→</div>
+        </div>
+      </div>
+
       ${streakStripHtml(u)}
 
       ${weeklyStripHtml(u, baseTarget)}
@@ -4252,16 +4332,38 @@ function renderMealPlanSetup() {
   const t = state.tmp;
   // Sensible defaults: derive from user's current target if available
   const cfg = t.planConfig || {
-    days: 7,
+    days: 1,                                                        // v1.10.18: default 1 day (fast-track for "วันนี้")
     calPerDay: u ? effectiveCalorieTarget(u.id) : 1600,
     proteinMin: u ? effectiveProteinTarget(u.id) : 100,
     sugarMax: '',
-    mealsPerDay: 2,
+    mealsPerDay: 3,                                                 // v1.10.18: default 3 meals/day
     fixedName: '',
     fixedCal: '',
     fixedProtein: '',
     excludeKeywords: 'เบียร์,แอลกอฮอล์'
   };
+  // v1.10.18 — live projection (recomputed every render as user types)
+  const proj = u ? computePlanProjection(u, cfg) : null;
+  const flagColor = (f) => f === 'danger' ? 'var(--red)' : f === 'caution' ? 'var(--amber)' : 'var(--green)';
+  const flagBg = (f) => f === 'danger' ? 'var(--red-soft)' : f === 'caution' ? '#fef3c7' : 'var(--green-soft)';
+  // Weight change phrasing
+  const wcKg = proj ? proj.weightChangeKg : 0;
+  const wcAbs = Math.abs(wcKg);
+  const wcText = wcAbs < 0.05
+    ? 'คงน้ำหนัก'
+    : wcKg < 0
+      ? `ลด ${wcAbs.toFixed(2)} kg`
+      : `เพิ่ม ${wcAbs.toFixed(2)} kg`;
+  const wcColor = wcAbs < 0.05 ? 'var(--ink-2)' : wcKg < 0 ? 'var(--green)' : 'var(--amber)';
+  // Compare plan vs profile target
+  let vsProfileText = '';
+  if (proj) {
+    const pd = proj.profileDelta;
+    if (Math.abs(pd) < 50) vsProfileText = 'ตรงกับเป้า profile';
+    else if (pd < 0) vsProfileText = `น้อยกว่าเป้า profile ${fmt(Math.abs(pd))} kcal/วัน`;
+    else vsProfileText = `มากกว่าเป้า profile ${fmt(pd)} kcal/วัน`;
+  }
+  const isOneDay = cfg.days === 1;
   return `
     <div class="screen">
       <div class="header">
@@ -4269,15 +4371,17 @@ function renderMealPlanSetup() {
         <h1 style="flex:1;font-size:18px">📋 สร้างแผนอาหาร</h1>
       </div>
       <div class="callout info" style="font-size:13px">
-        ระบบจะสร้างแผน N วัน โดยใช้เมนูใน database (${fmt(state.preloadedMeals.length)} รายการ)<br>
-        คำนวณให้ครบเงื่อนไข cal/protein + ไม่ซ้ำเมนู 3 วันติด + ใช้ favorites
+        ${isOneDay
+          ? `📍 <b>โหมด 1 วัน</b> — ระบบเลือก ${cfg.mealsPerDay} มื้อให้ตามงบ · ตกลงแล้วบันทึกเข้าวันนี้ทันที`
+          : `ระบบจะสร้างแผน ${cfg.days} วัน โดยใช้เมนูใน database (${fmt(state.preloadedMeals.length)} รายการ)<br>คำนวณให้ครบเงื่อนไข cal/protein + ไม่ซ้ำเมนู 3 วันติด + ใช้ favorites`}
       </div>
 
       <div class="card mt">
         <label style="font-weight:600;font-size:14px">📅 จำนวนวัน</label>
         <div class="seg mt">
-          ${[3, 7, 14].map(n => `<button type="button" class="${cfg.days === n ? 'on' : ''}" data-act="plan-set-days" data-v="${n}">${n} วัน</button>`).join('')}
+          ${[1, 3, 7, 14].map(n => `<button type="button" class="${cfg.days === n ? 'on' : ''}" data-act="plan-set-days" data-v="${n}">${n === 1 ? 'วันนี้' : n + ' วัน'}</button>`).join('')}
         </div>
+        ${proj && wcAbs >= 0.05 ? `<div class="hint" style="font-size:12px;margin-top:6px">→ <b style="color:${wcColor}">${wcText}</b> ใน ${cfg.days} วัน</div>` : ''}
       </div>
 
       <div class="card mt">
@@ -4285,18 +4389,36 @@ function renderMealPlanSetup() {
           <label for="plan-cal">🔥 แคล/วัน (kcal)</label>
           <input id="plan-cal" type="number" inputmode="numeric" class="input" value="${h(String(cfg.calPerDay))}" min="800" max="4000">
         </div>
-        <div class="field">
+        ${proj ? `
+          <div style="background:${flagBg(proj.flag)};border-radius:8px;padding:10px;font-size:12.5px;line-height:1.7;margin-top:6px">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+              <span class="muted">BMR ของคุณ</span><b>${fmt(proj.bmr)} kcal</b>
+              <span class="muted">TDEE (BMR × activity)</span><b>${fmt(proj.tdee)} kcal</b>
+              <span class="muted">เป้า profile</span><b>${fmt(proj.profileTarget)} kcal</b>
+              <span class="muted">แผนนี้</span><b style="color:${flagColor(proj.flag)}">${fmt(proj.planTarget)} kcal</b>
+              <span class="muted">เทียบ TDEE</span><b style="color:${proj.dailyDelta < 0 ? 'var(--green)' : 'var(--amber)'}">${proj.dailyDelta >= 0 ? '+' : ''}${fmt(proj.dailyDelta)} kcal/วัน</b>
+            </div>
+            <div style="margin-top:6px;color:${flagColor(proj.flag)};font-weight:600">${proj.flagMsg}</div>
+            ${vsProfileText ? `<div class="muted" style="margin-top:2px;font-size:11.5px">${vsProfileText}</div>` : ''}
+          </div>
+        ` : ''}
+        <div class="field mt">
           <label for="plan-protein-min">🥩 โปรตีนขั้นต่ำ/วัน (g)</label>
           <input id="plan-protein-min" type="number" inputmode="numeric" class="input" value="${h(String(cfg.proteinMin))}" min="0" max="300">
         </div>
-        <div class="field">
+        ${proj && proj.wKg > 0 ? `
+          <div style="background:${flagBg(proj.proteinFlag)};border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;margin-top:4px;color:${flagColor(proj.proteinFlag)};font-weight:500">
+            ${proj.proteinMsg}
+          </div>
+        ` : ''}
+        <div class="field mt">
           <label for="plan-sugar-max">🍭 น้ำตาลสูงสุด/มื้อ (g, ไม่จำเป็น)</label>
           <input id="plan-sugar-max" type="number" inputmode="decimal" class="input" placeholder="เช่น 20" value="${h(String(cfg.sugarMax || ''))}" min="0" max="200">
         </div>
       </div>
 
       <div class="card mt">
-        <label style="font-weight:600;font-size:14px">🍱 จำนวนมื้อ/วัน (ไม่รวมเครื่องดื่มประจำ)</label>
+        <label style="font-weight:600;font-size:14px">🍱 จำนวนมื้อ/วัน${cfg.fixedCal > 0 ? ' (ไม่รวมเครื่องดื่มประจำ)' : ''}</label>
         <div class="seg mt">
           ${[2, 3, 4].map(n => `<button type="button" class="${cfg.mealsPerDay === n ? 'on' : ''}" data-act="plan-set-meals" data-v="${n}">${n} มื้อ</button>`).join('')}
         </div>
@@ -4329,7 +4451,23 @@ function renderMealPlanSetup() {
         </div>
       </div>
 
-      <button class="btn block lg mt2" data-act="generate-plan">🪄 สร้างแผน</button>
+      ${proj ? `
+        <div class="card mt" style="background:linear-gradient(135deg,var(--primary-soft),#fef3c7);border:1.5px solid var(--primary)">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px">📊 ถ้าทำตามแผน ${cfg.days} วัน</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;line-height:1.6">
+            <span class="muted">${proj.dailyDelta < 0 ? 'ขาดดุลรวม' : proj.dailyDelta > 0 ? 'ส่วนเกินรวม' : 'สมดุลแคล'}</span>
+            <b>${proj.dailyDelta !== 0 ? `${fmt(Math.abs(proj.dailyDelta))} × ${cfg.days} = ${fmt(Math.abs(proj.totalDelta))} kcal` : '0 kcal'}</b>
+            <span class="muted">น้ำหนักคาดการณ์</span>
+            <b style="color:${wcColor}">${proj.wKg > 0 && wcAbs >= 0.05 ? `${proj.wKg.toFixed(1)} → ${(proj.wKg + wcKg).toFixed(2)} kg (${wcText})` : wcText}</b>
+            <span class="muted">เทียบเป้า profile</span>
+            <b>${vsProfileText || '-'}</b>
+            <span class="muted">โปรตีนต่อ kg</span>
+            <b style="color:${flagColor(proj.proteinFlag)}">${proj.wKg > 0 ? proj.proteinPerKg.toFixed(2) + ' g/kg' : '-'}</b>
+          </div>
+        </div>
+      ` : ''}
+
+      <button class="btn block lg mt2" data-act="generate-plan">${isOneDay ? '🪄 สร้างแผนวันนี้' : '🪄 สร้างแผน'}</button>
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('')}
@@ -4344,27 +4482,32 @@ function renderMealPlanResult() {
     return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>ยังไม่มีแผน</h1></div></div>`;
   }
   const cfg = plan.config;
+  // v1.10.18 — 1-day mode: "ยืนยันบันทึก" button instead of just preview
+  const isOneDay = cfg.days === 1;
+  const loggableCount = isOneDay ? plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId).length : 0;
   return `
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1 style="flex:1;font-size:18px">📋 แผน ${cfg.days} วัน</h1>
+        <h1 style="flex:1;font-size:18px">📋 ${isOneDay ? 'แผนวันนี้' : `แผน ${cfg.days} วัน`}</h1>
         <button class="icon-btn ghost" data-act="regenerate-plan" title="สร้างใหม่">🔄</button>
       </div>
       <div class="card" style="background:var(--primary-soft);border:1.5px solid var(--primary)">
-        <div class="row between"><span>🔥 เฉลี่ย/วัน</span><b>${fmt(plan.avgCal)} kcal</b></div>
-        <div class="row between"><span>🥩 โปรตีน/วัน</span><b>${fmt(plan.avgProtein, 0)} g</b></div>
+        <div class="row between"><span>🔥 ${isOneDay ? 'รวมวันนี้' : 'เฉลี่ย/วัน'}</span><b>${fmt(plan.avgCal)} kcal</b></div>
+        <div class="row between"><span>🥩 โปรตีน${isOneDay ? '' : '/วัน'}</span><b>${fmt(plan.avgProtein, 0)} g</b></div>
         <div class="row between"><span class="muted">🎯 เป้าที่ตั้ง</span><span class="muted">${fmt(cfg.calPerDay)} cal · ${fmt(cfg.proteinMin)}g protein</span></div>
       </div>
 
       ${plan.days.map(day => `
         <div class="card mt">
-          <div class="row between" style="margin-bottom:8px">
-            <b>วัน ${day.day}</b>
-            <span class="muted" style="font-size:13px">${fmt(day.totalCal)} cal · P ${fmt(day.totalProtein, 0)}g</span>
-          </div>
+          ${isOneDay ? '' : `
+            <div class="row between" style="margin-bottom:8px">
+              <b>วัน ${day.day}</b>
+              <span class="muted" style="font-size:13px">${fmt(day.totalCal)} cal · P ${fmt(day.totalProtein, 0)}g</span>
+            </div>
+          `}
           ${day.meals.map((meal, mIdx) => `
-            <div class="row" style="gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)">
+            <div class="row" style="gap:10px;align-items:center;padding:8px 0;${mIdx === 0 && isOneDay ? '' : 'border-top:1px solid var(--line)'}">
               <div style="font-size:24px">${meal.emoji}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-weight:500;font-size:14px">${meal.slot === 'fixed' ? '🔒 ' : ''}${h(meal.name)}</div>
@@ -4379,7 +4522,12 @@ function renderMealPlanResult() {
         </div>
       `).join('')}
 
-      <div class="hint" style="font-size:12px;margin-top:14px;text-align:center">💡 กด 🔄 ข้าง mealเพื่อเปลี่ยน · กด 📋 เพื่อดูรายละเอียด/log</div>
+      ${isOneDay && loggableCount > 0 ? `
+        <button class="btn green block lg mt2" data-act="confirm-1day-plan" style="font-size:16px">✅ ยืนยัน — บันทึกทั้ง ${loggableCount} มื้อให้วันนี้</button>
+        <div class="hint" style="font-size:12px;margin-top:6px;text-align:center">💡 กด 🔄 ข้างเมนูเพื่อเปลี่ยนก่อนยืนยัน</div>
+      ` : `
+        <div class="hint" style="font-size:12px;margin-top:14px;text-align:center">💡 กด 🔄 ข้างเมนูเพื่อเปลี่ยน · กด 📋 เพื่อดูรายละเอียด/log</div>
+      `}
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('')}
@@ -4471,10 +4619,6 @@ function renderSuggestView() {
           <button class="btn ghost block sm mt" data-act="show-similar" data-id="${m.id}" style="font-size:13px">🔄 ดูเมนูคล้ายกัน</button>
         </div>
       `).join('')}
-      <div class="card mt" style="background:var(--bg-2);text-align:center;cursor:pointer" data-act="nav-meal-plan-setup">
-        <div style="font-weight:600;font-size:14px">📋 หรือสร้างแผน 3-14 วัน?</div>
-        <div class="hint" style="font-size:12px">ตั้งงบ + เป้าโปรตีน → ระบบจัดเมนูให้ทั้งสัปดาห์</div>
-      </div>
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('home')}
@@ -6045,7 +6189,24 @@ const actions = {
     go('similar-meals', { sourceMeal: source, sourceMealId: source.id });
   },
   // v1.10.14 — meal plan
-  'nav-meal-plan-setup': () => go('meal-plan-setup'),
+  // v1.10.18 — pre-seed default config so first render + generate match (was: empty cfg → fell to 7-day default)
+  'nav-meal-plan-setup': () => {
+    const u = currentUser();
+    const existing = state.tmp.planConfig;
+    go('meal-plan-setup', {
+      planConfig: existing || {
+        days: 1,
+        calPerDay: u ? effectiveCalorieTarget(u.id) : 1600,
+        proteinMin: u ? effectiveProteinTarget(u.id) : 100,
+        sugarMax: '',
+        mealsPerDay: 3,
+        fixedName: '',
+        fixedCal: '',
+        fixedProtein: '',
+        excludeKeywords: 'เบียร์,แอลกอฮอล์'
+      }
+    });
+  },
   'plan-set-days': (e, btn) => {
     const cfg = state.tmp.planConfig || {};
     cfg.days = Number(btn.dataset.v);
@@ -6062,8 +6223,8 @@ const actions = {
     // Read inputs from DOM
     const get = id => document.getElementById(id);
     const cfg = state.tmp.planConfig || {};
-    cfg.days = cfg.days || 7;
-    cfg.mealsPerDay = cfg.mealsPerDay || 2;
+    cfg.days = cfg.days || 1;             // v1.10.18 — default 1 day (was 7)
+    cfg.mealsPerDay = cfg.mealsPerDay || 3; // v1.10.18 — default 3 meals (was 2)
     cfg.calPerDay = Number(get('plan-cal')?.value) || 1600;
     cfg.proteinMin = Number(get('plan-protein-min')?.value) || 100;
     const sm = get('plan-sugar-max')?.value;
@@ -6087,6 +6248,27 @@ const actions = {
     state.tmp.plan = generateMealPlan(cfg);
     render();
     toast('สร้างแผนใหม่แล้ว');
+  },
+  // v1.10.18 — confirm 1-day plan: log all loggable meals into today's entries
+  'confirm-1day-plan': () => {
+    const plan = state.tmp.plan;
+    if (!plan || !plan.days[0]) return toast('ไม่มีแผน', true);
+    const meals = plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId);
+    if (meals.length === 0) return toast('ไม่มีเมนูให้บันทึก', true);
+    let logged = 0;
+    for (const m of meals) {
+      addLogEntry({
+        mealId: m.mealId,
+        sizePct: 100,
+        quantity: 1,
+        addons: [],
+        customizations: [],
+        snapshot: null
+      });
+      logged++;
+    }
+    toast(`✅ บันทึก ${logged} มื้อแล้ว`);
+    goHome();
   },
   'swap-plan-meal': (e, btn) => {
     const dayNum = Number(btn.dataset.day);
@@ -6848,6 +7030,27 @@ document.addEventListener('input', (e) => {
     if (!isFinite(v) || v < 5) v = 5;
     if (v > 50) v = 50;
     state.tmp.tolerance = v;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 250);
+  }
+  // v1.10.18 — meal-plan setup live inputs (drives breakdown + projection cards)
+  const planFilterMap = {
+    'plan-cal':           'calPerDay',
+    'plan-protein-min':   'proteinMin',
+    'plan-sugar-max':     'sugarMax',
+    'plan-fixed-name':    'fixedName',
+    'plan-fixed-cal':     'fixedCal',
+    'plan-fixed-protein': 'fixedProtein',
+    'plan-exclude':       'excludeKeywords'
+  };
+  if (e.target.id in planFilterMap) {
+    if (!state.tmp.planConfig) state.tmp.planConfig = {};
+    const key = planFilterMap[e.target.id];
+    const raw = e.target.value;
+    const numericKeys = ['calPerDay','proteinMin','sugarMax','fixedCal','fixedProtein'];
+    state.tmp.planConfig[key] = numericKeys.includes(key)
+      ? (raw === '' ? '' : Number(raw))
+      : raw;
     clearTimeout(render._t);
     render._t = setTimeout(render, 250);
   }
