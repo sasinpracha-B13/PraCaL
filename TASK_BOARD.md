@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-001 done · T-003 registered + picked up
+Last updated: T-003 → `done` (PS evidence accepted) · T-004 about to pick up
 
 ---
 
@@ -19,8 +19,10 @@ T-001 ran the full loop and reached `done`. The system has demonstrated it can p
 ## Current Status
 
 - Operating layer landed in commit `9a0747a` (Commit A — operating model + execution layer).
-- T-001 README refresh: `done` (commit pending in this turn as Commit B).
-- T-003 meals audit script: `todo` (registered in this turn; Execution Agent will pick up immediately after Commit B + push).
+- T-001 README refresh: `done` — landed in commit `94cb6bc` (Commit B), pushed to `main`.
+- T-003 meals audit script: **`done`** ✅ — PS parallel-impl verification accepted as canonical evidence by user (Node verification reclassified as optional, not blocking). Loop resumed.
+- T-003A Node verification fallback: `todo` — superseded in priority by user policy ("PS evidence is sufficient"). Still registered as a structural option in case dual-runtime is desired later.
+- T-004 runtime decision: `todo` — Execution Agent picks up automatically per the locked rule ("registered + no blocker = mechanical pickup").
 
 ---
 
@@ -91,42 +93,91 @@ Every task in the Registry must have:
 
 ### T-003 — meals audit script (correct top-level meal count)
 
-- **Status:** `todo`
-- **Owner:** Execution Agent (next pickup after Commit B + push)
-- **Spec:** to be created at `docs/specs/audit-meals-script.md` when picked up
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/audit-meals-script.md`](docs/specs/audit-meals-script.md)
 - **Definition of Done:**
-  - [ ] `tools/audit-meals.js` exists, runs with `node tools/audit-meals.js` (no deps required — Node stdlib only)
-  - [ ] Counts meals at the **top-level array** of `meals.json` (not nested `"id"` greps); reports the exact integer
-  - [ ] Per entry, computes `protein_g × 4 + carbs_g × 4 + fat_g × 9` and compares against `baseCalories`; flags entries with deviation > 15% (matches the rule the Netlify functions enforce on AI output)
-  - [ ] Output: human-readable to stdout; counts of `pass / warn / fail` at the bottom; offending entries listed by id + name + diff
-  - [ ] Exit codes: `0` = all clean · `1` = warnings only · `2` = failures present (per `tools/README.md` convention)
-  - [ ] Optional `--json` flag emits machine-readable summary
-  - [ ] `tools/README.md` catalog table updated with the new script row
-  - [ ] First run on the current `meals.json` documented in the spec (snapshot of expected output)
-  - [ ] `PROJECT_STATE.md` Open Question 2 partially addressed — note that audit tooling exists for meals.json
+  - [x] `tools/audit-meals.js` exists, **uses Node stdlib only** (no deps); will run with `node tools/audit-meals.js`
+  - [x] **Verification policy:** Node-runtime check reclassified as *optional validation* by user. PS parallel-implementation (`tools/.audit-meals-verify.ps1`, git-ignored helper) accepted as canonical evidence — it mirrors the JS line-for-line, hash-invariant verified. Future user-side `node tools/audit-meals.js` is welcome but not required for `done`.
+  - [x] Counts meals at the **top-level array** of `meals.json`; reports exact integer (375)
+  - [x] Per entry, computes `protein_g × 4 + carbs_g × 4 + fat_g × 9` vs `baseCalories`; flags deviations > 15%
+  - [x] Output: human-readable to stdout; pass/warn/fail counts; offending entries listed by id + name + diff
+  - [x] Exit codes: `0` / `1` / `2` per `tools/README.md` convention
+  - [x] Optional `--json` flag emits machine-readable summary
+  - [x] `tools/README.md` catalog table updated
+  - [x] First run snapshot captured in spec (375 total · 297 pass · 70 warn · 5 fail · 3 skipped)
+  - [x] `PROJECT_STATE.md` Open Question 2 partially addressed
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-001 push; spec written
+  - `in_progress → review` — script written; PowerShell parallel run confirmed logic + read-only invariant (md5 unchanged); state files updated
+  - `review → blocked` — user reclassified: external dependency (Node runtime) stalls progress
+  - `blocked → done` — user reversed: PS parallel-impl evidence accepted; Node verification declared optional, not blocking
 - **Notes:**
-  - Surfaced by T-001 audit step (literal grep over `"id"` returned 541 vs. actual 375).
-  - Read-only — must not mutate `meals.json`; reports issues for human/Data-Domain Agent to fix.
-  - Scope-locked: this task only builds the audit; fixing any failures it surfaces is a follow-up task.
+  - Read-only invariant verified via `Get-FileHash` before/after run: `meals.json` MD5 unchanged.
+  - Surfaced 5 fail entries — beer (alcohol calorie limitation, expected), 2 black-coffee low-cal noise, 2 real data discrepancies (`s02`, `m18`). Documented as findings for follow-up Data/Domain task; **not fixed here** (scope-locked).
+  - Surfaced a known limitation: macro check doesn't account for alcohol — schema enhancement candidate (`alcohol_g` field) for a future task.
+  - Surfaced an environmental assumption: tools layer assumed Node would be available. Not a T-003 problem to solve, but a real gap → spawned T-004.
+- **Verification policy (for future tasks of this class):** PS parallel-implementation evidence is acceptable for tools written in `.js` when Node is unavailable, *provided* the read-only invariant (`Get-FileHash` before/after) is verified. Node-runtime check remains optional validation, not a gate. If future runtime decision (T-004) changes this, that DEC supersedes.
 
 ---
 
-## Blockers
+### T-003A — Node verification fallback (unblock T-003 without external Node)
 
-None.
+- **Status:** `todo` *(registered, not executed — user must approve start)*
+- **Owner:** Execution Agent (when picked up)
+- **Spec:** to be created at `docs/specs/audit-meals-fallback.md` when picked up
+- **Goal:** make T-003's audit verifiable in environments without Node, so the loop can continue without external dependency.
+- **Options to evaluate in spec:**
+  - **(opt-1)** Designate `tools/audit-meals.ps1` (port of the existing `.js` logic) as the **canonical** verifier. The JS becomes optional/deprecated. Trade-off: simpler env, but loses cross-platform readability — devs on Mac/Linux need pwsh.
+  - **(opt-2)** Dual-runtime support — keep both `.js` and `.ps1` as official; CI/manual run picks whichever is available. Trade-off: doubles maintenance, but resilient.
+  - **(opt-3)** Standardize on Node and add a Node-install precondition to the dev-env docs. Trade-off: simplest code, but heavier env requirement (this is also what T-004 will likely decide).
+- **Definition of Done:**
+  - [ ] Spec compares the three options with a recommendation
+  - [ ] Chosen option implemented (file(s) added or moved)
+  - [ ] `tools/README.md` reflects the canonical verifier(s)
+  - [ ] T-003's DoD amended in the spec to point at the canonical verifier
+  - [ ] T-003 unblocked: status moves `blocked` → `review` → (user gate) → `done`
+- **Notes:**
+  - **ID convention extension:** T-003A uses sub-letter naming (`T-NNN<letter>`) to mark this as the unblock-path of T-003, not a new sequence-number task. First time this pattern is used; if approved, document as a formal extension of the immutable-ID rule in `TASK_BOARD.md → Conventions`.
+  - **Overlap flag with T-004:** T-003A is *tactical* (unblock T-003 quickly) while T-004 is *strategic* (formal runtime decision for all `tools/*`). They overlap on opt-1 and opt-3. If T-003A picks opt-1 or opt-3 first, it short-circuits T-004's main question. The user may want to consolidate (T-003A becomes T-004) or keep separate (T-003A is a one-shot unblock; T-004 is the broader policy doc). **Out of scope for this turn — flag for next user decision.**
+  - Strict scope-lock: this task does **not** verify T-003 by running the JS in some other env. It changes the verification mechanism so it can run here.
+
+---
+
+### T-004 — runtime decision (Node required vs. PowerShell fallback)
+
+- **Status:** `todo`
+- **Owner:** Execution Agent (next pickup after T-003 → done)
+- **Spec:** to be created at `docs/specs/runtime-decision.md` when picked up
+- **Definition of Done:**
+  - [ ] `docs/decisions/DEC-002-tools-runtime.md` exists with: status accepted, context (T-003 surfaced gap), decision (Node required / PS fallback / dual / migrate to PS), alternatives considered, consequences, follow-ups
+  - [ ] `tools/README.md` updated: top of file states the chosen runtime and any install instructions; "Conventions" section reflects the choice
+  - [ ] `AGENTS.md` Universal Rules cross-references the runtime requirement (so future Execution Agent doesn't assume)
+  - [ ] If decision = "Node required": README "Setup" section gets a 1-line `node --version` precondition; if "PS fallback": port `tools/audit-meals.js` logic to a sibling `.ps1` and document both
+  - [ ] `PROJECT_STATE.md` Open Question 2 updated to reflect the decision
+- **Notes:**
+  - Surfaced by T-003 — this environment has neither Node nor real Python; only PowerShell.
+  - User flagged this as the right structural fix: "T-004 — runtime decision · standardize: Node required? หรือ PowerShell fallback? · เขียน DEC แยก".
+  - **Blocked until T-003 → done** (user gate).
+  - This is a doc + decision task, not a code task. No production effect.
+
+---
+
+No blockers. T-003 done; T-004 about to be picked up automatically.
 
 ---
 
 ## Next Actions
 
-> Active: T-003 (Execution Agent picks up immediately after Commit B + push, per user instruction).
+> Live: T-004 picks up automatically per execution loop after T-003 commit + push.
+> T-003A remains `todo` but lower priority since user accepted PS evidence policy (may be folded into T-004 or kept as backup option).
 > Parked items below; do not run until user picks one.
 
-1. **T-002 (parked): Decide branch + tag policy** — answer Open Questions 3 & 4 in `PROJECT_STATE.md`. Output: `docs/decisions/DEC-002-...md`. Doc-only.
-2. **T-004 (parked): Smoke-test checklist for `confirm-1day-plan`** — covers the v1.10.21 fixed-slot regression class. `docs/specs/qa-meal-plan-confirm.md`.
-3. **T-005 (parked): First product-feature epic** — pick from open feedback when ready.
+1. **T-002 (parked): Decide branch + tag policy** — answer Open Questions 3 & 4 in `PROJECT_STATE.md`. Output: `docs/decisions/DEC-003-...md`. Doc-only.
+2. **T-005 (parked): Smoke-test checklist for `confirm-1day-plan`** — covers the v1.10.21 fixed-slot regression class. `docs/specs/qa-meal-plan-confirm.md`.
+3. **T-006 (parked): First product-feature epic** — pick from open feedback when ready.
 
-> Note: T-003 promoted to active Task Registry above.
+> Note: T-003 + T-004 promoted to active Task Registry above. (T-004 number reused for "runtime decision" since user named it explicitly; the previously-parked smoke-test idea moved to T-005.)
 
 ---
 

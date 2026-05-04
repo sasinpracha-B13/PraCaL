@@ -19,3 +19,7 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+
+# Local-only verifiers / scratch (e.g. tools/.audit-meals-verify.* used when
+# Node was unavailable during T-003; the JS in tools/ is the canonical version)
+tools/.*

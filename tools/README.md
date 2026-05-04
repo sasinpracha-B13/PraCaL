@@ -12,22 +12,17 @@ Small, focused scripts that audit, validate, or analyze the project without modi
 
 ## Catalog
 
-> No tools yet. This README is a placeholder for the workflow.
-> When a tool is added, document it here:
-
-```
 | Script | Purpose | Run | Exit codes |
 |---|---|---|---|
-| `audit-meals.js` | Validate macro consistency on `meals.json` | `node tools/audit-meals.js` | 0 = all entries within ±15% / 1 = warnings / 2 = failures |
-```
+| `audit-meals.js` | Validate macro consistency on `meals.json` (counts top-level meals correctly; flags `protein×4 + carbs×4 + fat×9` deviations >15% from `baseCalories`). Read-only. | `node tools/audit-meals.js` <br> `node tools/audit-meals.js --json` | `0` = all ≤5% (clean) · `1` = warnings only (5–15%) · `2` = failures present (>15%) or script error |
 
-## Suggested first tools (not yet built)
+## Suggested next tools (not yet built)
 
 These are candidates from `PROJECT_STATE.md → Open Questions` and `TASK_BOARD.md → Next Actions`. Build them only when an audit task is approved.
 
-1. **`audit-meals.js`** — load `meals.json`, for each entry compute `protein×4 + carbs×4 + fat×9` and compare to `baseCalories`. Flag entries off by >15% (same threshold the Netlify functions use on AI output). Suggested when: data corrections are batched, or a v1.11.x cleanup epic.
-2. **`audit-version-bumps.js`** — given a git diff range, check that any commit touching `index.html` or `service-worker.js` bumps both `VERSION` constants. Catches the single-bump regression class. Suggested when: pre-commit hook strategy is on the table.
-3. **`audit-stale-counts.js`** — scan `index.html` for hardcoded `\d+ (เมนู|รายการ|สินค้า|ผู้ใช้)` patterns and compare against runtime sources (`meals.json` length, `MAX_USERS`, `branded_products.json` length). The recurring v1.10.5/v1.10.15 class of bug.
+1. **`audit-version-bumps.js`** — given a git diff range, check that any commit touching `index.html` or `service-worker.js` bumps both `VERSION` constants. Catches the single-bump regression class. Suggested when: pre-commit hook strategy is on the table.
+2. **`audit-stale-counts.js`** — scan `index.html` for hardcoded `\d+ (เมนู|รายการ|สินค้า|ผู้ใช้)` patterns and compare against runtime sources (`meals.json` length, `MAX_USERS`, `branded_products.json` length). The recurring v1.10.5/v1.10.15 class of bug.
+3. **`audit-branded-products.js`** — analogous to `audit-meals.js` but for `branded_products.json` (different schema: `servingSize`, `servingsPerPackage`, etc.).
 4. **`report-feature-map.js`** — list every `state.view` value, the `render*` function that handles it, and every `data-act` that navigates to it. Useful for orientation / Architecture specs.
 
 None of these will be built without an explicit task assignment.
