@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.12';
+const VERSION = 'v1.10.13';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1442,6 +1442,49 @@ function userScannedAsMeals() {
 }
 function allMeals() { return [...state.preloadedMeals, ...allBrandedAsMeals(), ...userScannedAsMeals(), ...state.customMeals]; }
 function findMeal(id) { return allMeals().find(m => m.id === id) || null; }
+
+// v1.10.13 — Suggest 3 meals that fit the user's remaining budget for today.
+// Score: 50% calorie fit (closer to target = better) + 30% protein bias
+// (when proteinGap > 20g) + 20% favorites bias + small base.
+// Excludes meals already logged today (recentIds).
+function suggestMealsForBudget(remainingCal, proteinGap, recentIds, count = 3) {
+  if (remainingCal < 100) return [];
+  const wantsProtein = proteinGap > 20;
+  const target = remainingCal;
+  return allMeals()
+    .filter(m => {
+      const cal = m.baseCalories || 0;
+      if (cal < 80 || cal > target * 1.4) return false;
+      if (recentIds.includes(m.id)) return false;
+      return true;
+    })
+    .map(m => {
+      const cal = m.baseCalories || 0;
+      const prot = m.protein_g || 0;
+      const calRatio = cal / target;
+      const calScore = Math.max(0, 1 - Math.abs(1 - calRatio));
+      const proteinScore = wantsProtein ? Math.min(prot / 30, 1) : 0.5;
+      const favBonus = state.favorites.includes(m.id) ? 0.2 : 0;
+      const score = calScore * 0.5 + proteinScore * 0.3 + favBonus + 0.1;
+      return { meal: m, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, count)
+    .map(x => x.meal);
+}
+// Helper: short reasoning string shown under each suggestion
+function suggestReasoning(m, remainingCal, proteinGap) {
+  const cal = m.baseCalories || 0;
+  const prot = m.protein_g || 0;
+  const reasons = [];
+  const calRatio = cal / Math.max(remainingCal, 100);
+  if (calRatio >= 0.85 && calRatio <= 1.15) reasons.push('🎯 งบลงตัว');
+  else if (calRatio < 0.7) reasons.push(`💚 เบา (เหลืออีก ~${fmt(remainingCal - cal)} cal)`);
+  else if (calRatio > 1.15) reasons.push('⚠️ เกินงบหน่อย');
+  if (prot >= 25 && proteinGap > 20) reasons.push('💪 โปรตีนสูง');
+  if (state.favorites.includes(m.id)) reasons.push('⭐ เมนูประจำ');
+  return reasons.length ? reasons.join(' · ') : 'เลือกตามงบ';
+}
 
 // v1.10.12 — Find meals with similar macros to the given target.
 // Distance metric: 50% calorie diff + 30% protein diff + 20% fat diff (normalized).
@@ -2729,6 +2772,25 @@ function renderDashboard() {
         </div>
         <div class="hint" style="margin-top:10px;font-size:13px">${breakdownText(u)}</div>
       </div>
+
+      ${(() => {
+        // v1.10.13 — suggest-chip: show only when there's meaningful budget left
+        const remainingCal = Math.max(0, zone.effective - totals.calories);
+        const proteinGap = Math.max(0, protTarget - totals.protein_g);
+        if (remainingCal < 150) return '';
+        return `
+          <div class="card" data-act="nav-suggest" style="background:linear-gradient(135deg,var(--primary-soft),#fef3c7);cursor:pointer;border:1.5px solid var(--primary);padding:12px 14px;margin-top:8px">
+            <div class="row" style="gap:10px;align-items:center">
+              <div style="font-size:28px">🍽️</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;color:var(--primary-dark)">มื้อต่อไปกินอะไรดี?</div>
+                <div class="muted" style="font-size:12.5px">เหลือ <b>${fmt(remainingCal)} cal</b>${proteinGap > 10 ? ` · ขาดโปรตีน <b>${fmt(proteinGap, 0)}g</b>` : ''}</div>
+              </div>
+              <div style="color:var(--primary-dark);font-weight:700;font-size:18px">→</div>
+            </div>
+          </div>
+        `;
+      })()}
 
       ${streakStripHtml(u)}
 
@@ -4052,6 +4114,69 @@ function renderHistory() {
   `;
 }
 
+// v1.10.13 — Real-time meal suggester: "มื้อต่อไปกินอะไรดี?"
+// Reachable from a chip on the dashboard. Shows 3 candidates that fit the
+// user's remaining calorie/protein budget, each with quick-log + similar-tap.
+function renderSuggestView() {
+  const u = currentUser();
+  if (!u) return '';
+  const entries = todayEntries();
+  const totals = sumEntries(entries);
+  const baseTarget = effectiveCalorieTarget(u.id);
+  const protTarget = effectiveProteinTarget(u.id);
+  const incExercise = activityIncludesExercise(u);
+  const burned = !incExercise ? sumActivitiesBurn(u.id) : 0;
+  const dayBudget = baseTarget + burned;
+  const remainingCal = Math.max(0, dayBudget - totals.calories);
+  const proteinGap = Math.max(0, protTarget - totals.protein_g);
+
+  const recentIds = entries.map(e => e.mealId);
+  const suggestions = suggestMealsForBudget(remainingCal, proteinGap, recentIds, 3);
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1;font-size:18px">🍽️ มื้อต่อไปกินอะไรดี?</h1>
+      </div>
+      <div class="card" style="background:var(--primary-soft);border:1.5px solid var(--primary);margin-bottom:10px">
+        <div class="row between"><span>📊 งบเหลือวันนี้</span><b style="color:var(--primary-dark);font-size:18px">${fmt(remainingCal)} kcal</b></div>
+        ${proteinGap > 5 ? `<div class="row between"><span class="muted">ขาดโปรตีน</span><b style="color:var(--amber)">${fmt(proteinGap, 0)} g</b></div>` : ''}
+        <div class="hint" style="font-size:12px;margin-top:6px;line-height:1.5">${
+          proteinGap > 20
+            ? '💪 ระบบจะเน้นเมนูโปรตีนสูง · บวก favorites'
+            : '🎯 ระบบจะหาเมนูที่ลงตัวกับงบ · บวก favorites'
+        }</div>
+      </div>
+      ${suggestions.length === 0 ? `
+        <div class="card empty"><div class="muted">${
+          remainingCal < 100
+            ? '🎉 งบเต็มวันแล้ว — ไม่ต้องกินเพิ่ม'
+            : 'ไม่พบเมนูที่ตรงเงื่อนไข ลองปรับเป้า/log มื้ออื่นก่อน'
+        }</div></div>
+      ` : suggestions.map((m, idx) => `
+        <div class="card" style="margin-bottom:10px;${idx === 0 ? 'border:1.5px solid var(--primary)' : ''}">
+          <div class="row" style="gap:10px;align-items:flex-start">
+            <div style="font-size:32px;flex-shrink:0">${m.emoji || '🍽️'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:16px">${idx === 0 ? '⭐ ' : ''}${h(m.name)}</div>
+              <div class="muted" style="font-size:13px;margin-top:2px">${fmt(m.baseCalories)} cal · P ${fmt(m.protein_g, 0)}g · C ${fmt(m.carbs_g, 0)}g · F ${fmt(m.fat_g, 0)}g</div>
+              <div class="hint" style="font-size:11.5px;margin-top:4px;color:var(--ink-2)">${suggestReasoning(m, remainingCal, proteinGap)}</div>
+            </div>
+          </div>
+          <div class="btn-row mt">
+            <button class="btn green" data-act="quick-log-suggested" data-id="${m.id}">✅ บันทึกตอนนี้</button>
+            <button class="btn secondary" data-act="goto-meal-detail-from-suggest" data-id="${m.id}">📋 ปรับขนาด</button>
+          </div>
+          <button class="btn ghost block sm mt" data-act="show-similar" data-id="${m.id}" style="font-size:13px">🔄 ดูเมนูคล้ายกัน</button>
+        </div>
+      `).join('')}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('home')}
+  `;
+}
+
 // v1.10.12 — Similar-meals view: shows meals with macros close to the source meal.
 // Reachable from meal-detail via the "🔄 ดูเมนูที่คล้ายกัน" button.
 function renderSimilarMealsView() {
@@ -4904,6 +5029,7 @@ function render() {
       case 'history': html = renderHistory(); break;
       case 'history-day': html = renderHistoryDay(); break;
       case 'similar-meals': html = renderSimilarMealsView(); break;
+      case 'suggest': html = renderSuggestView(); break;
       case 'favorites': html = renderFavorites(); break;
       case 'fav-edit': html = renderFavEdit(); break;
       case 'add-activity': html = renderAddActivity(); break;
@@ -5611,6 +5737,28 @@ const actions = {
     const source = id ? findMeal(id) : (state.tmp.meal || findMeal(state.tmp.mealId));
     if (!source) return;
     go('similar-meals', { sourceMeal: source, sourceMealId: source.id });
+  },
+  // v1.10.13 — real-time meal suggester
+  'nav-suggest': () => go('suggest'),
+  'goto-meal-detail-from-suggest': (e, btn) => {
+    const id = btn.dataset.id;
+    if (!id) return;
+    go('meal-detail', { mealId: id, sizePct: 100, quantity: 1, addonCounts: {}, customizations: [] });
+  },
+  'quick-log-suggested': (e, btn) => {
+    const id = btn.dataset.id;
+    const meal = findMeal(id);
+    if (!meal) return toast('ไม่พบเมนู', true);
+    addLogEntry({
+      mealId: id,
+      sizePct: 100,
+      quantity: 1,
+      addons: [],
+      customizations: [],
+      snapshot: null
+    });
+    toast(`✅ บันทึก ${meal.name}`);
+    goHome();
   },
   'pick-meal': (e, btn) => {
     const id = btn.dataset.id;
