@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.15';
+const VERSION = 'v1.10.16';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1583,26 +1583,31 @@ function nextAlternativeForSlot(currentMealId, slotTarget, proteinGap, excludeId
     .map(x => x.meal)[0];
 }
 
-// v1.10.13 — Suggest 3 meals that fit the user's remaining budget for today.
-// Score: 50% calorie fit (closer to target = better) + 30% protein bias
-// (when proteinGap > 20g) + 20% favorites bias + small base.
-// Excludes meals already logged today (recentIds).
-function suggestMealsForBudget(remainingCal, proteinGap, recentIds, count = 3) {
+// v1.10.13 — Suggest meals that fit the user's remaining budget for today.
+// v1.10.16 — split budget across `mealsLeft` upcoming meals (no longer stuffs
+// everything into one). Hard tolerance filter (±tolerance cal) replaces
+// the old percentage-based ratio. Score: 50% cal fit + 30% protein bias +
+// 20% favorites + small base. Excludes meals already logged today.
+function suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, count = 3) {
   if (remainingCal < 100) return [];
-  const wantsProtein = proteinGap > 20;
-  const target = remainingCal;
+  const ml = Math.max(1, mealsLeft);
+  const tol = Math.max(5, Math.min(50, tolerance));
+  const target = remainingCal / ml;
+  const proteinPerMeal = proteinGap / ml;
+  const wantsProtein = proteinPerMeal > 20;
   return allMeals()
     .filter(m => {
       const cal = m.baseCalories || 0;
-      if (cal < 80 || cal > target * 1.4) return false;
+      if (cal < 50) return false;
+      if (Math.abs(cal - target) > tol) return false;
       if (recentIds.includes(m.id)) return false;
       return true;
     })
     .map(m => {
       const cal = m.baseCalories || 0;
       const prot = m.protein_g || 0;
-      const calRatio = cal / target;
-      const calScore = Math.max(0, 1 - Math.abs(1 - calRatio));
+      const calDist = Math.abs(cal - target);
+      const calScore = Math.max(0, 1 - calDist / tol);   // 1.0 at exact match → 0 at ±tolerance edge
       const proteinScore = wantsProtein ? Math.min(prot / 30, 1) : 0.5;
       const favBonus = state.favorites.includes(m.id) ? 0.2 : 0;
       const score = calScore * 0.5 + proteinScore * 0.3 + favBonus + 0.1;
@@ -1613,15 +1618,17 @@ function suggestMealsForBudget(remainingCal, proteinGap, recentIds, count = 3) {
     .map(x => x.meal);
 }
 // Helper: short reasoning string shown under each suggestion
-function suggestReasoning(m, remainingCal, proteinGap) {
+// v1.10.16 — uses target-per-meal + tolerance instead of total remaining budget
+function suggestReasoning(m, targetPerMeal, tolerance, proteinPerMeal) {
   const cal = m.baseCalories || 0;
   const prot = m.protein_g || 0;
   const reasons = [];
-  const calRatio = cal / Math.max(remainingCal, 100);
-  if (calRatio >= 0.85 && calRatio <= 1.15) reasons.push('🎯 งบลงตัว');
-  else if (calRatio < 0.7) reasons.push(`💚 เบา (เหลืออีก ~${fmt(remainingCal - cal)} cal)`);
-  else if (calRatio > 1.15) reasons.push('⚠️ เกินงบหน่อย');
-  if (prot >= 25 && proteinGap > 20) reasons.push('💪 โปรตีนสูง');
+  const diff = cal - targetPerMeal;
+  const absDiff = Math.abs(diff);
+  if (absDiff <= tolerance / 3) reasons.push('🎯 ลงตัวเป๊ะ');
+  else if (diff < 0) reasons.push(`💚 น้อยกว่าเป้า ${fmt(absDiff)} cal`);
+  else reasons.push(`⚠️ เกินเป้า ${fmt(diff)} cal`);
+  if (prot >= 25 && proteinPerMeal > 20) reasons.push('💪 โปรตีนสูง');
   if (state.favorites.includes(m.id)) reasons.push('⭐ เมนูประจำ');
   return reasons.length ? reasons.join(' · ') : 'เลือกตามงบ';
 }
@@ -4397,6 +4404,9 @@ function renderMealPlanResult() {
 // v1.10.13 — Real-time meal suggester: "มื้อต่อไปกินอะไรดี?"
 // Reachable from a chip on the dashboard. Shows 3 candidates that fit the
 // user's remaining calorie/protein budget, each with quick-log + similar-tap.
+// v1.10.16 — user-controlled splitter (1/2/3 meals left) + custom tolerance
+// (preset ±10/±25/±50 or free-input up to 50). Replaces "stuff into one meal"
+// percentage-based logic with per-meal target + hard ±cal filter.
 function renderSuggestView() {
   const u = currentUser();
   if (!u) return '';
@@ -4410,8 +4420,15 @@ function renderSuggestView() {
   const remainingCal = Math.max(0, dayBudget - totals.calories);
   const proteinGap = Math.max(0, protTarget - totals.protein_g);
 
+  // Smart default: more meals if budget is large
+  const defaultMealsLeft = remainingCal > 2000 ? 3 : remainingCal > 1200 ? 2 : 1;
+  const mealsLeft = Math.max(1, Math.min(3, state.tmp.mealsLeft ?? defaultMealsLeft));
+  const tolerance = Math.max(5, Math.min(50, state.tmp.tolerance ?? 25));
+  const targetPerMeal = remainingCal / mealsLeft;
+  const proteinPerMeal = proteinGap / mealsLeft;
+
   const recentIds = entries.map(e => e.mealId);
-  const suggestions = suggestMealsForBudget(remainingCal, proteinGap, recentIds, 3);
+  const suggestions = suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, 3);
 
   return `
     <div class="screen">
@@ -4422,17 +4439,35 @@ function renderSuggestView() {
       <div class="card" style="background:var(--primary-soft);border:1.5px solid var(--primary);margin-bottom:10px">
         <div class="row between"><span>📊 งบเหลือวันนี้</span><b style="color:var(--primary-dark);font-size:18px">${fmt(remainingCal)} kcal</b></div>
         ${proteinGap > 5 ? `<div class="row between"><span class="muted">ขาดโปรตีน</span><b style="color:var(--amber)">${fmt(proteinGap, 0)} g</b></div>` : ''}
-        <div class="hint" style="font-size:12px;margin-top:6px;line-height:1.5">${
-          proteinGap > 20
-            ? '💪 ระบบจะเน้นเมนูโปรตีนสูง · บวก favorites'
-            : '🎯 ระบบจะหาเมนูที่ลงตัวกับงบ · บวก favorites'
-        }</div>
       </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <label style="font-weight:600;font-size:14px">🍱 เหลือกินอีก (รวมมื้อนี้)</label>
+        <div class="seg mt">
+          ${[1, 2, 3].map(n => `<button type="button" class="${mealsLeft === n ? 'on' : ''}" data-act="set-meals-left" data-v="${n}">${n} มื้อ</button>`).join('')}
+        </div>
+        <div class="hint" style="font-size:12px;margin-top:6px;line-height:1.5">
+          → เป้ามื้อนี้: <b style="color:var(--primary-dark)">${fmt(targetPerMeal)} kcal</b>${proteinPerMeal > 5 ? ` · โปรตีน ~${fmt(proteinPerMeal, 0)}g` : ''}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <label style="font-weight:600;font-size:14px">📐 ความคลาดเคลื่อนที่ยอมรับ</label>
+        <div class="seg mt">
+          ${[10, 25, 50].map(n => `<button type="button" class="${tolerance === n ? 'on' : ''}" data-act="set-tolerance" data-v="${n}">±${n}</button>`).join('')}
+        </div>
+        <div class="row mt" style="gap:8px;align-items:center">
+          <span class="hint" style="font-size:12px">หรือกำหนดเอง:</span>
+          <input id="suggest-tolerance-input" type="number" inputmode="numeric" class="input" value="${tolerance}" min="5" max="50" step="1" style="max-width:90px;text-align:center;height:36px">
+          <span class="hint" style="font-size:12px">cal (สูงสุด 50)</span>
+        </div>
+      </div>
+
       ${suggestions.length === 0 ? `
         <div class="card empty"><div class="muted">${
           remainingCal < 100
             ? '🎉 งบเต็มวันแล้ว — ไม่ต้องกินเพิ่ม'
-            : 'ไม่พบเมนูที่ตรงเงื่อนไข ลองปรับเป้า/log มื้ออื่นก่อน'
+            : `ไม่พบเมนูในช่วง ±${tolerance} cal จาก ${fmt(targetPerMeal)} kcal<br><span style="font-size:12px">ลองเพิ่ม tolerance หรือเปลี่ยนจำนวนมื้อ</span>`
         }</div></div>
       ` : suggestions.map((m, idx) => `
         <div class="card" style="margin-bottom:10px;${idx === 0 ? 'border:1.5px solid var(--primary)' : ''}">
@@ -4441,7 +4476,7 @@ function renderSuggestView() {
             <div style="flex:1;min-width:0">
               <div style="font-weight:600;font-size:16px">${idx === 0 ? '⭐ ' : ''}${h(m.name)}</div>
               <div class="muted" style="font-size:13px;margin-top:2px">${fmt(m.baseCalories)} cal · P ${fmt(m.protein_g, 0)}g · C ${fmt(m.carbs_g, 0)}g · F ${fmt(m.fat_g, 0)}g</div>
-              <div class="hint" style="font-size:11.5px;margin-top:4px;color:var(--ink-2)">${suggestReasoning(m, remainingCal, proteinGap)}</div>
+              <div class="hint" style="font-size:11.5px;margin-top:4px;color:var(--ink-2)">${suggestReasoning(m, targetPerMeal, tolerance, proteinPerMeal)}</div>
             </div>
           </div>
           <div class="btn-row mt">
@@ -6114,6 +6149,17 @@ const actions = {
   },
   // v1.10.13 — real-time meal suggester
   'nav-suggest': () => go('suggest'),
+  // v1.10.16 — splitter + tolerance controls
+  'set-meals-left': (e, btn) => {
+    const v = Number(btn.dataset.v);
+    if (v >= 1 && v <= 3) state.tmp.mealsLeft = v;
+    render();
+  },
+  'set-tolerance': (e, btn) => {
+    const v = Number(btn.dataset.v);
+    if (v >= 5 && v <= 50) state.tmp.tolerance = v;
+    render();
+  },
   'goto-meal-detail-from-suggest': (e, btn) => {
     const id = btn.dataset.id;
     if (!id) return;
@@ -6810,6 +6856,15 @@ document.addEventListener('input', (e) => {
     state.tmp[filterMap[e.target.id]] = e.target.value;
     clearTimeout(render._t);
     render._t = setTimeout(render, 200);
+  }
+  // v1.10.16 — suggester custom tolerance input (cap at 50)
+  if (e.target.id === 'suggest-tolerance-input') {
+    let v = Number(e.target.value);
+    if (!isFinite(v) || v < 5) v = 5;
+    if (v > 50) v = 50;
+    state.tmp.tolerance = v;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 250);
   }
   if (e.target.id === 'onb-search') {
     state.tmp.onbSearch = e.target.value;

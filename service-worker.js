@@ -1,4 +1,4 @@
-const VERSION = 'v1.10.15';
+const VERSION = 'v1.10.16';
 const CACHE_NAME = `pracal-${VERSION}`;
 
 const CORE_ASSETS = [
