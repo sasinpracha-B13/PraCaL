@@ -4,13 +4,31 @@
 
 ## Features
 
-- **BMR-only calculation** — no fake activity levels, you add activity yourself
-- **Online meal search** via Claude API (Thai food understanding)
-- **85+ preloaded Thai meals** — กะเพรา, ก๋วยเตี๋ยว, ส้มตำ, แกง, ของหวาน, น้ำ
-- **Multi-user** — up to 3 profiles on one device
+### Logging
+- **Online meal search** ผ่าน Claude API — เข้าใจอาหารไทย ตอบเป็นโภชนาการต่อจาน
+- **Barcode scan + nutrition-label OCR** — สแกนสินค้าหรือถ่ายฉลากให้ AI อ่านค่า (Claude Sonnet)
+- **375+ Thai meals + 88 branded products** preloaded — กะเพรา, ก๋วยเตี๋ยว, ส้มตำ, แกง, สเต็ก, ฟาสต์ฟู้ด, ของหวาน, เครื่องดื่ม
+- **Custom meals** + **special meals** (บุฟเฟ่ / ร้านอาหาร / มื้อรวม)
+- **Backdate logging** — เพิ่มอาหารและกิจกรรมย้อนหลังได้ถึง 30 วัน
+
+### Insights
+- **BMR + activity multiplier → TDEE** (Mifflin–St Jeor); แยก exercise log บนระดับกิจกรรมที่ไม่รวมไว้แล้ว
+- **Goal-aware ring** — แสดง zone (lose / gain / maintain) ตามเป้าหมาย ไม่ใช่แค่ % filled
+- **Streaks + freeze tokens** — บันทึกต่อเนื่อง มี token กันตกในวันพิเศษ
+- **Weekly strip + reports + weight log**
+
+### Planning
+- **🍽️ มื้อต่อไปกินอะไรดี?** — real-time suggester เลือกเมนูตามงบเหลือ + tolerance + sort + favorites filter
+- **📋 สร้างแผนอาหาร 1 / 3 / 7 / 14 วัน** — โหมด 1 วันบันทึกเข้าวันนี้ทันที / โหมดยาวเป็น preview
+- **Swap drawer** — เปลี่ยนเมนูในแผนแบบ bottom sheet พร้อม search
+- **Plan-edit mode** — ปรับ size / qty / addons ในแผนก่อน confirm
+
+### Other
+- **Multi-user** — สูงสุด 3 profile ต่อเครื่อง
 - **Size multipliers** — 75% / 100% / 150% / 200% + custom
 - **Add-ons** — ไข่ดาว, ไข่เจียว, ข้าวเพิ่ม, ผักเพิ่ม
-- **PWA** — installable, works offline (except online search)
+- **Customizations** — เช่น ไม่ใส่หนัง / ไม่ใส่ผงชูรส (radio groups ในเมนูที่รองรับ)
+- **PWA** — installable, works offline (except online search + OCR)
 
 ## Setup
 
@@ -22,7 +40,7 @@ npx serve .
 # open http://localhost:3000
 ```
 
-Online meal search won't work locally without `netlify dev`.
+Online meal search and OCR won't work locally without `netlify dev`.
 
 ### 2. Deploy to Netlify
 
@@ -49,15 +67,26 @@ Online meal search won't work locally without `netlify dev`.
 
 ## Cost
 
-Claude Haiku is cheap. Each meal search ≈ $0.001–0.002
-- 100 searches/month ≈ $0.10–0.20
-- 1000 searches/month ≈ $1–2
+Uses Claude Haiku 4.5 (meal estimation) and Sonnet 4.6 (nutrition-label OCR):
+- Meal search ≈ $0.001–0.002 per query (Haiku)
+- Nutrition OCR ≈ $0.003–0.005 per scan (Sonnet)
+- 100 actions/month ≈ $0.10–0.50
 
 ## Data
 
-All data lives in the browser's **localStorage**. No cloud sync, no account.
+All data lives in the browser's **localStorage**. No cloud sync, no account, no server-side storage.
 Clearing site data wipes the log. Use "Export" in settings to back up.
 
 ## Version
 
-`v1.0.0` — bump `VERSION` in [service-worker.js](service-worker.js) when shipping updates so clients auto-refresh.
+Current: **`v1.10.22`** — bump `VERSION` in [`service-worker.js`](service-worker.js) **and** [`index.html`](index.html) (both must match) when shipping updates so PWA clients auto-refresh.
+
+## Project docs
+
+- [`PROJECT_STATE.md`](PROJECT_STATE.md) — engineering truth: architecture, hard guardrails, current task, open questions
+- [`AGENTS.md`](AGENTS.md) — operating model: roles, file ownership, approval gates
+- [`TASK_BOARD.md`](TASK_BOARD.md) — live task state machine
+- [`docs/decisions/`](docs/decisions) — decision records (DEC-NNN)
+- [`docs/specs/`](docs/specs) — feature specs and implementation briefs
+
+This README is a marketing-style overview. For *what's running*, *what cannot change without approval*, and *what's in flight*, read `PROJECT_STATE.md` and `TASK_BOARD.md` first.

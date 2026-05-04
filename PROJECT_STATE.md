@@ -82,9 +82,12 @@
 
 ## Current Active Task
 
-**EPIC-001 — Operating-model self-hosting** (prove the system works on a real task). T-001 (README refresh) is registered as the first task; awaiting Execution Agent pickup. See `TASK_BOARD.md`.
+**EPIC-001 — Operating-model self-hosting** *(loop validated by T-001)*.
 
-Next feature work is gated on user approval after EPIC-001 demonstrates the loop.
+- T-001 (README refresh) — `done` ✅
+- T-003 (meals audit script) — `todo`, picked up by Execution Agent immediately after this commit + push (per user instruction "ลุย T-003 ได้เลย").
+
+Next feature work is gated on user approval after T-003.
 
 ---
 
@@ -169,7 +172,7 @@ These rules govern the Orchestrator + Subagent workflow (full detail in `AGENTS.
 
 These are unresolved and worth a human decision before related work starts.
 
-1. **`README.md` is stale.** It says `v1.0.0`, "85+ preloaded Thai meals", and predates the planning surfaces. Should the README be refreshed in a dedicated docs pass, or left as a marketing-style overview while `PROJECT_STATE.md` is the canonical truth? *(Targeted by T-001 in TASK_BOARD.md.)*
+1. ~~**`README.md` is stale.**~~ **Resolved by T-001.** README now reflects `v1.10.22`, includes pointers to `PROJECT_STATE.md` / `AGENTS.md` / `TASK_BOARD.md`, and the three stale phrases (`v1.0.0`, `85+`, `BMR-only`) are gone (`grep` audit clean).
 2. **Test infrastructure: none.** There are no automated tests, no QA scripts, no fixtures. Do we want a lightweight `tools/audit-*.js` set (e.g., meal data sanity, macro consistency on `meals.json`, version-bump detector) before we keep adding features?
 3. **Git tags / releases.** Versions live in code constants and commit subjects, not in `git tag`. Worth tagging retroactively (`v1.10.22` → tagged at `dc26955`) for easier rollback, or leave as-is?
 4. **Branch strategy.** All work has been on `main` directly. Do we want feature branches + PRs for upcoming work, or keep direct-to-main with the operating model providing the gate?
