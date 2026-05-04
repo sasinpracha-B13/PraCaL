@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.16';
+const VERSION = 'v1.10.17';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2569,7 +2569,7 @@ function renderOnbTips() {
       </div>
 
       <div class="card mt2" style="line-height:1.8">
-        <div style="font-size:15px;margin-bottom:10px"><b>1️⃣ กดเมนูใน "เมนูแนะนำ"</b><br><span class="muted" style="font-size:14px">บันทึกใน 5 วินาที</span></div>
+        <div style="font-size:15px;margin-bottom:10px"><b>1️⃣ กด 🍽️ "มื้อต่อไปกินอะไรดี?"</b><br><span class="muted" style="font-size:14px">ระบบเลือกเมนูตามงบที่เหลือให้</span></div>
         <div style="font-size:15px;margin-bottom:10px"><b>2️⃣ กด 🎉 มื้อพิเศษ</b><br><span class="muted" style="font-size:14px">เมื่อกินบุฟเฟ่ / ร้านอาหาร</span></div>
         <div style="font-size:15px;margin-bottom:10px"><b>3️⃣ ชั่งน้ำหนักทุกเช้า</b><br><span class="muted" style="font-size:14px">ดู trend ที่ Reports → ⚖️</span></div>
         <div style="font-size:15px"><b>4️⃣ ดูสรุปสัปดาห์</b><br><span class="muted" style="font-size:14px">แถบ 7 วันใน Dashboard</span></div>
@@ -2837,8 +2837,6 @@ function renderDashboard() {
       ? 'var(--red-soft)'
       : 'var(--amber-soft)';
 
-  const favsForUser = favoriteSuggestions(entries);
-
   return `
     <div class="screen">
       <div class="header">
@@ -2985,11 +2983,6 @@ function renderDashboard() {
         `;
       })() : ''}
 
-      ${favsForUser.length ? `
-        <h2>💡 เมนูแนะนำ</h2>
-        <div>${favsForUser.map(m => mealItemHtml(m, { action: 'pick-meal', id: m.id })).join('')}</div>
-      ` : ''}
-
       <button class="btn block" data-act="nav-special" style="background:linear-gradient(135deg,#fde7c8,#fbcb8d);color:#5a2e00;font-weight:700;border:1.5px solid #e8a766;height:64px;font-size:18px;margin-top:8px">🎉 บันทึกมื้อพิเศษ <span style="font-weight:400;font-size:14px;opacity:0.85">— ชาบู / บุฟเฟ่ / ร้านอาหาร</span></button>
 
       <h2>🍽️ วันนี้กินอะไรไปบ้าง</h2>
@@ -3008,14 +3001,6 @@ function renderDashboard() {
 
     ${bottomNavHtml('home')}
   `;
-}
-
-function favoriteSuggestions(todayEntries) {
-  const loggedIds = new Set(todayEntries.map(e => e.mealId));
-  const favs = state.favorites
-    .map(id => findMeal(id))
-    .filter(m => m && !loggedIds.has(m.id));
-  return favs.slice(0, 3);
 }
 
 function mealItemHtml(meal, opts = {}) {
