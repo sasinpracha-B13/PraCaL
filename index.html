@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.21';
+const VERSION = 'v1.10.22';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1669,19 +1669,27 @@ function computePlanProjection(u, cfg) {
 // everything into one). Hard tolerance filter (±tolerance cal) replaces
 // the old percentage-based ratio. Score: 50% cal fit + 30% protein bias +
 // 20% favorites + small base. Excludes meals already logged today.
-function suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, count = 3) {
+// v1.10.22 — show ALL matches (count=Infinity by default). Optional search,
+// sort mode (score/protein/cal-asc), and favorites-only filter.
+function suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, count = Infinity, opts = {}) {
   if (remainingCal < 100) return [];
   const ml = Math.max(1, mealsLeft);
   const tol = Math.max(5, Math.min(50, tolerance));
   const target = remainingCal / ml;
   const proteinPerMeal = proteinGap / ml;
   const wantsProtein = proteinPerMeal > 20;
+  const q = (opts.searchText || '').trim().toLowerCase();
+  const hasSearch = q.length > 0;
+  const favOnly = !!opts.favOnly;
+  const sort = opts.sort || 'score';
   return allMeals()
     .filter(m => {
       const cal = m.baseCalories || 0;
       if (cal < 50) return false;
       if (Math.abs(cal - target) > tol) return false;
       if (recentIds.includes(m.id)) return false;
+      if (favOnly && !state.favorites.includes(m.id)) return false;
+      if (hasSearch && !(m.name || '').toLowerCase().includes(q)) return false;
       return true;
     })
     .map(m => {
@@ -1694,7 +1702,11 @@ function suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, r
       const score = calScore * 0.5 + proteinScore * 0.3 + favBonus + 0.1;
       return { meal: m, score };
     })
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (sort === 'protein') return (b.meal.protein_g || 0) - (a.meal.protein_g || 0);
+      if (sort === 'cal-asc') return (a.meal.baseCalories || 0) - (b.meal.baseCalories || 0);
+      return b.score - a.score;        // 'score' (default)
+    })
     .slice(0, count)
     .map(x => x.meal);
 }
@@ -4619,11 +4631,11 @@ function renderMealPlanResult() {
 }
 
 // v1.10.13 — Real-time meal suggester: "มื้อต่อไปกินอะไรดี?"
-// Reachable from a chip on the dashboard. Shows 3 candidates that fit the
-// user's remaining calorie/protein budget, each with quick-log + similar-tap.
 // v1.10.16 — user-controlled splitter (1/2/3 meals left) + custom tolerance
 // (preset ±10/±25/±50 or free-input up to 50). Replaces "stuff into one meal"
 // percentage-based logic with per-meal target + hard ±cal filter.
+// v1.10.22 — shows ALL matches (no slice). Adds search, sort selector
+// (score/protein/cal-asc), favorites-only toggle, compact row design.
 function renderSuggestView() {
   const u = currentUser();
   if (!u) return '';
@@ -4643,9 +4655,23 @@ function renderSuggestView() {
   const tolerance = Math.max(5, Math.min(50, state.tmp.tolerance ?? 25));
   const targetPerMeal = remainingCal / mealsLeft;
   const proteinPerMeal = proteinGap / mealsLeft;
+  // v1.10.22 — list controls
+  const sort = state.tmp.suggestSort || 'score';
+  const favOnly = !!state.tmp.suggestFavOnly;
+  const searchText = state.tmp.suggestSearch || '';
+  const hasSearch = searchText.trim().length > 0;
 
   const recentIds = entries.map(e => e.mealId);
-  const suggestions = suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, 3);
+  const suggestions = suggestMealsForBudget(remainingCal, mealsLeft, tolerance, proteinGap, recentIds, Infinity, {
+    searchText, sort, favOnly
+  });
+
+  // Empty-state messages tuned to which control caused the empty list
+  let emptyMsg;
+  if (remainingCal < 100) emptyMsg = '🎉 งบเต็มวันแล้ว — ไม่ต้องกินเพิ่ม';
+  else if (favOnly) emptyMsg = `⭐ ไม่มี favorites ในช่วง ±${tolerance} cal · ลองปิด "เฉพาะ favorites" หรือเพิ่ม tolerance`;
+  else if (hasSearch) emptyMsg = `🔍 ไม่พบ "${h(searchText)}" ในช่วง ±${tolerance} cal · ลองคำอื่น`;
+  else emptyMsg = `ไม่พบเมนูในช่วง ±${tolerance} cal จาก ${fmt(targetPerMeal)} kcal<br><span style="font-size:12px">ลองเพิ่ม tolerance หรือเปลี่ยนจำนวนมื้อ</span>`;
 
   return `
     <div class="screen">
@@ -4680,27 +4706,34 @@ function renderSuggestView() {
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:10px">
+        <div class="field" style="margin-bottom:8px">
+          <input id="suggest-search" type="text" class="input" placeholder="🔍 ค้นชื่อเมนู (เช่น ข้าว, สลัด)" value="${h(searchText)}" autocomplete="off" style="height:40px">
+        </div>
+        <div class="seg" style="margin-bottom:8px">
+          <button type="button" class="${sort === 'score' ? 'on' : ''}" data-act="set-suggest-sort" data-v="score">🎯 ใกล้เป้า</button>
+          <button type="button" class="${sort === 'protein' ? 'on' : ''}" data-act="set-suggest-sort" data-v="protein">💪 โปรตีนสูง</button>
+          <button type="button" class="${sort === 'cal-asc' ? 'on' : ''}" data-act="set-suggest-sort" data-v="cal-asc">🔥 แคลน้อย</button>
+        </div>
+        <div class="row between" style="align-items:center;gap:8px">
+          <button type="button" class="btn ${favOnly ? '' : 'ghost'} sm" data-act="toggle-suggest-fav-only" style="font-size:13px;padding:6px 12px">${favOnly ? '⭐ เฉพาะ favorites' : '☆ เฉพาะ favorites'}</button>
+          <span class="muted" style="font-size:12.5px">📊 พบ <b style="color:var(--primary-dark)">${suggestions.length}</b> เมนู</span>
+        </div>
+      </div>
+
       ${suggestions.length === 0 ? `
-        <div class="card empty"><div class="muted">${
-          remainingCal < 100
-            ? '🎉 งบเต็มวันแล้ว — ไม่ต้องกินเพิ่ม'
-            : `ไม่พบเมนูในช่วง ±${tolerance} cal จาก ${fmt(targetPerMeal)} kcal<br><span style="font-size:12px">ลองเพิ่ม tolerance หรือเปลี่ยนจำนวนมื้อ</span>`
-        }</div></div>
+        <div class="card empty"><div class="muted">${emptyMsg}</div></div>
       ` : suggestions.map((m, idx) => `
-        <div class="card" style="margin-bottom:10px;${idx === 0 ? 'border:1.5px solid var(--primary)' : ''}">
-          <div class="row" style="gap:10px;align-items:flex-start">
-            <div style="font-size:32px;flex-shrink:0">${m.emoji || '🍽️'}</div>
+        <div class="card" data-act="goto-meal-detail-from-suggest" data-id="${m.id}" style="margin-bottom:8px;padding:10px 12px;cursor:pointer;${idx === 0 && sort === 'score' && !hasSearch && !favOnly ? 'border:1.5px solid var(--primary)' : ''}">
+          <div class="row" style="gap:10px;align-items:center">
+            <div style="font-size:28px;flex-shrink:0">${m.emoji || '🍽️'}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:16px">${idx === 0 ? '⭐ ' : ''}${h(m.name)}</div>
-              <div class="muted" style="font-size:13px;margin-top:2px">${fmt(m.baseCalories)} cal · P ${fmt(m.protein_g, 0)}g · C ${fmt(m.carbs_g, 0)}g · F ${fmt(m.fat_g, 0)}g</div>
-              <div class="hint" style="font-size:11.5px;margin-top:4px;color:var(--ink-2)">${suggestReasoning(m, targetPerMeal, tolerance, proteinPerMeal)}</div>
+              <div style="font-weight:600;font-size:14.5px">${idx === 0 && sort === 'score' && !hasSearch && !favOnly ? '⭐ ' : ''}${state.favorites.includes(m.id) && !(idx === 0 && sort === 'score' && !hasSearch && !favOnly) ? '⭐ ' : ''}${h(m.name)}</div>
+              <div class="muted" style="font-size:12px;margin-top:1px">${fmt(m.baseCalories)} cal · P ${fmt(m.protein_g, 0)}g · C ${fmt(m.carbs_g, 0)}g · F ${fmt(m.fat_g, 0)}g</div>
+              <div class="hint" style="font-size:11px;margin-top:2px;color:var(--ink-2)">${suggestReasoning(m, targetPerMeal, tolerance, proteinPerMeal)}</div>
             </div>
+            <button class="btn green sm" data-act="quick-log-suggested" data-id="${m.id}" style="flex-shrink:0;padding:8px 12px;font-size:13px">✅ บันทึก</button>
           </div>
-          <div class="btn-row mt">
-            <button class="btn green" data-act="quick-log-suggested" data-id="${m.id}">✅ บันทึกตอนนี้</button>
-            <button class="btn secondary" data-act="goto-meal-detail-from-suggest" data-id="${m.id}">📋 ปรับขนาด</button>
-          </div>
-          <button class="btn ghost block sm mt" data-act="show-similar" data-id="${m.id}" style="font-size:13px">🔄 ดูเมนูคล้ายกัน</button>
         </div>
       `).join('')}
       <div style="height:30px"></div>
@@ -6565,6 +6598,16 @@ const actions = {
     if (v >= 5 && v <= 50) state.tmp.tolerance = v;
     render();
   },
+  // v1.10.22 — list controls (sort + favorites toggle)
+  'set-suggest-sort': (e, btn) => {
+    const v = btn.dataset.v;
+    if (['score', 'protein', 'cal-asc'].includes(v)) state.tmp.suggestSort = v;
+    render();
+  },
+  'toggle-suggest-fav-only': () => {
+    state.tmp.suggestFavOnly = !state.tmp.suggestFavOnly;
+    render();
+  },
   'goto-meal-detail-from-suggest': (e, btn) => {
     const id = btn.dataset.id;
     if (!id) return;
@@ -7277,6 +7320,12 @@ document.addEventListener('input', (e) => {
   // v1.10.20 — swap drawer search input (live filter, debounced)
   if (e.target.id === 'swap-search') {
     state.tmp.swapDrawerSearch = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 180);
+  }
+  // v1.10.22 — suggest view search input (live filter, debounced)
+  if (e.target.id === 'suggest-search') {
+    state.tmp.suggestSearch = e.target.value;
     clearTimeout(render._t);
     render._t = setTimeout(render, 180);
   }
