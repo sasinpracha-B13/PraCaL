@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.18';
+const VERSION = 'v1.10.19';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1560,6 +1560,10 @@ function generateMealPlan(config) {
 }
 // Helper: pick next-best alternative for a plan slot (used by swap action)
 function nextAlternativeForSlot(currentMealId, slotTarget, proteinGap, excludeIds) {
+  return alternativesForSlot(currentMealId, slotTarget, proteinGap, excludeIds, 1)[0];
+}
+// v1.10.19 — return ranked list of alternatives for a slot (used by swap drawer)
+function alternativesForSlot(currentMealId, slotTarget, proteinGap, excludeIds, count = 8) {
   const exclude = new Set([...excludeIds, currentMealId]);
   return allMeals()
     .filter(m => {
@@ -1579,8 +1583,8 @@ function nextAlternativeForSlot(currentMealId, slotTarget, proteinGap, excludeId
       return { meal: m, score: calScore * 0.5 + proteinScore * 0.3 + favBonus + 0.1 };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 1)
-    .map(x => x.meal)[0];
+    .slice(0, count)
+    .map(x => x.meal);
 }
 
 // v1.10.18 — Pure compute: project a plan config against user profile.
@@ -3944,6 +3948,9 @@ function renderMealDetail() {
   const editing = !!t.editingEntryId;
   const isCustom = state.customMeals.some(m => m.id === meal.id);
   const presetOn = SIZE_PRESETS.find(p => p.pct === sizePct);
+  // v1.10.19 — plan-edit mode: opened from meal-plan view to modify a slot.
+  // Hides log/edit buttons and hides "ดูเมนูคล้ายกัน" (use plan view's swap drawer instead).
+  const planEditing = !!t.planEditing;
 
   return `
     <div class="screen">
@@ -3952,7 +3959,12 @@ function renderMealDetail() {
         <h1 style="flex:1">${meal.emoji || '🍽️'} ${h(meal.name)}</h1>
         <button class="icon-btn" data-act="toggle-fav" data-id="${meal.id}" aria-label="เมนูประจำ" title="เมนูประจำ">${isFav ? '⭐' : '☆'}</button>
       </div>
-      ${backdateBannerHtml(t.targetDate)}
+      ${planEditing ? `
+        <div class="callout info" style="background:#e0e7ff;border-left:4px solid #818cf8;font-size:13px">
+          📋 <b>กำลังแก้ไขในแผน</b> — ปรับขนาด/Add-on แล้วกด <b>"💾 บันทึกกลับเข้าแผน"</b><br>
+          <span style="font-size:11.5px;color:#3730a3">ค่าจะอัปเดตเฉพาะในแผน · ยังไม่บันทึกเข้าวันนี้ จนกว่าจะกด "ยืนยัน" ในหน้าแผน</span>
+        </div>
+      ` : backdateBannerHtml(t.targetDate)}
 
       <div class="card">
         <div class="row between">
@@ -3966,7 +3978,7 @@ function renderMealDetail() {
         </div>
         <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก. · น้ำตาล ${fmt(sugar, 1)} ก.${sugar > 20 ? ` ≈ ${Math.round(sugar / 4)} ช้อนชา` : ''}</div>
       </div>
-      <button class="btn ghost block sm mt" data-act="show-similar" data-id="${meal.id}" style="font-size:13px">🔄 ดูเมนูที่คล้ายกัน</button>
+      ${planEditing ? '' : `<button class="btn ghost block sm mt" data-act="show-similar" data-id="${meal.id}" style="font-size:13px">🔄 ดูเมนูที่คล้ายกัน</button>`}
 
       ${Array.isArray(meal.customizations) && meal.customizations.length ? (() => {
         // v1.10.0 — group customizations with the same groupId into mutually-exclusive radio.
@@ -4059,12 +4071,14 @@ function renderMealDetail() {
       }).join('')}
 
       <div class="btn-row mt2">
-        ${editing
-          ? `<button class="btn block lg" data-act="update-log">✅ บันทึกการแก้ไข</button>`
-          : `<button class="btn block lg" ${quantity < 1 ? 'disabled' : ''} data-act="save-log">✅ บันทึกในวันนี้</button>`
+        ${planEditing
+          ? `<button class="btn green block lg" ${quantity < 1 ? 'disabled' : ''} data-act="save-plan-meal">💾 บันทึกกลับเข้าแผน</button>`
+          : editing
+            ? `<button class="btn block lg" data-act="update-log">✅ บันทึกการแก้ไข</button>`
+            : `<button class="btn block lg" ${quantity < 1 ? 'disabled' : ''} data-act="save-log">✅ บันทึกในวันนี้</button>`
         }
       </div>
-      ${isCustom ? `
+      ${isCustom && !planEditing ? `
         <div class="btn-row mt">
           <button class="btn secondary sm" data-act="edit-custom-meal" data-id="${meal.id}">✏️ แก้ไขเมนู</button>
           <button class="btn ghost sm" data-act="delete-custom-meal" data-id="${meal.id}" style="color:var(--red)">🗑️ ลบเมนู</button>
@@ -4475,6 +4489,7 @@ function renderMealPlanSetup() {
 }
 
 // v1.10.14 — Meal plan result: shows N days with totals + per-meal swap
+// v1.10.19 — swap opens bottom-sheet drawer · 📋 opens modify mode (not log mode)
 function renderMealPlanResult() {
   const t = state.tmp;
   const plan = t.plan;
@@ -4485,6 +4500,49 @@ function renderMealPlanResult() {
   // v1.10.18 — 1-day mode: "ยืนยันบันทึก" button instead of just preview
   const isOneDay = cfg.days === 1;
   const loggableCount = isOneDay ? plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId).length : 0;
+
+  // v1.10.19 — swap drawer (bottom sheet)
+  let drawerHtml = '';
+  if (t.swapDrawer) {
+    const sd = t.swapDrawer;
+    const day = plan.days.find(d => d.day === sd.day);
+    const meal = day?.meals[sd.idx];
+    if (meal) {
+      const slotTarget = meal.cal;
+      const dayMealIds = day.meals.filter(m => m.mealId).map(m => m.mealId);
+      const proteinGap = Math.max(0, cfg.proteinMin - day.totalProtein + meal.protein);
+      const alts = alternativesForSlot(meal.mealId, slotTarget, proteinGap, dayMealIds, 8);
+      drawerHtml = `
+        <div class="modal-back" data-act="swap-drawer-close">
+          <div class="modal" data-act="noop" style="max-height:75vh">
+            <div class="row between" style="margin-bottom:6px">
+              <h3 style="margin:0;font-size:18px">🔄 เปลี่ยนเป็น...</h3>
+              <button class="icon-btn ghost" data-act="swap-drawer-close" style="font-size:18px">✕</button>
+            </div>
+            <div class="hint" style="font-size:12px;margin-bottom:10px">เป้าโดยประมาณ ~${fmt(slotTarget)} cal · ปัจจุบัน: ${meal.emoji} ${h(meal.name)}</div>
+            ${alts.length === 0 ? `
+              <div class="card empty"><div class="muted">ไม่มีเมนูใกล้เคียงในงบ</div></div>
+            ` : alts.map(alt => {
+              const isFav = state.favorites.includes(alt.id);
+              return `
+                <div class="row" data-act="swap-drawer-pick" data-id="${alt.id}" style="gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer">
+                  <div style="font-size:26px;flex-shrink:0">${alt.emoji || '🍽️'}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:500;font-size:14px">${isFav ? '⭐ ' : ''}${h(alt.name)}</div>
+                    <div class="muted" style="font-size:12px">${fmt(alt.baseCalories)} cal · P ${fmt(alt.protein_g, 0)}g · F ${fmt(alt.fat_g, 0)}g</div>
+                  </div>
+                  <div style="color:var(--primary-dark);font-weight:700">→</div>
+                </div>
+              `;
+            }).join('')}
+            <div style="height:8px"></div>
+            <button class="btn ghost block sm" data-act="swap-drawer-close">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
   return `
     <div class="screen">
       <div class="header">
@@ -4510,12 +4568,12 @@ function renderMealPlanResult() {
             <div class="row" style="gap:10px;align-items:center;padding:8px 0;${mIdx === 0 && isOneDay ? '' : 'border-top:1px solid var(--line)'}">
               <div style="font-size:24px">${meal.emoji}</div>
               <div style="flex:1;min-width:0">
-                <div style="font-weight:500;font-size:14px">${meal.slot === 'fixed' ? '🔒 ' : ''}${h(meal.name)}</div>
+                <div style="font-weight:500;font-size:14px">${meal.slot === 'fixed' ? '🔒 ' : ''}${h(meal.name)}${meal.sizePct && meal.sizePct !== 100 ? ` <span class="muted" style="font-size:11.5px">(${meal.sizePct}%)</span>` : ''}${meal.quantity > 1 ? ` <span class="muted" style="font-size:11.5px">× ${meal.quantity}</span>` : ''}</div>
                 <div class="muted" style="font-size:12px">${fmt(meal.cal)} cal · P ${fmt(meal.protein, 0)}g</div>
               </div>
               ${meal.slot === 'meal' && meal.mealId ? `
-                <button class="icon-btn ghost" data-act="swap-plan-meal" data-day="${day.day}" data-idx="${mIdx}" title="เปลี่ยน" style="font-size:16px">🔄</button>
-                <button class="icon-btn ghost" data-act="goto-meal-detail-from-suggest" data-id="${meal.mealId}" title="ดูรายละเอียด" style="font-size:14px">📋</button>
+                <button class="icon-btn ghost" data-act="swap-plan-meal" data-day="${day.day}" data-idx="${mIdx}" title="เปลี่ยนเมนู" style="font-size:16px">🔄</button>
+                <button class="icon-btn ghost" data-act="goto-plan-meal-edit" data-day="${day.day}" data-idx="${mIdx}" title="ปรับขนาด/Add-on" style="font-size:14px">📋</button>
               ` : ''}
             </div>
           `).join('')}
@@ -4524,12 +4582,13 @@ function renderMealPlanResult() {
 
       ${isOneDay && loggableCount > 0 ? `
         <button class="btn green block lg mt2" data-act="confirm-1day-plan" style="font-size:16px">✅ ยืนยัน — บันทึกทั้ง ${loggableCount} มื้อให้วันนี้</button>
-        <div class="hint" style="font-size:12px;margin-top:6px;text-align:center">💡 กด 🔄 ข้างเมนูเพื่อเปลี่ยนก่อนยืนยัน</div>
+        <div class="hint" style="font-size:12px;margin-top:6px;text-align:center">💡 กด 🔄 เปลี่ยนเมนู · 📋 ปรับขนาด/add-on · เสร็จแล้วกดยืนยัน</div>
       ` : `
-        <div class="hint" style="font-size:12px;margin-top:14px;text-align:center">💡 กด 🔄 ข้างเมนูเพื่อเปลี่ยน · กด 📋 เพื่อดูรายละเอียด/log</div>
+        <div class="hint" style="font-size:12px;margin-top:14px;text-align:center">💡 กด 🔄 เปลี่ยนเมนู · กด 📋 เพื่อปรับขนาด/add-on</div>
       `}
       <div style="height:30px"></div>
     </div>
+    ${drawerHtml}
     ${bottomNavHtml('')}
   `;
 }
@@ -6246,10 +6305,12 @@ const actions = {
     const cfg = state.tmp.plan?.config;
     if (!cfg) return;
     state.tmp.plan = generateMealPlan(cfg);
+    state.tmp.swapDrawer = null;          // v1.10.19 — clear stale drawer ref
     render();
     toast('สร้างแผนใหม่แล้ว');
   },
   // v1.10.18 — confirm 1-day plan: log all loggable meals into today's entries
+  // v1.10.19 — respect modifications (size/qty/addons/customizations) made via 📋 modify
   'confirm-1day-plan': () => {
     const plan = state.tmp.plan;
     if (!plan || !plan.days[0]) return toast('ไม่มีแผน', true);
@@ -6259,10 +6320,10 @@ const actions = {
     for (const m of meals) {
       addLogEntry({
         mealId: m.mealId,
-        sizePct: 100,
-        quantity: 1,
-        addons: [],
-        customizations: [],
+        sizePct: m.sizePct || 100,
+        quantity: m.quantity || 1,
+        addons: m.addons || [],
+        customizations: m.customizations || [],
         snapshot: null
       });
       logged++;
@@ -6270,6 +6331,7 @@ const actions = {
     toast(`✅ บันทึก ${logged} มื้อแล้ว`);
     goHome();
   },
+  // v1.10.19 — open swap drawer instead of instant-swap (user picks from list)
   'swap-plan-meal': (e, btn) => {
     const dayNum = Number(btn.dataset.day);
     const idx = Number(btn.dataset.idx);
@@ -6279,20 +6341,34 @@ const actions = {
     if (!day) return;
     const meal = day.meals[idx];
     if (!meal || meal.slot !== 'meal') return;
-    // Compute slot target (current cal of this slot, basically)
-    const slotTarget = meal.cal;
-    // Exclude all other meals in the same day
-    const dayMealIds = day.meals.filter(m => m.mealId).map(m => m.mealId);
-    const proteinGap = Math.max(0, plan.config.proteinMin - day.totalProtein + meal.protein);
-    const alt = nextAlternativeForSlot(meal.mealId, slotTarget, proteinGap, dayMealIds);
-    if (!alt) return toast('ไม่มีตัวเลือกอื่นที่ใกล้เคียง', true);
-    // Replace
+    state.tmp.swapDrawer = { day: dayNum, idx };
+    render();
+  },
+  // v1.10.19 — drawer close
+  'swap-drawer-close': () => {
+    state.tmp.swapDrawer = null;
+    render();
+  },
+  // v1.10.19 — drawer pick: replace meal slot with chosen alternative
+  'swap-drawer-pick': (e, btn) => {
+    const altId = btn.dataset.id;
+    const sd = state.tmp.swapDrawer;
+    const plan = state.tmp.plan;
+    if (!sd || !plan) return;
+    const day = plan.days.find(d => d.day === sd.day);
+    if (!day) return;
+    const meal = day.meals[sd.idx];
+    if (!meal) return;
+    const alt = findMeal(altId);
+    if (!alt) return toast('ไม่พบเมนู', true);
+    // Subtract old totals (use entry's stored cal/protein which respects size/qty/addons)
     day.totalCal -= meal.cal;
     day.totalProtein -= meal.protein;
     day.totalCarbs -= meal.carbs || 0;
     day.totalFat -= meal.fat || 0;
     day.totalSugar -= meal.sugar || 0;
-    day.meals[idx] = {
+    // Replace — reset modifications since they're meal-specific
+    day.meals[sd.idx] = {
       slot: 'meal',
       mealId: alt.id,
       name: alt.name,
@@ -6301,7 +6377,11 @@ const actions = {
       protein: alt.protein_g || 0,
       carbs: alt.carbs_g || 0,
       fat: alt.fat_g || 0,
-      sugar: alt.sugar_g || 0
+      sugar: alt.sugar_g || 0,
+      sizePct: 100,
+      quantity: 1,
+      addons: [],
+      customizations: []
     };
     day.totalCal += alt.baseCalories || 0;
     day.totalProtein += alt.protein_g || 0;
@@ -6311,8 +6391,111 @@ const actions = {
     // Recompute averages
     plan.avgCal = plan.days.reduce((s, d) => s + d.totalCal, 0) / plan.days.length;
     plan.avgProtein = plan.days.reduce((s, d) => s + d.totalProtein, 0) / plan.days.length;
+    state.tmp.swapDrawer = null;
     render();
     toast(`เปลี่ยนเป็น ${alt.name}`);
+  },
+  // v1.10.19 — modify meal inside plan (size/qty/addons) without logging today.
+  // Reuses meal-detail view via state.tmp.planEditing flag — save button changes
+  // to "บันทึกกลับเข้าแผน" + handler save-plan-meal mutates the plan in place.
+  'goto-plan-meal-edit': (e, btn) => {
+    const dayNum = Number(btn.dataset.day);
+    const idx = Number(btn.dataset.idx);
+    const plan = state.tmp.plan;
+    if (!plan) return;
+    const day = plan.days.find(d => d.day === dayNum);
+    if (!day) return;
+    const meal = day.meals[idx];
+    if (!meal || !meal.mealId) return;
+    // Restore addonCounts from stored addons array
+    const addonCounts = {};
+    (meal.addons || []).forEach(a => {
+      const aid = typeof a === 'string' ? a : a.id;
+      const c = typeof a === 'string' ? 1 : (a.count || 0);
+      if (c > 0) addonCounts[aid] = c;
+    });
+    go('meal-detail', {
+      mealId: meal.mealId,
+      sizePct: meal.sizePct || 100,
+      quantity: meal.quantity || 1,
+      addonCounts,
+      customizations: (meal.customizations || []).slice(),
+      planEditing: { day: dayNum, idx, plan }    // ← marks meal-detail as plan-edit mode
+    });
+  },
+  // v1.10.19 — save modifications back into the plan slot (no logging)
+  'save-plan-meal': () => {
+    const pe = state.tmp.planEditing;
+    if (!pe) return toast('ไม่พบบริบทแผน', true);
+    const meal = state.tmp.meal || findMeal(state.tmp.mealId);
+    if (!meal) return toast('ไม่พบเมนู', true);
+    const qty = state.tmp.quantity == null ? 1 : state.tmp.quantity;
+    if (qty < 1) return toast('ตั้งจำนวนอย่างน้อย 1', true);
+    const sizePct = state.tmp.sizePct || 100;
+    const counts = state.tmp.addonCounts || {};
+    const addons = Object.keys(counts).filter(k => counts[k] > 0).map(id => ({ id, count: counts[id] }));
+    const customizations = (state.tmp.customizations || []).slice();
+    // Compute totals respecting size/qty/customizations/addons (mirrors renderMealDetail logic)
+    const mult = sizePct / 100;
+    const factor = mult * qty;
+    let baseCal = meal.baseCalories;
+    let baseProt = meal.protein_g;
+    let baseCarb = meal.carbs_g;
+    let baseFat = meal.fat_g;
+    let baseSugar = meal.sugar_g || 0;
+    if (customizations.length && Array.isArray(meal.customizations)) {
+      customizations.forEach(cid => {
+        const c = meal.customizations.find(x => x.id === cid);
+        if (!c) return;
+        baseCal += c.calChange || 0;
+        baseProt += c.proteinChange || 0;
+        baseCarb += c.carbChange || 0;
+        baseFat += c.fatChange || 0;
+        baseSugar += c.sugarChange || 0;
+      });
+    }
+    let cal = baseCal * factor;
+    let prot = baseProt * factor;
+    let carb = baseCarb * factor;
+    let fat = baseFat * factor;
+    let sugar = baseSugar * factor;
+    ADDONS.forEach(a => {
+      const c = counts[a.id] || 0;
+      cal += a.calories * c;
+      prot += a.protein_g * c;
+      carb += a.carbs_g * c;
+      fat += a.fat_g * c;
+      sugar += (a.sugar_g || 0) * c;
+    });
+    // Locate target slot and update
+    const day = pe.plan.days.find(d => d.day === pe.day);
+    if (!day) return toast('ไม่พบวันในแผน', true);
+    const old = day.meals[pe.idx];
+    if (!old) return toast('ไม่พบมื้อในแผน', true);
+    day.totalCal -= old.cal;
+    day.totalProtein -= old.protein;
+    day.totalCarbs -= old.carbs || 0;
+    day.totalFat -= old.fat || 0;
+    day.totalSugar -= old.sugar || 0;
+    day.meals[pe.idx] = {
+      slot: 'meal',
+      mealId: meal.id,
+      name: meal.name,
+      emoji: meal.emoji || '🍽️',
+      cal, protein: prot, carbs: carb, fat, sugar,
+      sizePct, quantity: qty, addons, customizations
+    };
+    day.totalCal += cal;
+    day.totalProtein += prot;
+    day.totalCarbs += carb;
+    day.totalFat += fat;
+    day.totalSugar += sugar;
+    // Recompute averages
+    pe.plan.avgCal = pe.plan.days.reduce((s, d) => s + d.totalCal, 0) / pe.plan.days.length;
+    pe.plan.avgProtein = pe.plan.days.reduce((s, d) => s + d.totalProtein, 0) / pe.plan.days.length;
+    toast('💾 บันทึกในแผนแล้ว');
+    // Pop back to plan view (state.stack has it from go() that brought us here)
+    back();
   },
   // v1.10.13 — real-time meal suggester
   'nav-suggest': () => go('suggest'),
@@ -6976,6 +7159,9 @@ const actions = {
       setTimeout(() => location.reload(), 200);
     }).catch(() => location.reload());
   },
+  // v1.10.19 — used as a "click-stop" sentinel inside modals so blank-area
+  // clicks don't bubble to the .modal-back close handler. Intentionally a no-op.
+  'noop': () => {},
   'dismiss-update': () => hideUpdateBanner(),
   'dismiss-v110-notice': () => dismissV110Notice()
 };
