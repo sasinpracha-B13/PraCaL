@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.14';
+const VERSION = 'v1.10.15';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -4277,7 +4277,7 @@ function renderMealPlanSetup() {
         <h1 style="flex:1;font-size:18px">📋 สร้างแผนอาหาร</h1>
       </div>
       <div class="callout info" style="font-size:13px">
-        ระบบจะสร้างแผน N วัน โดยใช้เมนูใน database (375 รายการ)<br>
+        ระบบจะสร้างแผน N วัน โดยใช้เมนูใน database (${fmt(state.preloadedMeals.length)} รายการ)<br>
         คำนวณให้ครบเงื่อนไข cal/protein + ไม่ซ้ำเมนู 3 วันติด + ใช้ favorites
       </div>
 
