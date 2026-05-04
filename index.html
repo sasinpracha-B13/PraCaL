@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.19';
+const VERSION = 'v1.10.20';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1563,15 +1563,23 @@ function nextAlternativeForSlot(currentMealId, slotTarget, proteinGap, excludeId
   return alternativesForSlot(currentMealId, slotTarget, proteinGap, excludeIds, 1)[0];
 }
 // v1.10.19 — return ranked list of alternatives for a slot (used by swap drawer)
-function alternativesForSlot(currentMealId, slotTarget, proteinGap, excludeIds, count = 8) {
+// v1.10.20 — search text + relaxed budget filter when user is actively searching.
+// count=Infinity returns the whole filtered set (no slice).
+function alternativesForSlot(currentMealId, slotTarget, proteinGap, excludeIds, count = 8, searchText = '') {
   const exclude = new Set([...excludeIds, currentMealId]);
+  const q = (searchText || '').trim().toLowerCase();
+  const hasSearch = q.length > 0;
+  // When user types a search, they're hunting for a specific meal — relax the
+  // budget cap (1.5× → 3×) so big meals (buffet, set, etc.) become reachable.
+  const calCap = hasSearch ? slotTarget * 3 : slotTarget * 1.5;
   return allMeals()
     .filter(m => {
       const cal = m.baseCalories || 0;
-      if (cal < 100 || cal > slotTarget * 1.5) return false;
+      if (cal < 100 || cal > calCap) return false;
       if (exclude.has(m.id)) return false;
       const name = (m.name || '').toLowerCase();
       if (['เบียร์','แอลกอฮอล์','beer','wine'].some(kw => name.includes(kw))) return false;
+      if (hasSearch && !name.includes(q)) return false;
       return true;
     })
     .map(m => {
@@ -4502,6 +4510,8 @@ function renderMealPlanResult() {
   const loggableCount = isOneDay ? plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId).length : 0;
 
   // v1.10.19 — swap drawer (bottom sheet)
+  // v1.10.20 — show all alternatives (no slice) + search input · budget filter
+  // relaxes 1.5× → 3× when searching so user can find specific big meals.
   let drawerHtml = '';
   if (t.swapDrawer) {
     const sd = t.swapDrawer;
@@ -4511,32 +4521,44 @@ function renderMealPlanResult() {
       const slotTarget = meal.cal;
       const dayMealIds = day.meals.filter(m => m.mealId).map(m => m.mealId);
       const proteinGap = Math.max(0, cfg.proteinMin - day.totalProtein + meal.protein);
-      const alts = alternativesForSlot(meal.mealId, slotTarget, proteinGap, dayMealIds, 8);
+      const searchText = t.swapDrawerSearch || '';
+      const alts = alternativesForSlot(meal.mealId, slotTarget, proteinGap, dayMealIds, Infinity, searchText);
+      const hasSearch = searchText.trim().length > 0;
       drawerHtml = `
         <div class="modal-back" data-act="swap-drawer-close">
-          <div class="modal" data-act="noop" style="max-height:75vh">
-            <div class="row between" style="margin-bottom:6px">
+          <div class="modal" data-act="noop" style="max-height:85vh;display:flex;flex-direction:column">
+            <div class="row between" style="margin-bottom:6px;flex-shrink:0">
               <h3 style="margin:0;font-size:18px">🔄 เปลี่ยนเป็น...</h3>
               <button class="icon-btn ghost" data-act="swap-drawer-close" style="font-size:18px">✕</button>
             </div>
-            <div class="hint" style="font-size:12px;margin-bottom:10px">เป้าโดยประมาณ ~${fmt(slotTarget)} cal · ปัจจุบัน: ${meal.emoji} ${h(meal.name)}</div>
-            ${alts.length === 0 ? `
-              <div class="card empty"><div class="muted">ไม่มีเมนูใกล้เคียงในงบ</div></div>
-            ` : alts.map(alt => {
-              const isFav = state.favorites.includes(alt.id);
-              return `
-                <div class="row" data-act="swap-drawer-pick" data-id="${alt.id}" style="gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer">
-                  <div style="font-size:26px;flex-shrink:0">${alt.emoji || '🍽️'}</div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:500;font-size:14px">${isFav ? '⭐ ' : ''}${h(alt.name)}</div>
-                    <div class="muted" style="font-size:12px">${fmt(alt.baseCalories)} cal · P ${fmt(alt.protein_g, 0)}g · F ${fmt(alt.fat_g, 0)}g</div>
+            <div class="hint" style="font-size:12px;margin-bottom:8px;flex-shrink:0">เป้าโดยประมาณ ~${fmt(slotTarget)} cal · ปัจจุบัน: ${meal.emoji} ${h(meal.name)}</div>
+            <div class="field" style="margin-bottom:8px;flex-shrink:0">
+              <input id="swap-search" type="text" class="input" placeholder="🔍 ค้นชื่อเมนู (ค้นเจอจะขยายช่วงงบ)" value="${h(searchText)}" autocomplete="off" style="height:40px">
+            </div>
+            <div class="hint" style="font-size:11.5px;margin-bottom:6px;flex-shrink:0;color:${alts.length > 0 ? 'var(--ink-2)' : 'var(--red)'}">
+              ${alts.length > 0
+                ? `พบ <b>${alts.length}</b> รายการ${hasSearch ? ` · ขยายช่วงงบเป็น ~${fmt(slotTarget * 3)} cal` : ` · ในงบ ~${fmt(slotTarget * 1.5)} cal`}`
+                : hasSearch ? 'ไม่พบเมนูที่ตรงกับคำค้น' : 'ไม่มีเมนูใกล้เคียงในงบ'}
+            </div>
+            <div style="overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch">
+              ${alts.length === 0 ? `
+                <div class="card empty"><div class="muted">${hasSearch ? 'ลองคำอื่น หรือล้างคำค้น' : 'ลองพิมพ์คำค้น เพื่อขยายช่วงงบ'}</div></div>
+              ` : alts.map(alt => {
+                const isFav = state.favorites.includes(alt.id);
+                const overBudget = alt.baseCalories > slotTarget * 1.5;
+                return `
+                  <div class="row" data-act="swap-drawer-pick" data-id="${alt.id}" style="gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer">
+                    <div style="font-size:26px;flex-shrink:0">${alt.emoji || '🍽️'}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:500;font-size:14px">${isFav ? '⭐ ' : ''}${h(alt.name)}${overBudget ? ` <span style="color:var(--amber);font-size:11px">(เกินงบ)</span>` : ''}</div>
+                      <div class="muted" style="font-size:12px">${fmt(alt.baseCalories)} cal · P ${fmt(alt.protein_g, 0)}g · F ${fmt(alt.fat_g, 0)}g</div>
+                    </div>
+                    <div style="color:var(--primary-dark);font-weight:700">→</div>
                   </div>
-                  <div style="color:var(--primary-dark);font-weight:700">→</div>
-                </div>
-              `;
-            }).join('')}
-            <div style="height:8px"></div>
-            <button class="btn ghost block sm" data-act="swap-drawer-close">ยกเลิก</button>
+                `;
+              }).join('')}
+            </div>
+            <button class="btn ghost block sm" data-act="swap-drawer-close" style="margin-top:8px;flex-shrink:0">ยกเลิก</button>
           </div>
         </div>
       `;
@@ -6306,6 +6328,7 @@ const actions = {
     if (!cfg) return;
     state.tmp.plan = generateMealPlan(cfg);
     state.tmp.swapDrawer = null;          // v1.10.19 — clear stale drawer ref
+    state.tmp.swapDrawerSearch = '';      // v1.10.20
     render();
     toast('สร้างแผนใหม่แล้ว');
   },
@@ -6342,11 +6365,13 @@ const actions = {
     const meal = day.meals[idx];
     if (!meal || meal.slot !== 'meal') return;
     state.tmp.swapDrawer = { day: dayNum, idx };
+    state.tmp.swapDrawerSearch = '';     // v1.10.20 — fresh search each open
     render();
   },
   // v1.10.19 — drawer close
   'swap-drawer-close': () => {
     state.tmp.swapDrawer = null;
+    state.tmp.swapDrawerSearch = '';     // v1.10.20
     render();
   },
   // v1.10.19 — drawer pick: replace meal slot with chosen alternative
@@ -6392,6 +6417,7 @@ const actions = {
     plan.avgCal = plan.days.reduce((s, d) => s + d.totalCal, 0) / plan.days.length;
     plan.avgProtein = plan.days.reduce((s, d) => s + d.totalProtein, 0) / plan.days.length;
     state.tmp.swapDrawer = null;
+    state.tmp.swapDrawerSearch = '';     // v1.10.20
     render();
     toast(`เปลี่ยนเป็น ${alt.name}`);
   },
@@ -7218,6 +7244,12 @@ document.addEventListener('input', (e) => {
     state.tmp.tolerance = v;
     clearTimeout(render._t);
     render._t = setTimeout(render, 250);
+  }
+  // v1.10.20 — swap drawer search input (live filter, debounced)
+  if (e.target.id === 'swap-search') {
+    state.tmp.swapDrawerSearch = e.target.value;
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 180);
   }
   // v1.10.18 — meal-plan setup live inputs (drives breakdown + projection cards)
   const planFilterMap = {
