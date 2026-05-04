@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.11';
+const VERSION = 'v1.10.12';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1442,6 +1442,33 @@ function userScannedAsMeals() {
 }
 function allMeals() { return [...state.preloadedMeals, ...allBrandedAsMeals(), ...userScannedAsMeals(), ...state.customMeals]; }
 function findMeal(id) { return allMeals().find(m => m.id === id) || null; }
+
+// v1.10.12 — Find meals with similar macros to the given target.
+// Distance metric: 50% calorie diff + 30% protein diff + 20% fat diff (normalized).
+// Lower distance = more similar. Excludes the target itself.
+function findSimilarMeals(target, count = 8) {
+  if (!target) return [];
+  const tCal = target.baseCalories || 0;
+  const tProt = target.protein_g || 0;
+  const tFat = target.fat_g || 0;
+  if (tCal <= 0) return [];
+  return allMeals()
+    .filter(m => m.id !== target.id && (m.baseCalories || 0) > 0)
+    .map(m => {
+      const cal = m.baseCalories || 0;
+      const prot = m.protein_g || 0;
+      const fat = m.fat_g || 0;
+      const dCal = Math.abs(cal - tCal) / tCal;
+      const dProt = Math.abs(prot - tProt) / Math.max(tProt, 8);
+      const dFat = Math.abs(fat - tFat) / Math.max(tFat, 5);
+      const distance = dCal * 0.5 + dProt * 0.3 + dFat * 0.2;
+      return { meal: m, distance };
+    })
+    .filter(x => x.distance < 0.8)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, count)
+    .map(x => x.meal);
+}
 
 function calcEntryTotals(entry) {
   const m = entry.snapshot || findMeal(entry.mealId);
@@ -3665,6 +3692,7 @@ function renderMealDetail() {
         </div>
         <div class="hint mt">น้ำหนักโดยประมาณ ${fmt(wt)} ก. · น้ำตาล ${fmt(sugar, 1)} ก.${sugar > 20 ? ` ≈ ${Math.round(sugar / 4)} ช้อนชา` : ''}</div>
       </div>
+      <button class="btn ghost block sm mt" data-act="show-similar" data-id="${meal.id}" style="font-size:13px">🔄 ดูเมนูที่คล้ายกัน</button>
 
       ${Array.isArray(meal.customizations) && meal.customizations.length ? (() => {
         // v1.10.0 — group customizations with the same groupId into mutually-exclusive radio.
@@ -4021,6 +4049,59 @@ function renderHistory() {
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('history')}
+  `;
+}
+
+// v1.10.12 — Similar-meals view: shows meals with macros close to the source meal.
+// Reachable from meal-detail via the "🔄 ดูเมนูที่คล้ายกัน" button.
+function renderSimilarMealsView() {
+  const t = state.tmp;
+  const source = t.sourceMeal || (t.sourceMealId ? findMeal(t.sourceMealId) : null);
+  if (!source) {
+    return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>ไม่พบเมนูต้นทาง</h1></div></div>`;
+  }
+  const similar = findSimilarMeals(source, 12);
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1;font-size:18px">🔄 เมนูคล้ายกัน</h1>
+      </div>
+      <div class="card tight" style="background:var(--primary-soft);border:1.5px solid var(--primary);margin-bottom:8px">
+        <div class="row" style="gap:10px">
+          <div style="font-size:28px">${source.emoji || '🍽️'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">${h(source.name)}</div>
+            <div class="muted" style="font-size:13px">${fmt(source.baseCalories)} kcal · P ${fmt(source.protein_g, 0)}g · C ${fmt(source.carbs_g, 0)}g · F ${fmt(source.fat_g, 0)}g</div>
+          </div>
+        </div>
+        <div class="hint" style="font-size:11.5px;margin-top:6px">เมนูด้านล่างมีค่าโภชนาการใกล้เคียง — กดเลือกเพื่อดูรายละเอียด/log แทน</div>
+      </div>
+      <h2 style="margin:8px 0">ตัวเลือกใกล้เคียง</h2>
+      ${similar.length === 0 ? `
+        <div class="card empty"><div class="muted">ไม่พบเมนูที่คล้ายกันใน database</div></div>
+      ` : similar.map(m => {
+        const dCal = m.baseCalories - source.baseCalories;
+        const dProt = (m.protein_g || 0) - (source.protein_g || 0);
+        return `
+          <div class="meal-item" data-act="pick-meal" data-id="${m.id}">
+            <div class="emo">${m.emoji || '🍽️'}</div>
+            <div class="body">
+              <div class="name">${h(m.name)}</div>
+              <div class="sub">
+                ${fmt(m.baseCalories)} cal
+                <span style="color:${dCal === 0 ? 'var(--muted)' : dCal < 0 ? 'var(--green)' : 'var(--amber)'};font-size:12px">(${dCal > 0 ? '+' : ''}${fmt(dCal)})</span>
+                · P ${fmt(m.protein_g, 0)}g
+                <span style="color:${dProt < 0 ? 'var(--amber)' : 'var(--green)'};font-size:12px">(${dProt > 0 ? '+' : ''}${fmt(dProt, 0)})</span>
+              </div>
+            </div>
+            <div class="cal">${fmt(m.baseCalories)}</div>
+          </div>
+        `;
+      }).join('')}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
   `;
 }
 
@@ -4822,6 +4903,7 @@ function render() {
       case 'meal-detail': html = renderMealDetail(); break;
       case 'history': html = renderHistory(); break;
       case 'history-day': html = renderHistoryDay(); break;
+      case 'similar-meals': html = renderSimilarMealsView(); break;
       case 'favorites': html = renderFavorites(); break;
       case 'fav-edit': html = renderFavEdit(); break;
       case 'add-activity': html = renderAddActivity(); break;
@@ -5522,6 +5604,13 @@ const actions = {
     state.tmp.protMin = '';
     state.tmp.sugarMax = '';
     render();
+  },
+  // v1.10.12 — show meals with similar macros to the current one
+  'show-similar': (e, btn) => {
+    const id = btn?.dataset?.id;
+    const source = id ? findMeal(id) : (state.tmp.meal || findMeal(state.tmp.mealId));
+    if (!source) return;
+    go('similar-meals', { sourceMeal: source, sourceMealId: source.id });
   },
   'pick-meal': (e, btn) => {
     const id = btn.dataset.id;
