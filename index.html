@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.20';
+const VERSION = 'v1.10.21';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -4506,8 +4506,11 @@ function renderMealPlanResult() {
   }
   const cfg = plan.config;
   // v1.10.18 — 1-day mode: "ยืนยันบันทึก" button instead of just preview
+  // v1.10.21 — count includes fixed slot (it gets logged too via snapshot)
   const isOneDay = cfg.days === 1;
-  const loggableCount = isOneDay ? plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId).length : 0;
+  const loggableCount = isOneDay
+    ? plan.days[0].meals.filter(m => (m.slot === 'meal' && m.mealId) || m.slot === 'fixed').length
+    : 0;
 
   // v1.10.19 — swap drawer (bottom sheet)
   // v1.10.20 — show all alternatives (no slice) + search input · budget filter
@@ -6334,21 +6337,47 @@ const actions = {
   },
   // v1.10.18 — confirm 1-day plan: log all loggable meals into today's entries
   // v1.10.19 — respect modifications (size/qty/addons/customizations) made via 📋 modify
+  // v1.10.21 — also log the fixed slot (e.g. Vitaday) via snapshot — was being
+  // skipped silently because the filter required mealId, which fixed slots lack.
   'confirm-1day-plan': () => {
     const plan = state.tmp.plan;
     if (!plan || !plan.days[0]) return toast('ไม่มีแผน', true);
-    const meals = plan.days[0].meals.filter(m => m.slot === 'meal' && m.mealId);
-    if (meals.length === 0) return toast('ไม่มีเมนูให้บันทึก', true);
+    const all = plan.days[0].meals.filter(m =>
+      (m.slot === 'meal' && m.mealId) || m.slot === 'fixed'
+    );
+    if (all.length === 0) return toast('ไม่มีเมนูให้บันทึก', true);
     let logged = 0;
-    for (const m of meals) {
-      addLogEntry({
-        mealId: m.mealId,
-        sizePct: m.sizePct || 100,
-        quantity: m.quantity || 1,
-        addons: m.addons || [],
-        customizations: m.customizations || [],
-        snapshot: null
-      });
+    for (const m of all) {
+      if (m.slot === 'fixed') {
+        // Fixed slot has no DB meal — log via inline snapshot
+        addLogEntry({
+          mealId: uid('fixed'),
+          sizePct: 100,
+          quantity: 1,
+          addons: [],
+          customizations: [],
+          snapshot: {
+            id: uid('fixedsnap'),
+            name: m.name || 'มื้อประจำ',
+            emoji: m.emoji || '🥤',
+            baseCalories: m.cal || 0,
+            protein_g: m.protein || 0,
+            carbs_g: m.carbs || 0,
+            fat_g: m.fat || 0,
+            sugar_g: m.sugar || 0,
+            baseWeight_g: 0
+          }
+        });
+      } else {
+        addLogEntry({
+          mealId: m.mealId,
+          sizePct: m.sizePct || 100,
+          quantity: m.quantity || 1,
+          addons: m.addons || [],
+          customizations: m.customizations || [],
+          snapshot: null
+        });
+      }
       logged++;
     }
     toast(`✅ บันทึก ${logged} มื้อแล้ว`);
