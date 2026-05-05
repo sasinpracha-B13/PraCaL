@@ -1,5 +1,5 @@
 {
-  "version": "1.10.10",
+  "version": "1.10.11",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -632,6 +632,26 @@
     { "id": "n21", "name": "สปาเก็ตตี้ต้มยำทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 510, "baseWeight_g": 380, "protein_g": 28, "carbs_g": 55, "fat_g": 22, "sugar_g": 5 },
     { "id": "n22", "name": "สปาเก็ตตี้ขี้เมาไส้กรอกรมควัน", "emoji": "🍝", "category": "noodles", "baseCalories": 580, "baseWeight_g": 360, "protein_g": 22, "carbs_g": 52, "fat_g": 35, "sugar_g": 3 },
     { "id": "n23", "name": "สปาเก็ตตี้เบคอน Aglio Olio", "emoji": "🍝", "category": "noodles", "baseCalories": 660, "baseWeight_g": 320, "protein_g": 26, "carbs_g": 48, "fat_g": 40, "sugar_g": 2 },
+    { "id": "n24", "name": "ขนมจีนแกงเขียวหวานไก่", "emoji": "🍜", "category": "noodles", "baseCalories": 700, "baseWeight_g": 420, "protein_g": 29, "carbs_g": 74, "fat_g": 31, "sugar_g": 8, "customizations": [
+      { "id": "extra_noodles", "label": "ใส่ขนมจีนเพิ่ม (+1 ก้อน)", "calChange": 140, "carbChange": 30, "fatChange": 1 },
+      { "id": "less_coconut", "label": "กะทิน้อย / ไม่ใส่กะทิ", "calChange": -100, "carbChange": -2, "fatChange": -10 },
+      { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
+    ] },
+    { "id": "n25", "name": "ขนมจีนแกงเขียวหวานไก่ใส่ฟัก", "emoji": "🍜", "category": "noodles", "baseCalories": 680, "baseWeight_g": 480, "protein_g": 28, "carbs_g": 78, "fat_g": 28, "sugar_g": 8, "customizations": [
+      { "id": "extra_noodles", "label": "ใส่ขนมจีนเพิ่ม (+1 ก้อน)", "calChange": 140, "carbChange": 30, "fatChange": 1 },
+      { "id": "less_coconut", "label": "กะทิน้อย / ไม่ใส่กะทิ", "calChange": -100, "carbChange": -2, "fatChange": -10 },
+      { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
+    ] },
+    { "id": "n26", "name": "ขนมจีนแกงเขียวหวานเนื้อ", "emoji": "🍜", "category": "noodles", "baseCalories": 760, "baseWeight_g": 420, "protein_g": 30, "carbs_g": 74, "fat_g": 36, "sugar_g": 8, "customizations": [
+      { "id": "extra_noodles", "label": "ใส่ขนมจีนเพิ่ม (+1 ก้อน)", "calChange": 140, "carbChange": 30, "fatChange": 1 },
+      { "id": "less_coconut", "label": "กะทิน้อย / ไม่ใส่กะทิ", "calChange": -100, "carbChange": -2, "fatChange": -10 },
+      { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
+    ] },
+    { "id": "n27", "name": "ขนมจีนแกงเขียวหวานลูกชิ้นปลา", "emoji": "🍜", "category": "noodles", "baseCalories": 690, "baseWeight_g": 420, "protein_g": 22, "carbs_g": 86, "fat_g": 29, "sugar_g": 8, "customizations": [
+      { "id": "extra_noodles", "label": "ใส่ขนมจีนเพิ่ม (+1 ก้อน)", "calChange": 140, "carbChange": 30, "fatChange": 1 },
+      { "id": "less_coconut", "label": "กะทิน้อย / ไม่ใส่กะทิ", "calChange": -100, "carbChange": -2, "fatChange": -10 },
+      { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
+    ] },
 
     { "id": "s14", "name": "สลัดทูน่ายำ", "emoji": "🐟", "category": "salads", "baseCalories": 240, "baseWeight_g": 280, "protein_g": 28, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },
     { "id": "s15", "name": "สลัดหมูย่างซอสงา", "emoji": "🥗", "category": "salads", "baseCalories": 380, "baseWeight_g": 280, "protein_g": 25, "carbs_g": 20, "fat_g": 23, "sugar_g": 5 },

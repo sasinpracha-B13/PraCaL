@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-005 → `done` (v1.10.23 ships) · scope gate at T-006 (user-visible improvement)
+Last updated: T-006 → `done` (v1.10.24 ships · 379 meals total)
 
 ---
 
@@ -131,6 +131,29 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-006 — Add ขนมจีนแกงเขียวหวาน variants (4 entries)
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-khanom-jin-green-curry.md`](docs/specs/add-meals-khanom-jin-green-curry.md)
+- **Definition of Done:**
+  - [x] 4 entries inserted: n24 ขนมจีนแกงเขียวหวานไก่ (700 cal · −1.3%) · n25 ไก่ใส่ฟัก (680 cal · −0.6%) · n26 เนื้อ (760 cal · −2.6%) · n27 ลูกชิ้นปลา (690 cal · +0.4%)
+  - [x] All 4 in audit `pass` band (each ≤5% — predictions in spec hit exactly)
+  - [x] `meals.json` `version` 1.10.10 → 1.10.11
+  - [x] `service-worker.js` + `index.html` `VERSION` v1.10.23 → v1.10.24 (verified by grep)
+  - [x] PS audit: total 375 → 379 ✅ · pass 299 → 303 ✅ · warn 70 → 70 (unchanged) ✅ · fail 3 → 3 (unchanged) ✅
+  - [x] `git diff meals.json` shows exactly 2 regions: version field (line 2) + insertion after n23 (line 634 region)
+  - [x] `branded_products.json` + `tools/audit-meals.js` byte-identical (hashes confirm against prior baseline)
+  - [x] PROJECT_STATE Current Version + Latest Completed Work + Active Task all updated
+- **Notes:**
+  - User-directed scope (Phase 2 of T-006 prep): "เพิ่มเมนู ขนมจีนแกงเขียวหวานในแบบต่างๆ เช่น เขียวหวานไก่ใส่ฟัก สำคัญที่สุด ตรวจความถูกต้องของแคลและปริมาณ 1เสิร์ฟ"
+  - First **user-visible product improvement** under Rule 16 (new searchable menu items appear in library / suggester / planner immediately).
+  - Calorie/portion accuracy is the user's #1 stated priority — full derivation in spec, anchored to existing peer r14 + cross-checked against m03, n12, m77.
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-005 commit (Rule 15 mechanical pickup); user gave explicit scope ("เพิ่มเมนู ขนมจีนแกงเขียวหวานในแบบต่างๆ ... ตรวจความถูกต้องของแคล/ปริมาณ")
+  - `in_progress → review` — 4 entries added · all PASS band · version sync verified · diff scope verified · PROJECT_STATE updated
+  - `review → done` — user approved (single-letter "a")
 
 ### T-005 — Fix s02 + m18 data discrepancies in `meals.json`
 
