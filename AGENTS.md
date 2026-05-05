@@ -22,6 +22,8 @@ These are non-negotiable. They override any task brief that contradicts them.
 11. **No dev work without an approved spec.** Any code change above trivial requires a spec in `docs/specs/` (status `approved`) before implementation begins. Trivial = single-line, single-file, no behavior change for any other flow. Doc-only refreshes still need a spec but the spec can be brief.
 12. **No status `done` without `PROJECT_STATE.md` update.** A task cannot move to `done` unless any change in version, guardrails, architecture, active task, latest completed work, or open questions is reflected in `PROJECT_STATE.md`. If nothing changed there, the task either didn't change reality or wasn't worth tracking — flag and discuss.
 13. **Every task passes through `review`.** State transitions must follow `todo → in_progress → review → done`. The `review → done` transition is **user-gated** — the Orchestrator and Execution Agent must stop at `review` and wait for explicit user approval. Skipping `review` is a process violation.
+14. **Runtime expectations for `tools/*` follow [DEC-002](docs/decisions/DEC-002-tools-runtime.md).** JS is canonical for `tools/audit-*.js`; PowerShell parallel-implementation is acceptable evidence when Node is unavailable, subject to the conditions in DEC-002. A future Execution Agent in a Node-less environment must consult DEC-002 *before* declaring a `blocked` state on Node-runtime grounds.
+15. **`pickup` is mechanical; `done` is gated.** When a task is `todo` in the Task Registry and has no blocker, the Execution Agent picks it up automatically without re-asking — the registration itself was the scope-gate approval. The `review → done` transition still requires explicit user approval (rule 13).
 
 ---
 

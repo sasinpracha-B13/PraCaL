@@ -2,6 +2,16 @@
 
 Small, focused scripts that audit, validate, or analyze the project without modifying production data.
 
+## Runtime policy *(per [DEC-002](../docs/decisions/DEC-002-tools-runtime.md))*
+
+- **`tools/audit-*.js` is canonical.** JavaScript is the source of truth for the audit class.
+- **PowerShell parallel-implementation is acceptable evidence** for a task's DoD when Node is not available, provided:
+  1. Read-only invariant verified (`Get-FileHash` before/after — input unchanged)
+  2. PS verifier mirrors the JS line-for-line (not approximate)
+  3. Verifier lives at `tools/.<script-name>-verify.ps1` (dot-prefix) and is gitignored as a local helper
+- **The PS verifier is a development aid, not a deliverable.** The JS in `tools/` is what ships.
+- This policy applies to the audit class. Other tool classes (generators, hooks, etc.) may need their own decision when introduced.
+
 ## Conventions
 
 - **Naming:** `audit-<area>.js` for audit scripts. `report-<area>.js` for read-only reports. `gen-<area>.js` for generators (rare).

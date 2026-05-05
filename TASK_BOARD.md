@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-003 → `done` (PS evidence accepted) · T-004 about to pick up
+Last updated: T-004 → `done` · scope gate at T-005 (value-bias rule)
 
 ---
 
@@ -20,9 +20,9 @@ T-001 ran the full loop and reached `done`. The system has demonstrated it can p
 
 - Operating layer landed in commit `9a0747a` (Commit A — operating model + execution layer).
 - T-001 README refresh: `done` — landed in commit `94cb6bc` (Commit B), pushed to `main`.
-- T-003 meals audit script: **`done`** ✅ — PS parallel-impl verification accepted as canonical evidence by user (Node verification reclassified as optional, not blocking). Loop resumed.
-- T-003A Node verification fallback: `todo` — superseded in priority by user policy ("PS evidence is sufficient"). Still registered as a structural option in case dual-runtime is desired later.
-- T-004 runtime decision: `todo` — Execution Agent picks up automatically per the locked rule ("registered + no blocker = mechanical pickup").
+- T-003 meals audit script: **`done`** ✅ — landed in commit `aa20e6a`.
+- T-003A Node verification fallback: **`superseded`** by T-004/DEC-002 (strategic question answered; tactical purpose was already fulfilled).
+- T-004 runtime decision: **`review`** — DEC-002 drafted, cross-references added to tools/README + AGENTS, no production change. Awaiting user gate to `done`.
 
 ---
 
@@ -123,43 +123,36 @@ Every task in the Registry must have:
 
 ### T-003A — Node verification fallback (unblock T-003 without external Node)
 
-- **Status:** `todo` *(registered, not executed — user must approve start)*
-- **Owner:** Execution Agent (when picked up)
-- **Spec:** to be created at `docs/specs/audit-meals-fallback.md` when picked up
-- **Goal:** make T-003's audit verifiable in environments without Node, so the loop can continue without external dependency.
-- **Options to evaluate in spec:**
-  - **(opt-1)** Designate `tools/audit-meals.ps1` (port of the existing `.js` logic) as the **canonical** verifier. The JS becomes optional/deprecated. Trade-off: simpler env, but loses cross-platform readability — devs on Mac/Linux need pwsh.
-  - **(opt-2)** Dual-runtime support — keep both `.js` and `.ps1` as official; CI/manual run picks whichever is available. Trade-off: doubles maintenance, but resilient.
-  - **(opt-3)** Standardize on Node and add a Node-install precondition to the dev-env docs. Trade-off: simplest code, but heavier env requirement (this is also what T-004 will likely decide).
-- **Definition of Done:**
-  - [ ] Spec compares the three options with a recommendation
-  - [ ] Chosen option implemented (file(s) added or moved)
-  - [ ] `tools/README.md` reflects the canonical verifier(s)
-  - [ ] T-003's DoD amended in the spec to point at the canonical verifier
-  - [ ] T-003 unblocked: status moves `blocked` → `review` → (user gate) → `done`
+- **Status:** **`superseded`** by T-004 / [DEC-002](docs/decisions/DEC-002-tools-runtime.md)
+- **Tactical purpose** (unblock T-003) — **fulfilled** independently when user accepted PS evidence as canonical for T-003.
+- **Strategic purpose** (formalize the runtime path) — **superseded by T-004**, which selected opt-F ("Node primary + PS parallel-impl as formal fallback evidence"). The opt-1 / opt-2 / opt-3 enumeration here is preserved as historical context for DEC-002's "Alternatives considered" section.
 - **Notes:**
-  - **ID convention extension:** T-003A uses sub-letter naming (`T-NNN<letter>`) to mark this as the unblock-path of T-003, not a new sequence-number task. First time this pattern is used; if approved, document as a formal extension of the immutable-ID rule in `TASK_BOARD.md → Conventions`.
-  - **Overlap flag with T-004:** T-003A is *tactical* (unblock T-003 quickly) while T-004 is *strategic* (formal runtime decision for all `tools/*`). They overlap on opt-1 and opt-3. If T-003A picks opt-1 or opt-3 first, it short-circuits T-004's main question. The user may want to consolidate (T-003A becomes T-004) or keep separate (T-003A is a one-shot unblock; T-004 is the broader policy doc). **Out of scope for this turn — flag for next user decision.**
-  - Strict scope-lock: this task does **not** verify T-003 by running the JS in some other env. It changes the verification mechanism so it can run here.
+  - Closed without execution; this is the correct outcome — the strategic question was answered by T-004.
+  - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
 
 ### T-004 — runtime decision (Node required vs. PowerShell fallback)
 
-- **Status:** `todo`
-- **Owner:** Execution Agent (next pickup after T-003 → done)
-- **Spec:** to be created at `docs/specs/runtime-decision.md` when picked up
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/runtime-decision.md`](docs/specs/runtime-decision.md)
+- **Decision artifact:** [`docs/decisions/DEC-002-tools-runtime.md`](docs/decisions/DEC-002-tools-runtime.md)
 - **Definition of Done:**
-  - [ ] `docs/decisions/DEC-002-tools-runtime.md` exists with: status accepted, context (T-003 surfaced gap), decision (Node required / PS fallback / dual / migrate to PS), alternatives considered, consequences, follow-ups
-  - [ ] `tools/README.md` updated: top of file states the chosen runtime and any install instructions; "Conventions" section reflects the choice
-  - [ ] `AGENTS.md` Universal Rules cross-references the runtime requirement (so future Execution Agent doesn't assume)
-  - [ ] If decision = "Node required": README "Setup" section gets a 1-line `node --version` precondition; if "PS fallback": port `tools/audit-meals.js` logic to a sibling `.ps1` and document both
-  - [ ] `PROJECT_STATE.md` Open Question 2 updated to reflect the decision
+  - [x] `docs/decisions/DEC-002-tools-runtime.md` exists with all required sections (status accepted · context · decision · alternatives · consequences · follow-ups). Decision: **Option F — JS canonical, PS parallel-implementation acceptable as fallback evidence** (subject to read-only invariant + line-for-line mirror + dot-prefix gitignored naming).
+  - [x] `tools/README.md` "Runtime policy" subsection at top, citing DEC-002.
+  - [x] `AGENTS.md` Universal Rules — added rule 14 (runtime expectation cross-reference) and rule 15 (mechanical pickup, gated done) per workflow refinement from this turn.
+  - [x] `PROJECT_STATE.md` Open Question 2 updated to reflect partial resolution (runtime policy resolved; broader test infra still open).
+  - [x] No file moves, no JS port, no production effect (Option F is the lightest path).
+- **Transitions:**
+  - `todo → in_progress` — picked up automatically after T-003 commit (mechanical pickup per locked rule)
+  - `in_progress → review` — DEC-002 + spec written; cross-references in tools/README + AGENTS verified by grep; hash invariants on `tools/audit-meals.js` and `meals.json` confirmed unchanged
+  - `review → done` — user approved Option F + rules 14/15
 - **Notes:**
-  - Surfaced by T-003 — this environment has neither Node nor real Python; only PowerShell.
-  - User flagged this as the right structural fix: "T-004 — runtime decision · standardize: Node required? หรือ PowerShell fallback? · เขียน DEC แยก".
-  - **Blocked until T-003 → done** (user gate).
-  - This is a doc + decision task, not a code task. No production effect.
+  - Recommendation: Option F (codify the working pattern from T-003). Six options were considered; full trade-off matrix in spec.
+  - T-003A closed as superseded.
+  - Surfaced rule 15 ("`pickup` is mechanical; `done` is gated") as the formal codification of the workflow refinement the user locked in this session. Lives in `AGENTS.md` Universal Rules.
+  - **Awaiting user review** — if the user prefers a different option (A/B/C/D), DEC-002 returns to `proposed` status and is revised; T-004 flips back to `in_progress`.
 
 ---
 

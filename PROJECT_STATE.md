@@ -82,14 +82,14 @@
 
 ## Current Active Task
 
-**EPIC-001 — Operating-model self-hosting** *(loop validated by T-001 + T-003)*.
+**EPIC-001 — Operating-model self-hosting** *(loop validated by T-001 + T-003 + T-004)*.
 
 - T-001 (README refresh) — `done` ✅
-- T-003 (meals audit script) — `done` ✅ (PS parallel-impl evidence accepted as canonical; Node-runtime check declared optional)
-- T-003A (Node verification fallback) — `todo`, lower priority since user accepted PS evidence policy
-- T-004 (runtime decision DEC-002) — `todo`, picks up automatically per execution loop after T-003 commit + push
+- T-003 (meals audit script) — `done` ✅ (PS parallel-impl evidence accepted; Node check optional)
+- T-003A (Node verification fallback) — **`superseded`** by T-004 / DEC-002
+- T-004 (runtime decision → DEC-002) — `done` ✅
 
-Loop has now demonstrated: pick → spec → execute → audit → state update → review → done · gate, twice. Continuous execution rule active: pickup of the next `todo` is mechanical when there's no blocker.
+Continuous execution rule active: pickup of the next `todo` is mechanical when there's no blocker; `review → done` remains user-gated. Loop has now demonstrated three consecutive end-to-end runs with discipline preserved.
 
 ---
 
@@ -175,7 +175,7 @@ These rules govern the Orchestrator + Subagent workflow (full detail in `AGENTS.
 These are unresolved and worth a human decision before related work starts.
 
 1. ~~**`README.md` is stale.**~~ **Resolved by T-001.** README now reflects `v1.10.22`, includes pointers to `PROJECT_STATE.md` / `AGENTS.md` / `TASK_BOARD.md`, and the three stale phrases (`v1.0.0`, `85+`, `BMR-only`) are gone (`grep` audit clean).
-2. **Test infrastructure: partial.** ~~No automated tests, no QA scripts, no fixtures.~~ T-003 added `tools/audit-meals.js` (macro consistency + correct top-level count for `meals.json`) — first piece of test tooling. Still open: `audit-branded-products.js`, `audit-stale-counts.js`, `audit-version-bumps.js`, optional pre-commit hook integration. Build incrementally on approved tasks; no blanket "add CI" decision yet.
+2. **Test infrastructure: partial.** ~~No automated tests, no QA scripts, no fixtures.~~ T-003 added `tools/audit-meals.js` (macro consistency + correct top-level count for `meals.json`) — first piece of test tooling. T-004 codified the runtime policy for `tools/*` (see [DEC-002](docs/decisions/DEC-002-tools-runtime.md): JS canonical, PowerShell parallel-impl acceptable as fallback evidence). Still open: `audit-branded-products.js`, `audit-stale-counts.js`, `audit-version-bumps.js`, optional pre-commit hook integration. Build incrementally on approved tasks; no blanket "add CI" decision yet.
 3. **Git tags / releases.** Versions live in code constants and commit subjects, not in `git tag`. Worth tagging retroactively (`v1.10.22` → tagged at `dc26955`) for easier rollback, or leave as-is?
 4. **Branch strategy.** All work has been on `main` directly. Do we want feature branches + PRs for upcoming work, or keep direct-to-main with the operating model providing the gate?
 5. **AI cost / observability.** No metrics on Netlify Function invocations, error rates, or Anthropic spend. Worth a passive log-and-report tool?
