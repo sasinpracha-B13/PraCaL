@@ -1,5 +1,5 @@
 {
-  "version": "1.10.9",
+  "version": "1.10.10",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -149,7 +149,7 @@
       { "id": "no_sugar", "label": "ไม่ใส่น้ำตาลเลย", "calChange": -90, "carbChange": -22, "sugarChange": -22 },
       { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
     ] },
-    { "id": "s02", "name": "ส้มตำปู", "emoji": "🦀", "category": "salads", "baseCalories": 165, "baseWeight_g": 250, "protein_g": 12, "carbs_g": 28, "fat_g": 4, "sugar_g": 12, "customizations": [
+    { "id": "s02", "name": "ส้มตำปู", "emoji": "🦀", "category": "salads", "baseCalories": 195, "baseWeight_g": 250, "protein_g": 12, "carbs_g": 28, "fat_g": 4, "sugar_g": 12, "customizations": [
       { "id": "no_dried_shrimp", "label": "ไม่ใส่กุ้งแห้ง", "calChange": -40, "proteinChange": -5 },
       { "id": "no_peanut", "label": "ไม่ใส่ถั่ว", "calChange": -85, "proteinChange": -4, "carbChange": -3, "fatChange": -7, "sugarChange": -1 },
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -45, "carbChange": -11, "sugarChange": -11 },
@@ -236,7 +236,7 @@
       { "id": "less_coconut", "label": "กะทิน้อย", "calChange": -115, "proteinChange": -1, "carbChange": -2, "fatChange": -12 },
       { "id": "more_coconut", "label": "เข้มข้น", "calChange": 115, "proteinChange": 1, "carbChange": 2, "fatChange": 12 }
     ] },
-    { "id": "m18", "name": "ปลาทอดราดพริก", "emoji": "🐟", "category": "mains", "baseCalories": 585, "baseWeight_g": 300, "protein_g": 32, "carbs_g": 18, "fat_g": 32, "sugar_g": 10, "customizations": [
+    { "id": "m18", "name": "ปลาทอดราดพริก", "emoji": "🐟", "category": "mains", "baseCalories": 585, "baseWeight_g": 300, "protein_g": 32, "carbs_g": 18, "fat_g": 42, "sugar_g": 10, "customizations": [
       { "id": "less_oil", "label": "ทอดน้ำมันน้อย", "calChange": -100, "fatChange": -11 },
       { "id": "double_fry", "label": "ทอดสองชั้น", "calChange": 60, "carbChange": 1, "fatChange": 6 }
     ] },

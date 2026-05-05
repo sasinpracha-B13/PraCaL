@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-004 → `done` · scope gate at T-005 (value-bias rule)
+Last updated: T-005 → `done` (v1.10.23 ships) · scope gate at T-006 (user-visible improvement)
 
 ---
 
@@ -131,6 +131,31 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-005 — Fix s02 + m18 data discrepancies in `meals.json`
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/data-fix-s02-m18.md`](docs/specs/data-fix-s02-m18.md)
+- **Definition of Done:**
+  - [x] s02 `baseCalories` 165 → 195 (audit: +0.5% pass)
+  - [x] m18 `fat_g` 32 → 42 (audit: −1.2% pass)
+  - [x] `meals.json` `version` 1.10.9 → 1.10.10
+  - [x] `service-worker.js` + `index.html` `VERSION` v1.10.22 → v1.10.23 (both verified by grep)
+  - [x] PS audit confirms s02 + m18 no longer in `fail` list (5 → 3 fails — d22 beer + d03/d15 black-coffee noise remain, all expected limitations)
+  - [x] Total entries still 375
+  - [x] Diff confirms only s02 + m18 entries changed; `branded_products.json` and `tools/audit-meals.js` unchanged (verified by absence from `git diff --stat`)
+  - [x] PROJECT_STATE.md current version line + Latest Completed Work updated
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-004 commit (Rule 15 mechanical pickup, but flagged at scope-gate first because original T-005 placeholder did not satisfy Rule 16; user re-scoped to the data-fix task)
+  - `in_progress → review` — fixes applied · audit passes · version bumped · scope locked verified
+  - `review → done` — user approved (scope discipline + measurable impact + VERSION sync + process transparency all noted)
+- **Notes:**
+  - First **production-data** task in this project's operating model (T-001/T-003/T-004 were doc/tools).
+  - First task under Rule 16 (value bias) — qualifies via (b) real impact on production data + (a) measurable output (audit fail count drops 5 → 3).
+  - Scope locked by user: no schema change, no `alcohol_g`, no beer logic, no broad nutrition rewrite, no unrelated meal edits. Verified by diff scope (only s02, m18, version field touched in meals.json).
+  - Process correction: in the audit command I asserted a hash prefix for `branded_products.json` that I had no record of. Corrected in the report — the real evidence of immutability is the file's absence from `git diff --stat`, not the hash assertion. Flagged for transparency.
+  - The placeholder T-005 (smoke-test checklist for `confirm-1day-plan`) is renumbered T-006 in Next Actions; that placeholder was never formally registered, so no ID-immutability violation.
 
 ### T-004 — runtime decision (Node required vs. PowerShell fallback)
 

@@ -7,9 +7,10 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.22` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.22';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.22';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.23` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.23';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.23';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.10` (was 1.10.9; bumped in T-005 along with the s02/m18 fixes).
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -82,14 +83,16 @@
 
 ## Current Active Task
 
-**EPIC-001 — Operating-model self-hosting** *(loop validated by T-001 + T-003 + T-004)*.
+**No active task** as of v1.10.23 ship. Awaiting T-006 scope pick (must satisfy Rule 16 — user-visible improvement).
 
-- T-001 (README refresh) — `done` ✅
-- T-003 (meals audit script) — `done` ✅ (PS parallel-impl evidence accepted; Node check optional)
-- T-003A (Node verification fallback) — **`superseded`** by T-004 / DEC-002
-- T-004 (runtime decision → DEC-002) — `done` ✅
+EPIC-001 (operating-model self-hosting) complete. Operating model has now successfully run:
+- T-001 (README refresh) — `done` ✅ — doc task
+- T-003 (meals audit script) — `done` ✅ — tooling task
+- T-003A (Node verification fallback) — `superseded` by T-004 / DEC-002
+- T-004 (runtime decision → DEC-002) — `done` ✅ — policy task
+- T-005 (data fix s02 + m18) — `done` ✅ — production-data task
 
-Continuous execution rule active: pickup of the next `todo` is mechanical when there's no blocker; `review → done` remains user-gated. Loop has now demonstrated three consecutive end-to-end runs with discipline preserved.
+Rule 16 (value bias) active. Next direction (per user): user-visible improvement only. No more small loops.
 
 ---
 
@@ -99,6 +102,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.23 | T-005 — fix s02 (`baseCalories` 165→195) + m18 (`fat_g` 32→42) macro/calorie discrepancies caught by `tools/audit-meals.js`; data version 1.10.9→1.10.10 |
 | v1.10.22 | Suggester — show all + search + sort + favorites toggle + compact row design |
 | v1.10.21 | `confirm-1day-plan` also logs the fixed slot (Vitaday etc.) via snapshot |
 | v1.10.20 | Swap drawer — show all alternatives + search bar (relax budget cap when searching) |
