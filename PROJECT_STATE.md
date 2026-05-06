@@ -7,10 +7,10 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.24` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.24';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.24';` (drives cache name `pracal-${VERSION}` and cache invalidation)
-- **`meals.json` data version:** `1.10.11` (was 1.10.10; bumped in T-006 with the addition of 4 ขนมจีนแกงเขียวหวาน variants).
+- **App version:** `v1.10.25` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.25';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.25';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.12` (was 1.10.11; bumped in T-007 with the addition of 5 สปาเก็ตตี้ variants under the new menu-addition protocol).
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -83,15 +83,18 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.24 ship. Awaiting next T-007 scope pick (Rule 16 applies — must be user-visible improvement).
+**No active task** as of v1.10.25 ship. T-007 done — 9 สปาเก็ตตี้ variants live; data version 1.10.12. Total `meals.json` entries: **388**.
 
-EPIC-001 (operating-model self-hosting) complete. Operating model has now successfully run six tasks:
+T-007 went through 2 revision cycles in review (added 4 more variants on user "C"; then real-user-fit pass per "ตรวจ + เหมาะกับการใช้งานจริง" — adjusted n33/n34 serving sizes to match cafe portions). Protocol §3e (real-user fit) codified as part of the task per user instruction.
+
+Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
 - T-003 (meals audit script) — `done` ✅ — tooling task
 - T-003A (Node verification fallback) — `superseded` by T-004 / DEC-002
 - T-004 (runtime decision → DEC-002) — `done` ✅ — policy task
 - T-005 (data fix s02 + m18) — `done` ✅ — production-data task
 - T-006 (add 4 ขนมจีนแกงเขียวหวาน variants) — `done` ✅ — user-visible product improvement
+- T-007 (add 9 สปาเก็ตตี้ variants + Rule 17 + protocol doc + §3e real-user-fit) — `done` ✅ — user-visible + protocol codification (2 revision cycles in review: +4 variants, then real-user-fit pass)
 
 Rule 16 active and validated: T-006 produces both (a) measurable output (379 entries · all 4 in PASS band) and (b) real user impact (new menu options).
 
@@ -105,6 +108,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.25 | T-007 — add 9 สปาเก็ตตี้ variants (n28 คาโบนาร่า · n29 โบโลเนส · n30 ครีมเห็ด · n31 ผัดกะเพราหมู · n32 กุ้งกระเทียม · n33 มาริน่า · n34 เพสโต้ · n35 มีทบอล · n36 ทูน่า); each macro-verified per anchor + sanity-range; data version 1.10.11→1.10.12. Also codifies AGENTS.md Rule 17 + new `docs/specs/menu-addition-protocol.md` per user instruction. Calorie spectrum 400-700 cal. |
 | v1.10.24 | T-006 — add 4 ขนมจีนแกงเขียวหวาน variants (n24 ไก่ · n25 ไก่ใส่ฟัก · n26 เนื้อ · n27 ลูกชิ้นปลา); each macro-verified against r14/m03/n12 anchors; data version 1.10.10→1.10.11 |
 | v1.10.23 | T-005 — fix s02 (`baseCalories` 165→195) + m18 (`fat_g` 32→42) macro/calorie discrepancies caught by `tools/audit-meals.js`; data version 1.10.9→1.10.10 |
 | v1.10.22 | Suggester — show all + search + sort + favorites toggle + compact row design |

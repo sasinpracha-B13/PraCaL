@@ -1,5 +1,5 @@
 {
-  "version": "1.10.11",
+  "version": "1.10.12",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -651,6 +651,51 @@
       { "id": "extra_noodles", "label": "ใส่ขนมจีนเพิ่ม (+1 ก้อน)", "calChange": 140, "carbChange": 30, "fatChange": 1 },
       { "id": "less_coconut", "label": "กะทิน้อย / ไม่ใส่กะทิ", "calChange": -100, "carbChange": -2, "fatChange": -10 },
       { "id": "less_spicy", "label": "เผ็ดน้อย", "calChange": 0 }
+    ] },
+    { "id": "n28", "name": "สปาเก็ตตี้คาโบนาร่า", "emoji": "🍝", "category": "noodles", "baseCalories": 700, "baseWeight_g": 320, "protein_g": 28, "carbs_g": 55, "fat_g": 41, "sugar_g": 3, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n29", "name": "สปาเก็ตตี้โบโลเนส", "emoji": "🍝", "category": "noodles", "baseCalories": 550, "baseWeight_g": 350, "protein_g": 31, "carbs_g": 62, "fat_g": 17, "sugar_g": 8, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "extra_meat", "label": "ใส่เนื้อเพิ่ม", "calChange": 90, "proteinChange": 9, "fatChange": 6 }
+    ] },
+    { "id": "n30", "name": "สปาเก็ตตี้ครีมเห็ด", "emoji": "🍝", "category": "noodles", "baseCalories": 530, "baseWeight_g": 320, "protein_g": 16, "carbs_g": 56, "fat_g": 27, "sugar_g": 4, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n31", "name": "สปาเก็ตตี้ผัดกะเพราหมู", "emoji": "🍝", "category": "noodles", "baseCalories": 470, "baseWeight_g": 350, "protein_g": 26, "carbs_g": 56, "fat_g": 15, "sugar_g": 4, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_egg", "label": "ใส่ไข่ดาว", "calChange": 90, "proteinChange": 6, "fatChange": 6 },
+      { "id": "less_oil", "label": "น้ำมันน้อย", "calChange": -60, "fatChange": -6 }
+    ] },
+    { "id": "n32", "name": "สปาเก็ตตี้กุ้งกระเทียม", "emoji": "🍝", "category": "noodles", "baseCalories": 450, "baseWeight_g": 320, "protein_g": 27, "carbs_g": 53, "fat_g": 14, "sugar_g": 2, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n33", "name": "สปาเก็ตตี้มาริน่ามะเขือเทศ", "emoji": "🍝", "category": "noodles", "baseCalories": 430, "baseWeight_g": 320, "protein_g": 14, "carbs_g": 69, "fat_g": 11, "sugar_g": 10, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n34", "name": "สปาเก็ตตี้เพสโต้", "emoji": "🍝", "category": "noodles", "baseCalories": 540, "baseWeight_g": 290, "protein_g": 18, "carbs_g": 62, "fat_g": 26, "sugar_g": 1, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n35", "name": "สปาเก็ตตี้มีทบอล", "emoji": "🍝", "category": "noodles", "baseCalories": 570, "baseWeight_g": 370, "protein_g": 31, "carbs_g": 63, "fat_g": 21, "sugar_g": 7, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "extra_meat", "label": "ใส่มีทบอลเพิ่ม", "calChange": 90, "proteinChange": 9, "fatChange": 6 }
+    ] },
+    { "id": "n36", "name": "สปาเก็ตตี้ทูน่า", "emoji": "🍝", "category": "noodles", "baseCalories": 500, "baseWeight_g": 320, "protein_g": 28, "carbs_g": 54, "fat_g": 18, "sugar_g": 2, "customizations": [
+      { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
+      { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
+      { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
     ] },
 
     { "id": "s14", "name": "สลัดทูน่ายำ", "emoji": "🐟", "category": "salads", "baseCalories": 240, "baseWeight_g": 280, "protein_g": 28, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },

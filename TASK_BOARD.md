@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-006 → `done` (v1.10.24 ships · 379 meals total)
+Last updated: T-007 → `done` (v1.10.25 · 9 สปาเก็ตตี้ variants · 388 meals · Rule 17 + §3e real-user-fit codified)
 
 ---
 
@@ -131,6 +131,38 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-007 — Add 9 สปาเก็ตตี้ variants
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-spaghetti.md`](docs/specs/add-meals-spaghetti.md)
+- **Protocol:** follows [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md) (codified in this turn as AGENTS.md Rule 17 per user instruction)
+- **Definition of Done:**
+  - [x] 9 entries inserted: n28 คาโบนาร่า (700/+0.1%) · n29 โบโลเนส (550/−4.5%) · n30 ครีมเห็ด (530/+0.2%) · n31 ผัดกะเพราหมู (470/−1.5%) · n32 กุ้งกระเทียม (450/−0.9%) · **n33 มาริน่า (400/−2.3%) · n34 เพสโต้ (510/+0.6%) · n35 มีทบอล (570/−0.9%) · n36 ทูน่า (500/−2.0%)**
+  - [x] All 9 in audit `pass` band; **every per-entry diff% matches spec prediction exactly** (within rounding)
+  - [x] `meals.json` `version` 1.10.11 → 1.10.12
+  - [x] `service-worker.js` + `index.html` `VERSION` v1.10.24 → v1.10.25 (verified by grep)
+  - [x] PS audit: total 379 → 388 ✅ · pass 303 → 312 ✅ · warn 70 unchanged ✅ · fail 3 unchanged ✅
+  - [x] `git diff meals.json` exactly 2 hunks (verified — version field + insertion after n27)
+  - [x] `branded_products.json` + `tools/audit-meals.js` byte-identical (hashes match prior baselines)
+  - [x] AGENTS.md Rule 17 + `docs/specs/menu-addition-protocol.md` created (one-time setup, bundled in this commit)
+  - [x] PROJECT_STATE Current Version + Latest Completed Work + Active Task all updated
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-006 commit (Rule 15 mechanical pickup); user gave explicit scope ("เพิ่มหมวดเมนูสปาเก็ตตี้")
+  - `in_progress → review` — 5 entries added · all PASS band · predictions matched exactly · Rule 17 codified · protocol doc created
+  - `review → in_progress` — user chose option (c) "add more variants" at first review; spec extended with 4 more (n33-n36)
+  - `in_progress → review` — 4 additional entries added · all PASS band · predictions matched exactly
+  - `review → in_progress` — user instructed "ตรวจความถูกต้อง + ทำให้เหมาะกับการใช้งานจริง"; protocol §3e (real-user fit) codified; n33 serving 280g→320g, n34 serving 260g→290g (cafe portions)
+  - `in_progress → review → done` — re-audit clean (all 9 PASS) · user pre-approved contingent on verification passing ("ตรวจแล้ว push เลย")
+- **Notes:**
+  - **First task formally following Rule 17 + the menu-addition protocol.** T-006 retroactively also followed it (the protocol was extracted from how T-006 was structured).
+  - User instruction "จดข้อกำหนดเหล่านี้เข้าไปทุกครั้งก่อนเพิ่มเมนู" → became Rule 17 + permanent protocol doc.
+  - 5 variants chosen to cover the calorie spectrum: 450 (light, garlic shrimp) → 700 (heavy, carbonara), giving users variety without overlap with existing n21–n23.
+- **Notes:**
+  - Second user-visible product improvement under Rule 16.
+  - First task to formally follow Rule 17 + the menu-addition protocol; T-006 retroactively also followed it (the protocol was extracted from how T-006 was structured).
+  - User instruction codified: "จดข้อกำหนดเหล่านี้เข้าไปทุกครั้งก่อนเพิ่มเมนู" → became Rule 17 + protocol doc.
 
 ### T-006 — Add ขนมจีนแกงเขียวหวาน variants (4 entries)
 
