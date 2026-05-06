@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-007 → `done` (v1.10.25 · 9 สปาเก็ตตี้ variants · 388 meals · Rule 17 + §3e real-user-fit codified)
+Last updated: T-008 → `done` (v1.10.26 ships · 9 protein add-ons live)
 
 ---
 
@@ -131,6 +131,32 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-008 — Add protein add-ons to vegetarian สปาเก็ตตี้ entries
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-protein-addons-vegetarian-pasta.md`](docs/specs/add-protein-addons-vegetarian-pasta.md)
+- **Definition of Done:**
+  - [x] n30 ครีมเห็ด: +3 add-ons (ไก่ย่าง · แซลม่อน · เบคอน) — customization count 3 → 6 ✅
+  - [x] n33 มาริน่า: +3 add-ons (ไก่ย่าง · ไส้กรอก · กุ้ง) — customization count 3 → 6 ✅
+  - [x] n34 เพสโต้: +3 add-ons (ไก่ย่าง · แซลม่อน · กุ้ง) — customization count 3 → 6 ✅
+  - [x] All 9 add-on rows have realistic Thai-cafe portions + delta values per spec research
+  - [x] Bases byte-identical for all 3 modified entries: n30=530/320/16/56/27/4 · n33=430/320/14/69/11/10 · n34=540/290/18/62/26/1
+  - [x] Other 6 spaghetti entries (n28/n29/n31/n32/n35/n36) byte-identical (verified by audit total/pass/warn/fail counts unchanged)
+  - [x] `meals.json` `version` 1.10.12 → 1.10.13
+  - [x] `service-worker.js` + `index.html` `VERSION` v1.10.25 → v1.10.26 (verified by grep)
+  - [x] PS audit: 388 / pass 312 / warn 70 / fail 3 / skip 3 (all unchanged from T-007 baseline — bases not moved)
+  - [x] `branded_products.json` + `tools/audit-meals.js` byte-identical (hashes match prior baseline)
+  - [x] PROJECT_STATE updated
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-007 commit (Rule 15 mechanical pickup); user gave explicit research-driven scope
+  - `in_progress → review` — 9 add-ons applied across n30/n33/n34 · bases unchanged · audit clean
+  - `review → done` — user approved (single-letter "a")
+- **Diff-scope note:** spec predicted 4 hunks (version + 3 entry mods), actual 3 (n33+n34 merged in git diff context due to adjacency — expected git behavior, not a collateral edit issue; verified by reading the actual diff line-by-line).
+- **Notes:**
+  - First task to *modify customizations* on existing entries (not add new entries). Menu-addition-protocol §3e (real-user fit) applied; protocol's diff-scope expectation adjusted (multiple modification hunks instead of single insertion hunk).
+  - Research-driven: 5 protein options selected from top-7 popular Thai-cafe pasta add-ons; pairings chosen by sauce compatibility (cream/tomato/pesto each gets fitting subset).
 
 ### T-007 — Add 9 สปาเก็ตตี้ variants
 
