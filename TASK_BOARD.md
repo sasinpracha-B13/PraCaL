@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-009 → `done` (v1.10.27 ships) · system enters interpretation phase (T-010 = insight engine)
+Last updated: T-010 → `done` (v1.10.28 ships) · T-011 insight engine queued for scope-gate
 
 ---
 
@@ -131,6 +131,37 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-010 — Reports chart interactivity + burn-line per-day fix
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/reports-chart-interactivity.md`](docs/specs/reports-chart-interactivity.md)
+- **User-locked scope:** Bug fix (burn line per-day) + tap-to-read on 3 charts. Weight chart Phase 2.
+- **Re-scope note:** Originally proposed as "Insight Engine"; user pivoted to chart improvements first. Insight engine → T-011 (placeholder below).
+- **Definition of Done:**
+  - [x] `svgDailyLineChart` target line renders per-day path (not flat average) — verified `avgTarget` removed (0 occurrences)
+  - [x] Hit-area + selection state for all 3 daily charts (calorie / balance / protein)
+  - [x] `show-chart-point` handler · toggle on same idx clears
+  - [x] `set-range-days` clears stale selection
+  - [x] Selected element visually highlighted (bar = 2px stroke #1f2937 · line = larger dot + ring)
+  - [x] Detail box per chart (3 chart-specific formatters)
+  - [x] Unlogged-day tap → "ไม่ได้บันทึก"
+  - [x] `.chart-detail` CSS class added (indigo border-left, bg-2 background)
+  - [x] VERSION v1.10.27 → v1.10.28 (sw + index verified by grep)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes confirmed unchanged
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-009 commit; user-locked scope
+  - `in_progress → review` — bug fix + interactivity wired, audit clean
+  - `review → done` — user approved (single-letter "A")
+
+### T-011 — Insight Engine *(placeholder, deferred)*
+
+- **Status:** `todo` (deferred — user pivoted to T-010 chart improvements first)
+- **Owner:** Execution Agent (when picked up)
+- **Spec:** to be created — earlier design draft surfaced in T-009 review conversation (5 detectors / Path B recommendation: D1 protein streak + D2 weekend pattern + D3 sugar high + D5 logging gap + D6 streak milestone · 2 surfaces: Reports top + Dashboard banner)
+- **Notes:** Will pick up after T-010 done (Rule 15 mechanical pickup). User-stated priority: "auto insights / pattern detection / anomaly callout / trend explanation".
 
 ### T-009 — Reports redesign with graphs + time range
 

@@ -665,6 +665,17 @@
   /* Sparkline / chart */
   .chart-card { background: #fff; border-radius: 12px; padding: 12px 10px; }
   .chart-card svg { width: 100%; height: auto; display: block; }
+  /* v1.10.28 — chart-detail box (T-010) shown when a day is tapped */
+  .chart-detail {
+    background: var(--bg-2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    border-left: 3px solid var(--primary);
+  }
+  .chart-detail b { color: var(--ink); }
 
   /* Report section */
   .stat-card {
@@ -703,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.27';
+const VERSION = 'v1.10.28';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2245,7 +2256,10 @@ function svgLineChart(series, avgSeries, w = 320, h = 140) {
 
 // v1.10.27 — generic daily line chart (T-009). For calorie trends etc.
 // Renders gaps for unlogged days (line breaks, not zero-drag).
-// opts: { valueFn(day)→num, targetFn(day)→num?, color, targetColor, label, w, h }
+// v1.10.28 — T-010: target rendered as per-day path (not flat average) so
+// the burn line actually varies with logged exercise. Adds hit-area + selection
+// for tap-to-read detail.
+// opts: { valueFn, targetFn?, color, targetColor, label, w, h, chartId?, selectedIdx? }
 function svgDailyLineChart(days, opts) {
   const valueFn = opts.valueFn;
   const targetFn = opts.targetFn;
@@ -2254,6 +2268,8 @@ function svgDailyLineChart(days, opts) {
   const label = opts.label || '';
   const w = opts.w || 320;
   const ch = opts.h || 140;
+  const chartId = opts.chartId || '';
+  const selectedIdx = opts.selectedIdx;
   const padL = 38, padR = 8, padT = 10, padB = 22;
   const innerW = w - padL - padR;
   const innerH = ch - padT - padB;
@@ -2281,14 +2297,21 @@ function svgDailyLineChart(days, opts) {
   const yFor = (v) => padT + (1 - (v - minV) / (maxV - minV)) * innerH;
   const gridY = [minV, (minV + maxV) / 2, maxV];
   const grid = gridY.map(v => `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${w - padR}" y2="${yFor(v).toFixed(1)}" stroke="#eee" stroke-width="1"/><text x="${padL - 4}" y="${(yFor(v) + 4).toFixed(1)}" text-anchor="end" fill="#999" font-size="10">${Math.round(v)}</text>`).join('');
-  // Target line — average of target values across logged days
-  let targetLine = '';
+  // v1.10.28 — target rendered as per-day path (variable line). Each segment
+  // breaks on unlogged days, like the data line. This reflects actual exercise
+  // logged per day instead of a misleading flat average.
+  let targetPath = '';
   if (targetFn) {
-    const targets = points.map(p => p.target).filter(t => t != null);
-    if (targets.length) {
-      const avgTarget = targets.reduce((s, t) => s + t, 0) / targets.length;
-      const yT = yFor(avgTarget);
-      targetLine = `<line x1="${padL}" y1="${yT.toFixed(1)}" x2="${w - padR}" y2="${yT.toFixed(1)}" stroke="${targetColor}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    const tParts = [];
+    let inT = false;
+    points.forEach(p => {
+      if (p.target != null) {
+        tParts.push(`${inT ? 'L' : 'M'}${xFor(p.i).toFixed(1)},${yFor(p.target).toFixed(1)}`);
+        inT = true;
+      } else { inT = false; }
+    });
+    if (tParts.length) {
+      targetPath = `<path d="${tParts.join(' ')}" fill="none" stroke="${targetColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,3"/>`;
     }
   }
   // Data path with gaps for unlogged days
@@ -2301,14 +2324,29 @@ function svgDailyLineChart(days, opts) {
     } else { inSeg = false; }
   });
   const dataPath = `<path d="${parts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
-  const dots = validPoints.map(p => `<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.4" fill="${color}"/>`).join('');
+  const dots = validPoints.map(p => {
+    const isSel = selectedIdx === p.i;
+    const r = isSel ? 4.5 : 2.4;
+    const ring = isSel ? `<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="6" fill="none" stroke="#1f2937" stroke-width="1.5"/>` : '';
+    return `${ring}<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="${r}" fill="${color}"/>`;
+  }).join('');
+  // v1.10.28 — column-wide invisible hit-area per day for tap-to-read
+  let hitAreas = '';
+  if (chartId) {
+    const colW = innerW / days.length;
+    hitAreas = days.map((d, i) => {
+      const x = padL + (i - 0.5) * (innerW / Math.max(1, days.length - 1));
+      return `<rect data-act="show-chart-point" data-chart-id="${chartId}" data-day-idx="${i}" x="${x.toFixed(1)}" y="${padT}" width="${colW.toFixed(1)}" height="${innerH}" fill="transparent" style="cursor:pointer"/>`;
+    }).join('');
+  }
   const sD = keyToDate(days[0].key);
   const eD = keyToDate(days[days.length - 1].key);
   return `<svg viewBox="0 0 ${w} ${ch}" role="img" aria-label="${label}">
     ${grid}
-    ${targetLine}
+    ${targetPath}
     ${dataPath}
     ${dots}
+    ${hitAreas}
     <text x="${padL}" y="${ch - 6}" fill="#999" font-size="10">${sD.getDate()}/${sD.getMonth() + 1}</text>
     <text x="${w - padR}" y="${ch - 6}" text-anchor="end" fill="#999" font-size="10">${eD.getDate()}/${eD.getMonth() + 1}</text>
   </svg>`;
@@ -2316,7 +2354,8 @@ function svgDailyLineChart(days, opts) {
 
 // v1.10.27 — generic daily bar chart (T-009). Supports negative values (deficit
 // bars below zero-line). For energy-balance + protein-vs-target visualizations.
-// opts: { valueFn, colorFn(v)→color, targetLine?, zeroLine?, label, w, h }
+// v1.10.28 — T-010: adds hit-area + selection support (chartId + selectedIdx).
+// opts: { valueFn, colorFn(v)→color, targetLine?, zeroLine?, label, w, h, chartId?, selectedIdx? }
 function svgDailyBarChart(days, opts) {
   const valueFn = opts.valueFn;
   const colorFn = opts.colorFn || (() => '#d97706');
@@ -2325,6 +2364,8 @@ function svgDailyBarChart(days, opts) {
   const label = opts.label || '';
   const w = opts.w || 320;
   const ch = opts.h || 140;
+  const chartId = opts.chartId || '';
+  const selectedIdx = opts.selectedIdx;
   const padL = 38, padR = 8, padT = 10, padB = 22;
   const innerW = w - padL - padR;
   const innerH = ch - padT - padB;
@@ -2372,8 +2413,19 @@ function svgDailyBarChart(days, opts) {
       by = yZero;
       bh = yVal - yZero;
     }
-    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0.5, bh).toFixed(1)}" fill="${colorFn(p.value)}" rx="1"/>`;
+    const isSel = selectedIdx === p.i;
+    const strokeAttr = isSel ? ' stroke="#1f2937" stroke-width="2"' : '';
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0.5, bh).toFixed(1)}" fill="${colorFn(p.value)}" rx="1"${strokeAttr}/>`;
   }).join('');
+  // v1.10.28 — hit-area per day (full chart height) for tap-to-read
+  let hitAreas = '';
+  if (chartId) {
+    const colW = innerW / days.length;
+    hitAreas = days.map((d, i) => {
+      const hx = padL + i * colW;
+      return `<rect data-act="show-chart-point" data-chart-id="${chartId}" data-day-idx="${i}" x="${hx.toFixed(1)}" y="${padT}" width="${colW.toFixed(1)}" height="${innerH}" fill="transparent" style="cursor:pointer"/>`;
+    }).join('');
+  }
   const sD = keyToDate(days[0].key);
   const eD = keyToDate(days[days.length - 1].key);
   return `<svg viewBox="0 0 ${w} ${ch}" role="img" aria-label="${label}">
@@ -2381,6 +2433,7 @@ function svgDailyBarChart(days, opts) {
     ${bars}
     ${zeroLineHtml}
     ${tLineHtml}
+    ${hitAreas}
     <text x="${padL}" y="${ch - 6}" fill="#999" font-size="10">${sD.getDate()}/${sD.getMonth() + 1}</text>
     <text x="${w - padR}" y="${ch - 6}" text-anchor="end" fill="#999" font-size="10">${eD.getDate()}/${eD.getMonth() + 1}</text>
   </svg>`;
@@ -5131,26 +5184,67 @@ function renderReports() {
   if (agg.loggedCount / agg.totalDays < 0.6 && agg.loggedCount > 0) recommendations.push('💡 บันทึกให้สม่ำเสมอขึ้น');
   if (agg.streak >= 7) recommendations.push(`🏆 บันทึกต่อเนื่อง ${agg.streak} วัน!`);
 
+  // v1.10.28 (T-010): chart selection state for tap-to-read details
+  const chartSel = t.chartSelection || null;
+  const selIdx = (chartId) => chartSel && chartSel.chartId === chartId ? chartSel.idx : null;
+  const selDay = (chartId) => {
+    const idx = selIdx(chartId);
+    return idx != null && agg.days[idx] ? agg.days[idx] : null;
+  };
+
   // Chart configs
   const calorieChart = svgDailyLineChart(agg.days, {
     valueFn: d => d.totals.calories,
-    targetFn: d => d.totalBurn,
+    targetFn: d => d.totalBurn,    // v1.10.28: now rendered per-day (was flat-avg bug)
     color: '#d97706',
     targetColor: '#9ca3af',
-    label: 'แคลอรี่รายวัน'
+    label: 'แคลอรี่รายวัน',
+    chartId: 'cal',
+    selectedIdx: selIdx('cal')
   });
   const balanceChart = svgDailyBarChart(agg.days, {
     valueFn: d => d.energyDelta,
     colorFn: v => v < 0 ? '#10b981' : v > 0 ? '#f59e0b' : '#9ca3af',
     zeroLine: true,
-    label: 'ส่วนต่างพลังงานรายวัน'
+    label: 'ส่วนต่างพลังงานรายวัน',
+    chartId: 'bal',
+    selectedIdx: selIdx('bal')
   });
   const proteinChart = svgDailyBarChart(agg.days, {
     valueFn: d => d.totals.protein_g,
     colorFn: v => v >= protTarget ? '#10b981' : '#f59e0b',
     targetLine: protTarget,
-    label: 'โปรตีนรายวัน'
+    label: 'โปรตีนรายวัน',
+    chartId: 'prot',
+    selectedIdx: selIdx('prot')
   });
+
+  // v1.10.28 (T-010): per-chart detail-box renderers (shown when a day is selected)
+  function chartDetailCal(d) {
+    if (!d) return '';
+    const date = formatDateTH(d.key);
+    if (!d.logged) return `<div class="chart-detail">📅 ${date} · ไม่ได้บันทึก</div>`;
+    const delta = d.energyDelta;
+    const sign = delta < 0 ? '−' : '+';
+    return `<div class="chart-detail">📅 ${date} · กิน <b>${fmt(d.totals.calories)}</b> · เผารวม <b>${fmt(d.totalBurn)}</b> ${d.exerciseBurn > 0 ? `<span class="muted">(TDEE ${fmt(tdeeRpt)} + ออกกำลัง ${fmt(d.exerciseBurn)})</span>` : `<span class="muted">(TDEE)</span>`} · ส่วนต่าง <b style="color:${delta < 0 ? 'var(--green)' : delta > 0 ? 'var(--amber)' : 'var(--ink)'}">${sign}${fmt(Math.abs(delta))}</b></div>`;
+  }
+  function chartDetailBal(d) {
+    if (!d) return '';
+    const date = formatDateTH(d.key);
+    if (!d.logged) return `<div class="chart-detail">📅 ${date} · ไม่ได้บันทึก</div>`;
+    const delta = d.energyDelta;
+    const sign = delta < 0 ? '−' : '+';
+    const label = delta < 0 ? 'ขาดดุล' : delta > 0 ? 'ส่วนเกิน' : 'สมดุล';
+    return `<div class="chart-detail">📅 ${date} · ส่วนต่าง <b style="color:${delta < 0 ? 'var(--green)' : delta > 0 ? 'var(--amber)' : 'var(--ink)'}">${sign}${fmt(Math.abs(delta))} kcal</b> (${label}) · กิน ${fmt(d.totals.calories)} vs เผา ${fmt(d.totalBurn)}</div>`;
+  }
+  function chartDetailProt(d) {
+    if (!d) return '';
+    const date = formatDateTH(d.key);
+    if (!d.logged) return `<div class="chart-detail">📅 ${date} · ไม่ได้บันทึก</div>`;
+    const v = d.totals.protein_g;
+    const met = v >= protTarget;
+    return `<div class="chart-detail">📅 ${date} · โปรตีน <b>${fmt(v)} g</b> (เป้า ${fmt(protTarget)} g — <b style="color:${met ? 'var(--green)' : 'var(--amber)'}">${met ? 'ผ่าน ✓' : `ขาด ${fmt(protTarget - v)} g`}</b>)</div>`;
+  }
 
   return `
     <div class="screen">
@@ -5195,12 +5289,14 @@ function renderReports() {
             <div class="callout info mt">น้ำหนักเปลี่ยนจริง ${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg vs คาดจากแคล ${projKg > 0 ? '+' : ''}${projKg.toFixed(1)} kg — ส่วนต่าง = น้ำในร่างกาย / ความแม่นในการบันทึก</div>
           ` : ''}
           <div class="chart-card mt">
-            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📈 กิน (เส้นทึบ) vs เผารวม (เส้นประ)</div>
+            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📈 กิน (เส้นทึบ) vs เผารวม (เส้นประ) · แตะวันที่ต้องการดูค่า</div>
             ${calorieChart}
+            ${chartDetailCal(selDay('cal'))}
           </div>
           <div class="chart-card mt">
             <div class="hint" style="font-size:11.5px;margin-bottom:4px">⚖️ ส่วนต่างพลังงาน · <span style="color:#10b981">เขียว = ขาดดุล</span> · <span style="color:#f59e0b">เหลือง = ส่วนเกิน</span></div>
             ${balanceChart}
+            ${chartDetailBal(selDay('bal'))}
           </div>
         </div>
 
@@ -5211,8 +5307,9 @@ function renderReports() {
           <div class="stat-row"><span>ผ่านเป้า</span><b>${proteinMetDays}/${agg.loggedCount} วัน (${Math.round((proteinMetDays / agg.loggedCount) * 100)}%)</b></div>
           ${proteinGap > 3 ? `<div class="hint mt">💡 เพิ่ม: ไข่ต้ม 1 ฟอง = +6g / อกไก่ 50g = +15g</div>` : ''}
           <div class="chart-card mt">
-            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📊 โปรตีนรายวัน · เส้นประ = เป้า ${fmt(protTarget)}g · เขียว = ผ่าน · เหลือง = ไม่ถึง</div>
+            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📊 โปรตีนรายวัน · เส้นประ = เป้า ${fmt(protTarget)}g · เขียว = ผ่าน · เหลือง = ไม่ถึง · แตะวันเพื่อดูค่า</div>
             ${proteinChart}
+            ${chartDetailProt(selDay('prot'))}
           </div>
         </div>
 
@@ -6450,9 +6547,27 @@ const actions = {
   },
 
   // v1.10.27 — Reports range selector (T-009) replaces month-prev/month-next
+  // v1.10.28 — also clears stale chart selection when range changes
   'set-range-days': (e, btn) => {
     const v = Number(btn.dataset.v);
-    if ([7, 14, 30, 90].includes(v)) state.tmp.rangeDays = v;
+    if ([7, 14, 30, 90].includes(v)) {
+      state.tmp.rangeDays = v;
+      state.tmp.chartSelection = null;
+    }
+    render();
+  },
+  // v1.10.28 — T-010: tap a chart column → toggle selection of that day for
+  // detail-box display. Tap same column again to clear.
+  'show-chart-point': (e, btn) => {
+    const chartId = btn.dataset.chartId;
+    const idx = Number(btn.dataset.dayIdx);
+    if (!chartId || !isFinite(idx)) return;
+    const cur = state.tmp.chartSelection;
+    if (cur && cur.chartId === chartId && cur.idx === idx) {
+      state.tmp.chartSelection = null;
+    } else {
+      state.tmp.chartSelection = { chartId, idx };
+    }
     render();
   },
 

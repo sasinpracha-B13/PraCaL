@@ -7,10 +7,10 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.27` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.27';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.27';` (drives cache name `pracal-${VERSION}` and cache invalidation)
-- **`meals.json` data version:** `1.10.13` (unchanged in T-009; code-only task).
+- **App version:** `v1.10.28` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.28';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.28';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.13` (unchanged in T-010; code-only task).
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -83,11 +83,9 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.27 ship. T-009 done — Reports page now has range-based view + 3 daily-trend charts (calorie / energy balance / protein). System has now passed the **visualization phase**.
+**No active task** as of v1.10.28 ship. T-010 done — Reports charts now tappable + burn-line per-day accurate. **T-011 Insight Engine** queued in Registry (`todo`); needs scope-gate to pick Path A/B/C from the earlier brainstorm.
 
-User-stated next direction (T-010 scope): **insight / interpretation engine** — auto-detect patterns, anomalies, trends. Examples: "โปรตีนต่ำกว่า target 6 วันติด", "surplus ต่อเนื่องช่วง weekend", "น้ำหนักลงแม้ intake สูง → activity เพิ่ม". Scope-gate proposal pending.
-
-9 tasks completed through the operating model.
+10 tasks completed through the operating model. System has finished its visualization-interactivity phase; ready for interpretation phase (T-011).
 
 Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
@@ -98,7 +96,9 @@ Operating-model run history:
 - T-006 (add 4 ขนมจีนแกงเขียวหวาน variants) — `done` ✅ — user-visible product improvement
 - T-007 (add 9 สปาเก็ตตี้ variants + Rule 17 + protocol doc + §3e real-user-fit) — `done` ✅ — user-visible + protocol codification (2 revision cycles in review: +4 variants, then real-user-fit pass)
 - T-008 (add 9 protein add-ons to vegetarian pasta) — `done` ✅ — research-driven customizations · bases unchanged
-- T-009 (Reports redesign · range-based view + 3 charts) — `done` ✅ — first code-only feature task · system enters interpretation phase
+- T-009 (Reports redesign · range-based view + 3 charts) — `done` ✅ — first code-only feature task
+- T-010 (Reports chart interactivity + burn-line per-day fix) — `done` ✅ — bug fix (per-day burn line) + tap-to-read on 3 charts
+- T-011 (Insight Engine, placeholder) — `todo` — deferred when user pivoted to T-010 chart improvements
 
 Rule 16 active and validated: T-006 produces both (a) measurable output (379 entries · all 4 in PASS band) and (b) real user impact (new menu options).
 
@@ -112,6 +112,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.28 | T-010 — Reports chart interactivity + burn-line per-day fix. **Bug fix:** calorie chart's burn target line now renders per-day (varies with actual logged exercise) instead of flat average. **Feature:** tap any column in 3 daily charts → detail box shows date + exact values; tap again to clear; range change clears selection. Code-only. |
 | v1.10.27 | T-009 — Reports redesign: range-based view `[7][14][30][90] วัน` (default 30) replaces month nav · 3 new daily-trend charts (calorie line w/ TDEE target, energy-balance color-coded bars, protein bars w/ target line) · existing weight chart preserved · 2 new generic chart helpers (`svgDailyLineChart`, `svgDailyBarChart`) · new `rangeAggregate` helper. Code-only; no `meals.json` change. |
 | v1.10.26 | T-008 — add 9 protein add-ons across the 3 vegetarian สปาเก็ตตี้ entries (n30 cream / n33 marinara / n34 pesto). Research-driven pairings: ไก่ย่าง (universal) · แซลม่อน (cream/pesto) · เบคอน (cream) · ไส้กรอก (tomato) · กุ้ง (tomato/pesto). Bases byte-identical; only customizations arrays grew. Data version 1.10.12→1.10.13. |
 | v1.10.25 | T-007 — add 9 สปาเก็ตตี้ variants (n28 คาโบนาร่า · n29 โบโลเนส · n30 ครีมเห็ด · n31 ผัดกะเพราหมู · n32 กุ้งกระเทียม · n33 มาริน่า · n34 เพสโต้ · n35 มีทบอล · n36 ทูน่า); each macro-verified per anchor + sanity-range; data version 1.10.11→1.10.12. Also codifies AGENTS.md Rule 17 + new `docs/specs/menu-addition-protocol.md` per user instruction. Calorie spectrum 400-700 cal. |
