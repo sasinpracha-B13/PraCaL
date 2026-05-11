@@ -7,10 +7,10 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.26` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.26';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.26';` (drives cache name `pracal-${VERSION}` and cache invalidation)
-- **`meals.json` data version:** `1.10.13` (was 1.10.12; bumped in T-008 with 9 protein add-ons added across n30/n33/n34).
+- **App version:** `v1.10.27` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.27';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.27';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.13` (unchanged in T-009; code-only task).
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -83,9 +83,11 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.26 ship. T-008 done — vegetarian spaghetti entries (n30/n33/n34) now offer protein add-ons (ไก่ย่าง · แซลม่อน · เบคอน · ไส้กรอก · กุ้ง by sauce-fitting subset). Total `meals.json` entries still **388** (entries weren't added — only customization arrays grew).
+**No active task** as of v1.10.27 ship. T-009 done — Reports page now has range-based view + 3 daily-trend charts (calorie / energy balance / protein). System has now passed the **visualization phase**.
 
-8 tasks completed end-to-end through the operating model. Awaiting next T-009 scope pick.
+User-stated next direction (T-010 scope): **insight / interpretation engine** — auto-detect patterns, anomalies, trends. Examples: "โปรตีนต่ำกว่า target 6 วันติด", "surplus ต่อเนื่องช่วง weekend", "น้ำหนักลงแม้ intake สูง → activity เพิ่ม". Scope-gate proposal pending.
+
+9 tasks completed through the operating model.
 
 Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
@@ -96,6 +98,7 @@ Operating-model run history:
 - T-006 (add 4 ขนมจีนแกงเขียวหวาน variants) — `done` ✅ — user-visible product improvement
 - T-007 (add 9 สปาเก็ตตี้ variants + Rule 17 + protocol doc + §3e real-user-fit) — `done` ✅ — user-visible + protocol codification (2 revision cycles in review: +4 variants, then real-user-fit pass)
 - T-008 (add 9 protein add-ons to vegetarian pasta) — `done` ✅ — research-driven customizations · bases unchanged
+- T-009 (Reports redesign · range-based view + 3 charts) — `done` ✅ — first code-only feature task · system enters interpretation phase
 
 Rule 16 active and validated: T-006 produces both (a) measurable output (379 entries · all 4 in PASS band) and (b) real user impact (new menu options).
 
@@ -109,6 +112,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.27 | T-009 — Reports redesign: range-based view `[7][14][30][90] วัน` (default 30) replaces month nav · 3 new daily-trend charts (calorie line w/ TDEE target, energy-balance color-coded bars, protein bars w/ target line) · existing weight chart preserved · 2 new generic chart helpers (`svgDailyLineChart`, `svgDailyBarChart`) · new `rangeAggregate` helper. Code-only; no `meals.json` change. |
 | v1.10.26 | T-008 — add 9 protein add-ons across the 3 vegetarian สปาเก็ตตี้ entries (n30 cream / n33 marinara / n34 pesto). Research-driven pairings: ไก่ย่าง (universal) · แซลม่อน (cream/pesto) · เบคอน (cream) · ไส้กรอก (tomato) · กุ้ง (tomato/pesto). Bases byte-identical; only customizations arrays grew. Data version 1.10.12→1.10.13. |
 | v1.10.25 | T-007 — add 9 สปาเก็ตตี้ variants (n28 คาโบนาร่า · n29 โบโลเนส · n30 ครีมเห็ด · n31 ผัดกะเพราหมู · n32 กุ้งกระเทียม · n33 มาริน่า · n34 เพสโต้ · n35 มีทบอล · n36 ทูน่า); each macro-verified per anchor + sanity-range; data version 1.10.11→1.10.12. Also codifies AGENTS.md Rule 17 + new `docs/specs/menu-addition-protocol.md` per user instruction. Calorie spectrum 400-700 cal. |
 | v1.10.24 | T-006 — add 4 ขนมจีนแกงเขียวหวาน variants (n24 ไก่ · n25 ไก่ใส่ฟัก · n26 เนื้อ · n27 ลูกชิ้นปลา); each macro-verified against r14/m03/n12 anchors; data version 1.10.10→1.10.11 |

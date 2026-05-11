@@ -703,7 +703,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.26';
+const VERSION = 'v1.10.27';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2162,6 +2162,47 @@ function monthAggregate(userId, year, monthIdx) {
   return { days, avg, loggedCount: N, totalDays: days.length, avgMeals, streak };
 }
 
+// v1.10.27 — range-based aggregate (T-009). Mirror of monthAggregate but driven
+// by lastNDaysKeys(days) instead of monthKeys(year, monthIdx). Output shape
+// identical so existing stats + recommendations logic keep working.
+function rangeAggregate(userId, days = 30) {
+  const u = state.users.find(x => x.id === userId);
+  const tdee = u ? calcTDEE(u) : 2000;
+  const incExercise = u ? activityIncludesExercise(u) : false;
+  const goalAdj = u ? effectiveGoalAdjust(u) : 0;
+  const keys = lastNDaysKeys(days);
+  const dayList = keys.map(k => {
+    const { entries, totals } = dayTotals(userId, k);
+    const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(userId, k);
+    const totalBurn = tdee + exerciseBurn;
+    const energyDelta = totals.calories - totalBurn;
+    const goalDelta = energyDelta - goalAdj;
+    return { key: k, entries, totals, logged: entries.length > 0, exerciseBurn, totalBurn, energyDelta, goalDelta };
+  });
+  const loggedDays = dayList.filter(d => d.logged);
+  const N = loggedDays.length;
+  const avg = N === 0
+    ? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, exerciseBurn: 0, energyDelta: 0, goalDelta: 0 }
+    : {
+        calories: loggedDays.reduce((s, d) => s + d.totals.calories, 0) / N,
+        protein_g: loggedDays.reduce((s, d) => s + d.totals.protein_g, 0) / N,
+        carbs_g: loggedDays.reduce((s, d) => s + d.totals.carbs_g, 0) / N,
+        fat_g: loggedDays.reduce((s, d) => s + d.totals.fat_g, 0) / N,
+        sugar_g: loggedDays.reduce((s, d) => s + d.totals.sugar_g, 0) / N,
+        exerciseBurn: loggedDays.reduce((s, d) => s + d.exerciseBurn, 0) / N,
+        energyDelta: loggedDays.reduce((s, d) => s + d.energyDelta, 0) / N,
+        goalDelta: loggedDays.reduce((s, d) => s + d.goalDelta, 0) / N
+      };
+  const totalMeals = loggedDays.reduce((s, d) => s + d.entries.length, 0);
+  const avgMeals = N ? totalMeals / N : 0;
+  let streak = 0;
+  for (let i = dayList.length - 1; i >= 0; i--) {
+    if (dayList[i].logged) streak++;
+    else if (i < dayList.length - 1) break;
+  }
+  return { days: dayList, avg, loggedCount: N, totalDays: dayList.length, avgMeals, streak };
+}
+
 /* ========== SVG CHART (weight line) ========== */
 function svgLineChart(series, avgSeries, w = 320, h = 140) {
   if (!series.length) {
@@ -2199,6 +2240,149 @@ function svgLineChart(series, avgSeries, w = 320, h = 140) {
     ${dots}
     <text x="${padL}" y="${h - 6}" fill="#999" font-size="10">${startLbl}</text>
     <text x="${w - padR}" y="${h - 6}" text-anchor="end" fill="#999" font-size="10">${endLbl}</text>
+  </svg>`;
+}
+
+// v1.10.27 — generic daily line chart (T-009). For calorie trends etc.
+// Renders gaps for unlogged days (line breaks, not zero-drag).
+// opts: { valueFn(day)→num, targetFn(day)→num?, color, targetColor, label, w, h }
+function svgDailyLineChart(days, opts) {
+  const valueFn = opts.valueFn;
+  const targetFn = opts.targetFn;
+  const color = opts.color || '#d97706';
+  const targetColor = opts.targetColor || '#9ca3af';
+  const label = opts.label || '';
+  const w = opts.w || 320;
+  const ch = opts.h || 140;
+  const padL = 38, padR = 8, padT = 10, padB = 22;
+  const innerW = w - padL - padR;
+  const innerH = ch - padT - padB;
+  const points = days.map((d, i) => ({
+    i,
+    value: d.logged ? valueFn(d) : null,
+    target: targetFn ? targetFn(d) : null
+  }));
+  const validPoints = points.filter(p => p.value != null);
+  if (validPoints.length === 0) {
+    return `<svg viewBox="0 0 ${w} ${ch}"><text x="${w/2}" y="${ch/2}" text-anchor="middle" fill="#aaa" font-size="12">ไม่มีข้อมูลในช่วงนี้</text></svg>`;
+  }
+  const allValues = validPoints.map(p => p.value);
+  if (targetFn) points.forEach(p => p.target != null && allValues.push(p.target));
+  let minV = Math.min(...allValues);
+  let maxV = Math.max(...allValues);
+  if (minV === maxV) { minV -= 100; maxV += 100; }
+  const rng = maxV - minV;
+  maxV = maxV + rng * 0.1;
+  minV = Math.max(0, minV - rng * 0.05);
+  const step = rng > 1000 ? 500 : 100;
+  minV = Math.floor(minV / step) * step;
+  maxV = Math.ceil(maxV / step) * step;
+  const xFor = (i) => padL + (i / Math.max(1, days.length - 1)) * innerW;
+  const yFor = (v) => padT + (1 - (v - minV) / (maxV - minV)) * innerH;
+  const gridY = [minV, (minV + maxV) / 2, maxV];
+  const grid = gridY.map(v => `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${w - padR}" y2="${yFor(v).toFixed(1)}" stroke="#eee" stroke-width="1"/><text x="${padL - 4}" y="${(yFor(v) + 4).toFixed(1)}" text-anchor="end" fill="#999" font-size="10">${Math.round(v)}</text>`).join('');
+  // Target line — average of target values across logged days
+  let targetLine = '';
+  if (targetFn) {
+    const targets = points.map(p => p.target).filter(t => t != null);
+    if (targets.length) {
+      const avgTarget = targets.reduce((s, t) => s + t, 0) / targets.length;
+      const yT = yFor(avgTarget);
+      targetLine = `<line x1="${padL}" y1="${yT.toFixed(1)}" x2="${w - padR}" y2="${yT.toFixed(1)}" stroke="${targetColor}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    }
+  }
+  // Data path with gaps for unlogged days
+  const parts = [];
+  let inSeg = false;
+  points.forEach(p => {
+    if (p.value != null) {
+      parts.push(`${inSeg ? 'L' : 'M'}${xFor(p.i).toFixed(1)},${yFor(p.value).toFixed(1)}`);
+      inSeg = true;
+    } else { inSeg = false; }
+  });
+  const dataPath = `<path d="${parts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const dots = validPoints.map(p => `<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.value).toFixed(1)}" r="2.4" fill="${color}"/>`).join('');
+  const sD = keyToDate(days[0].key);
+  const eD = keyToDate(days[days.length - 1].key);
+  return `<svg viewBox="0 0 ${w} ${ch}" role="img" aria-label="${label}">
+    ${grid}
+    ${targetLine}
+    ${dataPath}
+    ${dots}
+    <text x="${padL}" y="${ch - 6}" fill="#999" font-size="10">${sD.getDate()}/${sD.getMonth() + 1}</text>
+    <text x="${w - padR}" y="${ch - 6}" text-anchor="end" fill="#999" font-size="10">${eD.getDate()}/${eD.getMonth() + 1}</text>
+  </svg>`;
+}
+
+// v1.10.27 — generic daily bar chart (T-009). Supports negative values (deficit
+// bars below zero-line). For energy-balance + protein-vs-target visualizations.
+// opts: { valueFn, colorFn(v)→color, targetLine?, zeroLine?, label, w, h }
+function svgDailyBarChart(days, opts) {
+  const valueFn = opts.valueFn;
+  const colorFn = opts.colorFn || (() => '#d97706');
+  const targetLine = opts.targetLine;
+  const zeroLine = !!opts.zeroLine;
+  const label = opts.label || '';
+  const w = opts.w || 320;
+  const ch = opts.h || 140;
+  const padL = 38, padR = 8, padT = 10, padB = 22;
+  const innerW = w - padL - padR;
+  const innerH = ch - padT - padB;
+  const points = days.map((d, i) => ({ i, value: d.logged ? valueFn(d) : null }));
+  const validPoints = points.filter(p => p.value != null);
+  if (validPoints.length === 0) {
+    return `<svg viewBox="0 0 ${w} ${ch}"><text x="${w/2}" y="${ch/2}" text-anchor="middle" fill="#aaa" font-size="12">ไม่มีข้อมูลในช่วงนี้</text></svg>`;
+  }
+  const allValues = validPoints.map(p => p.value);
+  if (targetLine != null) allValues.push(targetLine);
+  let minV = Math.min(...allValues);
+  let maxV = Math.max(...allValues);
+  if (zeroLine) { minV = Math.min(minV, 0); maxV = Math.max(maxV, 0); }
+  if (minV === maxV) { minV -= 100; maxV += 100; }
+  const rng = maxV - minV;
+  maxV = maxV + rng * 0.1;
+  if (minV < 0) minV = minV - rng * 0.05;
+  const step = rng > 1000 ? 500 : rng > 200 ? 100 : 50;
+  minV = Math.floor(minV / step) * step;
+  maxV = Math.ceil(maxV / step) * step;
+  const barW = Math.max(2, (innerW / days.length) * 0.7);
+  const xFor = (i) => padL + ((i + 0.5) / days.length) * innerW;
+  const yFor = (v) => padT + (1 - (v - minV) / (maxV - minV)) * innerH;
+  const yZero = yFor(0);
+  const gridY = [minV, (minV + maxV) / 2, maxV];
+  const grid = gridY.map(v => `<line x1="${padL}" y1="${yFor(v).toFixed(1)}" x2="${w - padR}" y2="${yFor(v).toFixed(1)}" stroke="#eee" stroke-width="1"/><text x="${padL - 4}" y="${(yFor(v) + 4).toFixed(1)}" text-anchor="end" fill="#999" font-size="10">${Math.round(v)}</text>`).join('');
+  let zeroLineHtml = '';
+  if (zeroLine && minV < 0 && maxV > 0) {
+    zeroLineHtml = `<line x1="${padL}" y1="${yZero.toFixed(1)}" x2="${w - padR}" y2="${yZero.toFixed(1)}" stroke="#666" stroke-width="1"/>`;
+  }
+  let tLineHtml = '';
+  if (targetLine != null) {
+    const yT = yFor(targetLine);
+    tLineHtml = `<line x1="${padL}" y1="${yT.toFixed(1)}" x2="${w - padR}" y2="${yT.toFixed(1)}" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  }
+  const bars = validPoints.map(p => {
+    const cx = xFor(p.i);
+    const bx = cx - barW / 2;
+    const yVal = yFor(p.value);
+    let by, bh;
+    if (p.value >= 0) {
+      by = yVal;
+      bh = (zeroLine && minV < 0 ? yZero : yFor(minV)) - yVal;
+    } else {
+      by = yZero;
+      bh = yVal - yZero;
+    }
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0.5, bh).toFixed(1)}" fill="${colorFn(p.value)}" rx="1"/>`;
+  }).join('');
+  const sD = keyToDate(days[0].key);
+  const eD = keyToDate(days[days.length - 1].key);
+  return `<svg viewBox="0 0 ${w} ${ch}" role="img" aria-label="${label}">
+    ${grid}
+    ${bars}
+    ${zeroLineHtml}
+    ${tLineHtml}
+    <text x="${padL}" y="${ch - 6}" fill="#999" font-size="10">${sD.getDate()}/${sD.getMonth() + 1}</text>
+    <text x="${w - padR}" y="${ch - 6}" text-anchor="end" fill="#999" font-size="10">${eD.getDate()}/${eD.getMonth() + 1}</text>
   </svg>`;
 }
 
@@ -4882,23 +5066,25 @@ function renderHistoryDay() {
   `;
 }
 
+// v1.10.27 — Range-based reports (T-009). Replaces month-nav with
+// segmented [7][14][30][90] · adds 3 new daily-trend charts (calorie line,
+// energy balance bars, protein bars) · keeps existing weight chart but driven
+// by range.
 function renderReports() {
   const u = currentUser();
   if (!u) return '';
   const t = state.tmp;
-  const now = new Date();
-  const year = t.year != null ? t.year : now.getFullYear();
-  const monthIdx = t.monthIdx != null ? t.monthIdx : now.getMonth();
-  const agg = monthAggregate(u.id, year, monthIdx);
+  const rangeDays = [7, 14, 30, 90].includes(t.rangeDays) ? t.rangeDays : 30;
+  const agg = rangeAggregate(u.id, rangeDays);
   const protTarget = effectiveProteinTarget(u.id);
-  const monthNames = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  const monthLabel = `${monthNames[monthIdx]} ${year + 543}`;
+  const rangeLabel = `${rangeDays} วันล่าสุด`;
 
-  const mStart = monthKeys(year, monthIdx)[0];
-  const mEnd = monthKeys(year, monthIdx).slice(-1)[0];
-  const monthWeights = (u.weights || []).filter(w => w.date >= mStart && w.date <= mEnd).sort((a, b) => a.date.localeCompare(b.date));
-  const wStart = monthWeights[0];
-  const wEnd = monthWeights[monthWeights.length - 1];
+  // Range start/end keys for filtering weights
+  const rStart = agg.days[0].key;
+  const rEnd = agg.days[agg.days.length - 1].key;
+  const rangeWeights = (u.weights || []).filter(w => w.date >= rStart && w.date <= rEnd).sort((a, b) => a.date.localeCompare(b.date));
+  const wStart = rangeWeights[0];
+  const wEnd = rangeWeights[rangeWeights.length - 1];
   const wChange = (wStart && wEnd) ? (wEnd.weight_kg - wStart.weight_kg) : null;
 
   // Real energy delta (includes exercise per day) — projection from this is accurate
@@ -4906,11 +5092,11 @@ function renderReports() {
   const avgGoalDelta = agg.avg.goalDelta;            // 0 = average day on goal
   const avgExerciseBurn = Math.round(agg.avg.exerciseBurn);
   const projKg = agg.loggedCount > 0 ? (avgEnergyDelta * 30) / KCAL_PER_KG_FAT : 0;
-  const goalCat = goalCategory(u);                   // 'lose' | 'gain' | 'maintain'
+  const goalCat = goalCategory(u);
   const goalAdjRpt = effectiveGoalAdjust(u);
   const tdeeRpt = calcTDEE(u);
 
-  // Goal-aware status framing using real energy delta (matches dashboard ring)
+  // Goal-aware status framing (same logic as dashboard ring)
   let rptStatus, rptStatusColor;
   if (goalCat === 'lose') {
     if (avgGoalDelta < -500)      { rptStatus = '⚠️ ขาดดุลเยอะเกินไป — เสี่ยงเสียกล้าม'; rptStatusColor = 'var(--red)'; }
@@ -4935,11 +5121,7 @@ function renderReports() {
   const proteinMetDays = agg.days.filter(d => d.logged && d.totals.protein_g >= protTarget).length;
   const proteinGap = protTarget - agg.avg.protein_g;
 
-  const nextDate = new Date(year, monthIdx + 1, 1);
-  const prevDate = new Date(year, monthIdx - 1, 1);
-  const hasNext = nextDate <= new Date();
-
-  const isEmpty = agg.loggedCount === 0 && monthWeights.length === 0;
+  const isEmpty = agg.loggedCount === 0 && rangeWeights.length === 0;
 
   const recommendations = [];
   if (u.goal === 'lose' && wChange !== null && wChange < 0) recommendations.push('✓ รักษาอัตราการลด');
@@ -4949,6 +5131,27 @@ function renderReports() {
   if (agg.loggedCount / agg.totalDays < 0.6 && agg.loggedCount > 0) recommendations.push('💡 บันทึกให้สม่ำเสมอขึ้น');
   if (agg.streak >= 7) recommendations.push(`🏆 บันทึกต่อเนื่อง ${agg.streak} วัน!`);
 
+  // Chart configs
+  const calorieChart = svgDailyLineChart(agg.days, {
+    valueFn: d => d.totals.calories,
+    targetFn: d => d.totalBurn,
+    color: '#d97706',
+    targetColor: '#9ca3af',
+    label: 'แคลอรี่รายวัน'
+  });
+  const balanceChart = svgDailyBarChart(agg.days, {
+    valueFn: d => d.energyDelta,
+    colorFn: v => v < 0 ? '#10b981' : v > 0 ? '#f59e0b' : '#9ca3af',
+    zeroLine: true,
+    label: 'ส่วนต่างพลังงานรายวัน'
+  });
+  const proteinChart = svgDailyBarChart(agg.days, {
+    valueFn: d => d.totals.protein_g,
+    colorFn: v => v >= protTarget ? '#10b981' : '#f59e0b',
+    targetLine: protTarget,
+    label: 'โปรตีนรายวัน'
+  });
+
   return `
     <div class="screen">
       <div class="header">
@@ -4957,31 +5160,29 @@ function renderReports() {
         <button class="icon-btn ghost" data-act="nav-history" title="ประวัติรายวัน">📅</button>
       </div>
 
-      <div class="row between" style="margin-bottom:10px">
-        <button class="icon-btn" data-act="month-prev">← ${monthNames[prevDate.getMonth()].slice(0,3)}</button>
-        <div style="font-weight:600;font-size:17px">${monthLabel}</div>
-        <button class="icon-btn ${hasNext ? '' : 'ghost'}" ${hasNext ? '' : 'disabled'} data-act="month-next">${monthNames[nextDate.getMonth()].slice(0,3)} →</button>
+      <div class="seg" style="margin-bottom:12px">
+        ${[7, 14, 30, 90].map(n => `<button type="button" class="${rangeDays === n ? 'on' : ''}" data-act="set-range-days" data-v="${n}">${n} วัน</button>`).join('')}
       </div>
 
       ${isEmpty ? `
-        <div class="card empty"><div class="big">📊</div><div>ยังไม่มีข้อมูลเดือนนี้</div><div class="muted" style="font-size:14px;margin-top:4px">เริ่มบันทึกเพื่อดูรายงาน</div></div>
+        <div class="card empty"><div class="big">📊</div><div>ยังไม่มีข้อมูลใน${rangeLabel}</div><div class="muted" style="font-size:14px;margin-top:4px">เริ่มบันทึกเพื่อดูรายงาน</div></div>
       ` : ''}
 
-      ${monthWeights.length >= 1 ? `
+      ${rangeWeights.length >= 1 ? `
         <div class="stat-card">
-          <h3>⚖️ น้ำหนัก</h3>
-          <div class="stat-row"><span>เริ่มเดือน</span><b>${wStart.weight_kg.toFixed(1)} kg</b></div>
+          <h3>⚖️ น้ำหนัก (${rangeLabel})</h3>
+          <div class="stat-row"><span>เริ่มต้น</span><b>${wStart.weight_kg.toFixed(1)} kg</b></div>
           <div class="stat-row"><span>ล่าสุด</span><b>${wEnd.weight_kg.toFixed(1)} kg</b></div>
-          ${wChange !== null && monthWeights.length > 1 ? `
+          ${wChange !== null && rangeWeights.length > 1 ? `
             <div class="stat-row bold"><span>เปลี่ยนแปลง</span><b style="color:${wChange < 0 ? 'var(--green)' : wChange > 0 ? 'var(--red)' : ''}">${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg ${wChange < 0 ? '⬇️' : wChange > 0 ? '⬆️' : ''}</b></div>
-            <div class="chart-card mt">${svgLineChart(monthWeights, movingAverage(monthWeights, 7))}</div>
+            <div class="chart-card mt">${svgLineChart(rangeWeights, movingAverage(rangeWeights, 7))}</div>
           ` : ''}
         </div>
       ` : ''}
 
       ${agg.loggedCount > 0 ? `
         <div class="stat-card">
-          <h3>🔥 แคลอรี่ ${helpHtml('deficit')}</h3>
+          <h3>🔥 แคลอรี่ (${rangeLabel}) ${helpHtml('deficit')}</h3>
           <div class="stat-row"><span>กินเฉลี่ย/วัน</span><b>${fmt(agg.avg.calories)} kcal</b></div>
           <div class="stat-row"><span>เผารวมเฉลี่ย/วัน</span><span>${fmt(tdeeRpt + avgExerciseBurn)} kcal${avgExerciseBurn > 0 ? ` <span class="muted" style="font-size:12px">(TDEE ${fmt(tdeeRpt)} + ${fmt(avgExerciseBurn)} ออกกำลัง)</span>` : ''}</span></div>
           <div class="stat-row"><span>ส่วนต่างเฉลี่ย</span><b style="color:${avgEnergyDelta < 0 ? 'var(--green)' : avgEnergyDelta > 0 ? 'var(--amber)' : 'var(--ink)'}">${avgEnergyDelta === 0 ? '0' : (avgEnergyDelta < 0 ? '−' : '+') + fmt(Math.abs(avgEnergyDelta))} kcal/วัน</b></div>
@@ -4993,25 +5194,37 @@ function renderReports() {
           ${wChange !== null && Math.abs(wChange - projKg) > 0.5 ? `
             <div class="callout info mt">น้ำหนักเปลี่ยนจริง ${wChange > 0 ? '+' : ''}${wChange.toFixed(1)} kg vs คาดจากแคล ${projKg > 0 ? '+' : ''}${projKg.toFixed(1)} kg — ส่วนต่าง = น้ำในร่างกาย / ความแม่นในการบันทึก</div>
           ` : ''}
+          <div class="chart-card mt">
+            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📈 กิน (เส้นทึบ) vs เผารวม (เส้นประ)</div>
+            ${calorieChart}
+          </div>
+          <div class="chart-card mt">
+            <div class="hint" style="font-size:11.5px;margin-bottom:4px">⚖️ ส่วนต่างพลังงาน · <span style="color:#10b981">เขียว = ขาดดุล</span> · <span style="color:#f59e0b">เหลือง = ส่วนเกิน</span></div>
+            ${balanceChart}
+          </div>
         </div>
 
         <div class="stat-card">
-          <h3>🥩 โปรตีน</h3>
+          <h3>🥩 โปรตีน (${rangeLabel})</h3>
           <div class="stat-row"><span>เฉลี่ย/วัน</span><b>${fmt(agg.avg.protein_g)} ก.</b></div>
           <div class="stat-row"><span>เป้า</span><span>${fmt(protTarget)} ก.</span></div>
           <div class="stat-row"><span>ผ่านเป้า</span><b>${proteinMetDays}/${agg.loggedCount} วัน (${Math.round((proteinMetDays / agg.loggedCount) * 100)}%)</b></div>
           ${proteinGap > 3 ? `<div class="hint mt">💡 เพิ่ม: ไข่ต้ม 1 ฟอง = +6g / อกไก่ 50g = +15g</div>` : ''}
+          <div class="chart-card mt">
+            <div class="hint" style="font-size:11.5px;margin-bottom:4px">📊 โปรตีนรายวัน · เส้นประ = เป้า ${fmt(protTarget)}g · เขียว = ผ่าน · เหลือง = ไม่ถึง</div>
+            ${proteinChart}
+          </div>
         </div>
 
         <div class="stat-card">
-          <h3>🍚 คาร์บ & น้ำตาล</h3>
+          <h3>🍚 คาร์บ & น้ำตาล (${rangeLabel})</h3>
           <div class="stat-row"><span>คาร์บเฉลี่ย/วัน</span><b>${fmt(agg.avg.carbs_g)} ก.</b></div>
           <div class="stat-row"><span>น้ำตาลเฉลี่ย/วัน</span><b style="color:${agg.avg.sugar_g > SUGAR_DAILY_LIMIT_G ? 'var(--red)' : agg.avg.sugar_g > SUGAR_WHO_RECOMMENDED_G ? 'var(--amber)' : 'var(--green)'}">${fmt(agg.avg.sugar_g, 1)} ก.</b></div>
           <div class="hint mt">💡 WHO แนะนำ &lt;${SUGAR_WHO_RECOMMENDED_G}g/วัน</div>
         </div>
 
         <div class="stat-card">
-          <h3>📝 การบันทึก</h3>
+          <h3>📝 การบันทึก (${rangeLabel})</h3>
           <div class="stat-row"><span>วันที่บันทึก</span><b>${agg.loggedCount}/${agg.totalDays} วัน (${Math.round((agg.loggedCount / agg.totalDays) * 100)}%)</b></div>
           <div class="stat-row"><span>มื้อเฉลี่ย/วัน</span><b>${agg.avgMeals.toFixed(1)}</b></div>
           ${agg.streak > 0 ? `<div class="stat-row"><span>streak ปัจจุบัน</span><b>${agg.streak} วันติดต่อ</b></div>` : ''}
@@ -6236,23 +6449,10 @@ const actions = {
     render();
   },
 
-  'month-prev': () => {
-    const now = new Date();
-    const y = state.tmp.year != null ? state.tmp.year : now.getFullYear();
-    const m = state.tmp.monthIdx != null ? state.tmp.monthIdx : now.getMonth();
-    const d = new Date(y, m - 1, 1);
-    state.tmp.year = d.getFullYear();
-    state.tmp.monthIdx = d.getMonth();
-    render();
-  },
-  'month-next': () => {
-    const now = new Date();
-    const y = state.tmp.year != null ? state.tmp.year : now.getFullYear();
-    const m = state.tmp.monthIdx != null ? state.tmp.monthIdx : now.getMonth();
-    const d = new Date(y, m + 1, 1);
-    if (d > now) return;
-    state.tmp.year = d.getFullYear();
-    state.tmp.monthIdx = d.getMonth();
+  // v1.10.27 — Reports range selector (T-009) replaces month-prev/month-next
+  'set-range-days': (e, btn) => {
+    const v = Number(btn.dataset.v);
+    if ([7, 14, 30, 90].includes(v)) state.tmp.rangeDays = v;
     render();
   },
 

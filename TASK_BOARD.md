@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-008 → `done` (v1.10.26 ships · 9 protein add-ons live)
+Last updated: T-009 → `done` (v1.10.27 ships) · system enters interpretation phase (T-010 = insight engine)
 
 ---
 
@@ -131,6 +131,40 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-009 — Reports redesign with graphs + time range
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/reports-redesign-graphs.md`](docs/specs/reports-redesign-graphs.md)
+- **User-locked scope:** Path B · default 30 วัน · ลบ month nav · no custom · no heatmap Phase 1
+- **Definition of Done:**
+  - [x] `rangeAggregate(userId, days)` helper added (line 2168, shape identical to `monthAggregate`)
+  - [x] `svgDailyLineChart` (line 2249) + `svgDailyBarChart` (line 2320) generic helpers
+  - [x] Range segmented `[7][14][30][90]` at top · default 30 — line 5164
+  - [x] Month nav (`month-prev`/`month-next`) removed; orphan handlers deleted; `state.tmp.year/monthIdx` no longer referenced
+  - [x] 3 new charts:
+    - **Calorie trend line** (intake vs TDEE+exercise target dashed line)
+    - **Energy balance bars** (color-coded: green=deficit / amber=surplus, with zero-line)
+    - **Protein bars** (green=met target / amber=under, with target dashed line)
+  - [x] Weight chart preserved (`svgLineChart`), data source switched to range (`rangeWeights`)
+  - [x] Stats copy updated to range (`${rangeLabel} = N วันล่าสุด`)
+  - [x] Empty state for no data in range
+  - [x] VERSION v1.10.26 → v1.10.27 (sw + index, verified by grep)
+  - [x] PROJECT_STATE updated
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-008 commit; user-locked scope confirmed in chat
+  - `in_progress → review` — 3 helpers + handler + render refactor done; orphans removed; hash invariants confirmed; diff scope verified
+  - `review → done` — user approved · noted system passed visualization phase, next direction = interpretation/insight engine
+- **Diff scope (verified):**
+  - `index.html` (+302/−52) — helpers + render rewrite + handler swap + VERSION
+  - `service-worker.js` (+1/−1) — VERSION
+  - `TASK_BOARD.md` (+19) — T-009 row
+  - + 2 untracked: `docs/specs/reports-redesign-graphs.md` (new spec) · `PROJECT_STATE.md` (already tracked, modified)
+- **Notes:**
+  - First **code-only feature** task in the operating model (no data change). All 8 previous tasks touched data, docs, or both.
+  - `monthAggregate` function kept (defined at line 2127) — no callers now, but not deleted to keep T-009 scope tight. Could be a Refactor Agent task later (T-010+).
+  - Charts use pure inline SVG (no library) — matches project's no-build philosophy. Total helpers ~190 lines.
 
 ### T-008 — Add protein add-ons to vegetarian สปาเก็ตตี้ entries
 
