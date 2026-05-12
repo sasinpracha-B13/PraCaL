@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-010 → `done` (v1.10.28 ships) · T-011 insight engine queued for scope-gate
+Last updated: T-011 → `done` (v1.10.29 ships · custom date range live) · T-012 insight engine still queued
 
 ---
 
@@ -131,6 +131,37 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-011 — Custom date range for Reports
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/reports-custom-range.md`](docs/specs/reports-custom-range.md)
+- **Re-scope note:** Originally T-011 was placeholder for "Insight Engine"; user pivoted to custom range first. Insight Engine → T-012.
+- **Definition of Done:**
+  - [x] `keysBetween(startKey, endKey)` helper added (line 1857)
+  - [x] `rangeAggregate` accepts number OR `{start, end}` opts (line 2195)
+  - [x] 5th segmented button `[📅 กำหนดเอง]` renders
+  - [x] Custom mode shows 2 native date inputs · pre-filled from current rolling range
+  - [x] Mode flips (rolling↔custom) preserve customStart/customEnd state for return-to-custom
+  - [x] Live update via input listener (debounced 200ms)
+  - [x] Auto-swap if start > end (in `keysBetween`) · clamp end to today (in label + aggregate)
+  - [x] Range label adapts: "N วันล่าสุด" vs "D เดือน – D เดือน"
+  - [x] Chart selection (T-010) clears on mode/date change
+  - [x] VERSION v1.10.28 → v1.10.29 (sw + index)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-010 commit; user-locked scope
+  - `in_progress → review` — helper + refactor + UI + handler + listener all wired; audit clean
+  - `review → done` — user approved (single-letter "A")
+
+### T-012 — Insight Engine *(placeholder, deferred)*
+
+- **Status:** `todo` (deferred — re-pushed by T-011)
+- **Owner:** Execution Agent (when picked up)
+- **Spec:** to be created — earlier design draft in T-009 review (Path B recommendation: D1 protein streak + D2 weekend pattern + D3 sugar high + D5 logging gap + D6 streak milestone · 2 surfaces: Reports top + Dashboard banner)
+- **Notes:** This is the second deferral (was T-010 before T-009 review, then T-011 after T-010, now T-012 after T-011). Pattern: user keeps prioritizing concrete Reports improvements first. Insight Engine remains queued.
 
 ### T-010 — Reports chart interactivity + burn-line per-day fix
 

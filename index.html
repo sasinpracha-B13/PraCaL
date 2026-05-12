@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.28';
+const VERSION = 'v1.10.29';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1853,6 +1853,20 @@ function lastNDaysKeys(n, endKey) {
   for (let i = n - 1; i >= 0; i--) keys.push(dateToKey(addDays(end, -i)));
   return keys;
 }
+// v1.10.29 — T-011: inclusive date-range key list. Auto-swaps if start > end.
+function keysBetween(startKey, endKey) {
+  if (!startKey || !endKey) return [];
+  let s = keyToDate(startKey);
+  let e = keyToDate(endKey);
+  if (s > e) { const tmp = s; s = e; e = tmp; }
+  const keys = [];
+  let d = s;
+  while (d <= e) {
+    keys.push(dateToKey(d));
+    d = addDays(d, 1);
+  }
+  return keys;
+}
 
 /* ========== WEIGHT & TREND ========== */
 function weightOnDate(user, key) {
@@ -2176,12 +2190,21 @@ function monthAggregate(userId, year, monthIdx) {
 // v1.10.27 — range-based aggregate (T-009). Mirror of monthAggregate but driven
 // by lastNDaysKeys(days) instead of monthKeys(year, monthIdx). Output shape
 // identical so existing stats + recommendations logic keep working.
-function rangeAggregate(userId, days = 30) {
+// v1.10.29 — T-011: rangeSpec accepts a number (rolling) OR { start, end }
+// (custom date range). Backward-compatible — number paths unchanged.
+function rangeAggregate(userId, rangeSpec) {
   const u = state.users.find(x => x.id === userId);
   const tdee = u ? calcTDEE(u) : 2000;
   const incExercise = u ? activityIncludesExercise(u) : false;
   const goalAdj = u ? effectiveGoalAdjust(u) : 0;
-  const keys = lastNDaysKeys(days);
+  let keys;
+  if (typeof rangeSpec === 'number') {
+    keys = lastNDaysKeys(rangeSpec);
+  } else if (rangeSpec && rangeSpec.start && rangeSpec.end) {
+    keys = keysBetween(rangeSpec.start, rangeSpec.end);
+  } else {
+    keys = lastNDaysKeys(30);   // safety default
+  }
   const dayList = keys.map(k => {
     const { entries, totals } = dayTotals(userId, k);
     const exerciseBurn = incExercise ? 0 : sumActivitiesBurn(userId, k);
@@ -5123,14 +5146,39 @@ function renderHistoryDay() {
 // segmented [7][14][30][90] · adds 3 new daily-trend charts (calorie line,
 // energy balance bars, protein bars) · keeps existing weight chart but driven
 // by range.
+// v1.10.29 — T-011: adds custom-range mode with native date pickers.
 function renderReports() {
   const u = currentUser();
   if (!u) return '';
   const t = state.tmp;
   const rangeDays = [7, 14, 30, 90].includes(t.rangeDays) ? t.rangeDays : 30;
-  const agg = rangeAggregate(u.id, rangeDays);
+  const rangeMode = t.rangeMode === 'custom' ? 'custom' : 'rolling';
+
+  // Build rangeSpec for aggregate
+  let rangeSpec;
+  let rangeLabel;
+  if (rangeMode === 'custom' && t.customStart && t.customEnd) {
+    // Clamp end to today (display side; aggregate auto-handles via keysBetween)
+    const today = todayKey();
+    const cs = t.customStart;
+    let ce = t.customEnd > today ? today : t.customEnd;
+    rangeSpec = { start: cs, end: ce };
+    // Build label "D MMM – D MMM"
+    const fmtShort = (k) => {
+      const d = keyToDate(k);
+      const m = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      return `${d.getDate()} ${m[d.getMonth()]}`;
+    };
+    const swap = cs > ce;
+    rangeLabel = swap
+      ? `${fmtShort(ce)} – ${fmtShort(cs)}`
+      : `${fmtShort(cs)} – ${fmtShort(ce)}`;
+  } else {
+    rangeSpec = rangeDays;
+    rangeLabel = `${rangeDays} วันล่าสุด`;
+  }
+  const agg = rangeAggregate(u.id, rangeSpec);
   const protTarget = effectiveProteinTarget(u.id);
-  const rangeLabel = `${rangeDays} วันล่าสุด`;
 
   // Range start/end keys for filtering weights
   const rStart = agg.days[0].key;
@@ -5254,9 +5302,21 @@ function renderReports() {
         <button class="icon-btn ghost" data-act="nav-history" title="ประวัติรายวัน">📅</button>
       </div>
 
-      <div class="seg" style="margin-bottom:12px">
-        ${[7, 14, 30, 90].map(n => `<button type="button" class="${rangeDays === n ? 'on' : ''}" data-act="set-range-days" data-v="${n}">${n} วัน</button>`).join('')}
+      <div class="seg" style="margin-bottom:${rangeMode === 'custom' ? '6px' : '12px'}">
+        ${[7, 14, 30, 90].map(n => `<button type="button" class="${rangeMode === 'rolling' && rangeDays === n ? 'on' : ''}" data-act="set-range-days" data-v="${n}">${n} วัน</button>`).join('')}
+        <button type="button" class="${rangeMode === 'custom' ? 'on' : ''}" data-act="set-range-mode" data-mode="custom">📅 กำหนดเอง</button>
       </div>
+      ${rangeMode === 'custom' ? `
+        <div class="card tight" style="margin-bottom:12px;padding:10px 12px">
+          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="muted" style="font-size:13px">ตั้งแต่</span>
+            <input id="range-start" type="date" class="input" value="${h(t.customStart || '')}" max="${todayKey()}" style="flex:1;min-width:120px;height:36px;font-size:13px">
+            <span class="muted" style="font-size:13px">ถึง</span>
+            <input id="range-end" type="date" class="input" value="${h(t.customEnd || '')}" max="${todayKey()}" style="flex:1;min-width:120px;height:36px;font-size:13px">
+          </div>
+          <div class="hint" style="font-size:11.5px;margin-top:6px">${rangeLabel} · ${agg.days.length} วัน</div>
+        </div>
+      ` : ''}
 
       ${isEmpty ? `
         <div class="card empty"><div class="big">📊</div><div>ยังไม่มีข้อมูลใน${rangeLabel}</div><div class="muted" style="font-size:14px;margin-top:4px">เริ่มบันทึกเพื่อดูรายงาน</div></div>
@@ -6548,10 +6608,32 @@ const actions = {
 
   // v1.10.27 — Reports range selector (T-009) replaces month-prev/month-next
   // v1.10.28 — also clears stale chart selection when range changes
+  // v1.10.29 — also flips rangeMode → 'rolling' (T-011 custom-mode toggle)
   'set-range-days': (e, btn) => {
     const v = Number(btn.dataset.v);
     if ([7, 14, 30, 90].includes(v)) {
       state.tmp.rangeDays = v;
+      state.tmp.rangeMode = 'rolling';
+      state.tmp.chartSelection = null;
+    }
+    render();
+  },
+  // v1.10.29 — T-011: flip to custom date range mode. Pre-fills start/end
+  // from current rolling span on first switch (smooth transition).
+  'set-range-mode': (e, btn) => {
+    const mode = btn.dataset.mode;
+    if (mode === 'custom') {
+      state.tmp.rangeMode = 'custom';
+      if (!state.tmp.customStart || !state.tmp.customEnd) {
+        const days = [7, 14, 30, 90].includes(state.tmp.rangeDays) ? state.tmp.rangeDays : 30;
+        const today = todayKey();
+        const start = dateToKey(addDays(keyToDate(today), -(days - 1)));
+        state.tmp.customStart = start;
+        state.tmp.customEnd = today;
+      }
+      state.tmp.chartSelection = null;
+    } else if (mode === 'rolling') {
+      state.tmp.rangeMode = 'rolling';
       state.tmp.chartSelection = null;
     }
     render();
@@ -7643,6 +7725,14 @@ document.addEventListener('input', (e) => {
     state.tmp.suggestSearch = e.target.value;
     clearTimeout(render._t);
     render._t = setTimeout(render, 180);
+  }
+  // v1.10.29 — T-011: custom date range inputs (live update, debounced)
+  if (e.target.id === 'range-start' || e.target.id === 'range-end') {
+    const field = e.target.id === 'range-start' ? 'customStart' : 'customEnd';
+    state.tmp[field] = e.target.value;
+    state.tmp.chartSelection = null;   // stale on date change
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 200);
   }
   // v1.10.18 — meal-plan setup live inputs (drives breakdown + projection cards)
   const planFilterMap = {
