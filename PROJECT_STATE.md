@@ -7,10 +7,11 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.29` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.29';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.29';` (drives cache name `pracal-${VERSION}` and cache invalidation)
-- **`meals.json` data version:** `1.10.13` (unchanged in T-011; code-only task).
+- **App version:** `v1.10.30` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.30';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.30';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.13` (unchanged in T-012; code-only task).
+- **User schema:** added `u.waist = []` (waist circumference log). Migrated automatically on next load.
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -83,9 +84,9 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.29 ship. T-011 done — Reports page now has full range flexibility (4 rolling presets + custom date picker).
+**No active task** as of v1.10.30 ship. T-012 done — waist tracking live with WHO-based health flag. **T-013 (Progress photos Phase 1)** queued as next per user (Option A from brainstorm) — needs scope-gate proposal before execution (architecture: IndexedDB / compression / UI).
 
-11 tasks completed through the operating model. **T-012 Insight Engine** queued in Registry (twice-deferred — was T-010 candidate, then T-011 candidate, now T-012). Needs scope-gate to pick Path A/B/C.
+12 tasks completed through the operating model.
 
 Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
@@ -99,7 +100,9 @@ Operating-model run history:
 - T-009 (Reports redesign · range-based view + 3 charts) — `done` ✅ — first code-only feature task
 - T-010 (Reports chart interactivity + burn-line per-day fix) — `done` ✅ — bug fix (per-day burn line) + tap-to-read on 3 charts
 - T-011 (Custom date range for Reports) — `done` ✅ — 5th segmented + native date pickers · refactored `rangeAggregate`
-- T-012 (Insight Engine, placeholder) — `todo` — deferred again (was T-010, then T-011, now T-012)
+- T-012 (Waist circumference tracking) — `done` ✅ — `u.waist[]` schema + body-comp signal + WHO-based health flag
+- T-013/T-014 (Progress photos) — `todo` placeholders — queued next per user
+- T-015 (Insight Engine) — `todo` placeholder — 4th deferral
 
 Rule 16 active and validated: T-006 produces both (a) measurable output (379 entries · all 4 in PASS band) and (b) real user impact (new menu options).
 
@@ -113,6 +116,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.30 | T-012 — Waist circumference tracking. New `u.waist[]` schema · 8 waist helpers · weight-log view extended ("📊 บันทึกร่างกาย") with 2nd input + waist chart + waist history. Reports gets new "📐 รอบเอว" stat-card with line chart + waist:height ratio + health flag (WHO-based thresholds). `movingAverage`/`linearRegression`/`svgLineChart` generalized with optional `valueKey` (backward-compat). Code-only. |
 | v1.10.29 | T-011 — Custom date range for Reports. 5th segmented button `📅 กำหนดเอง` reveals 2 native `<input type="date">` for arbitrary start/end picking. Mode toggles preserve state (rolling↔custom). New `keysBetween` helper · `rangeAggregate` refactored to accept number-or-`{start,end}` (backward-compatible). Auto-swap inverted dates · clamp end to today. Code-only. |
 | v1.10.28 | T-010 — Reports chart interactivity + burn-line per-day fix. **Bug fix:** calorie chart's burn target line now renders per-day (varies with actual logged exercise) instead of flat average. **Feature:** tap any column in 3 daily charts → detail box shows date + exact values; tap again to clear; range change clears selection. Code-only. |
 | v1.10.27 | T-009 — Reports redesign: range-based view `[7][14][30][90] วัน` (default 30) replaces month nav · 3 new daily-trend charts (calorie line w/ TDEE target, energy-balance color-coded bars, protein bars w/ target line) · existing weight chart preserved · 2 new generic chart helpers (`svgDailyLineChart`, `svgDailyBarChart`) · new `rangeAggregate` helper. Code-only; no `meals.json` change. |

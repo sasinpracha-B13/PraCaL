@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-011 → `done` (v1.10.29 ships · custom date range live) · T-012 insight engine still queued
+Last updated: T-012 → `done` (v1.10.30 ships · waist tracking live) · T-013 (photos Phase 1) next — needs scope-gate proposal
 
 ---
 
@@ -131,6 +131,47 @@ Every task in the Registry must have:
   - Sub-letter ID convention (`T-NNN<letter>`) used here for the first time; if reused, add to `Conventions` section.
 
 ---
+
+### T-012 — Waist circumference tracking
+
+- **Status:** `done` ✅
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/waist-tracking.md`](docs/specs/waist-tracking.md)
+- **Re-scope note:** Originally T-012 was Insight Engine placeholder; user picked waist + photos from brainstorm. Insight Engine → T-015 (4th deferral).
+- **User-locked scope:** Option A — execute waist first (T-012), photos as T-013/T-014.
+- **Definition of Done (all met):**
+  - [x] `u.waist[]` schema migration (auto-init on next load)
+  - [x] 8 waist helpers: setWaist · removeWaist · sortedWaist · latestWaist · waistChangeOver · waistTrend · waistHeightRatio · waistHealthFlag
+  - [x] `movingAverage` / `linearRegression` / `svgLineChart` generalized with optional `valueKey` (backward-compat verified — existing weight chart calls pass nothing → defaults preserve identical visual)
+  - [x] Weight-log view renamed "📊 บันทึกร่างกาย" · 2nd input "รอบเอว (ซม.)" · save handler either-or-both · waist chart + ratio + flag · waist history list w/ delete
+  - [x] Reports view: new "📐 รอบเอว" stat-card with line chart + change + ratio + WHO-based flag (only shows when range has waist data)
+  - [x] WHO thresholds: ratio bands (< 0.4 / 0.4-0.5 / 0.5-0.55 / 0.55-0.6 / > 0.6) + Asian gender cutoffs (♂ > 90cm · ♀ > 80cm)
+  - [x] VERSION v1.10.29 → v1.10.30 (sw + index verified)
+  - [x] Data file hashes unchanged
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-011 commit; user picked Option A from brainstorm
+  - `in_progress → review` — helpers + UI + handlers + schema + audit clean
+  - `review → done` — user approved (single-letter "A")
+
+### T-013 — Progress photos · Phase 1 *(placeholder)*
+
+- **Status:** `todo` (queued; user explicitly approved as next after T-012)
+- **Owner:** Execution Agent (when picked up)
+- **Spec:** TBD — Phase 1 = camera/file capture + IndexedDB storage + compression + timeline view
+- **Notes:** Architecture decision pending: IndexedDB (chosen direction) or save-to-device-only. Privacy: 100% local.
+
+### T-014 — Progress photos · Phase 2 *(placeholder)*
+
+- **Status:** `todo` (queued after T-013)
+- **Owner:** Execution Agent
+- **Spec:** TBD — Phase 2 = compare slider · pose guide overlay · share/export
+
+### T-015 — Insight Engine *(placeholder, 4th deferral)*
+
+- **Status:** `todo`
+- **Owner:** Execution Agent
+- **Spec:** TBD — Path B recommended (5 detectors · Reports + Dashboard surfaces)
+- **Notes:** Deferred 4 times now (was T-010 candidate, then T-011, T-012, now T-015). User pattern: concrete metrics before interpretation. May become genuinely actionable once waist + photos provide richer data to interpret.
 
 ### T-011 — Custom date range for Reports
 

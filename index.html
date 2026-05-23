@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.29';
+const VERSION = 'v1.10.30';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1891,18 +1891,20 @@ function sortedWeights(user, days = null) {
   const cutoff = dateToKey(addDays(new Date(), -days + 1));
   return all.filter(w => w.date >= cutoff);
 }
-function movingAverage(series, window = 7) {
+// v1.10.30 — T-012: generalized movingAverage with optional valueKey
+// (default 'weight_kg' preserves backward compat for all existing callers).
+function movingAverage(series, window = 7, valueKey = 'weight_kg') {
   const sorted = series.slice().sort((a, b) => a.date.localeCompare(b.date));
   return sorted.map((pt, i) => {
     const slice = sorted.slice(Math.max(0, i - window + 1), i + 1);
-    const avg = slice.reduce((s, x) => s + x.weight_kg, 0) / slice.length;
-    return { date: pt.date, weight_kg: avg };
+    const avg = slice.reduce((s, x) => s + x[valueKey], 0) / slice.length;
+    return { date: pt.date, [valueKey]: avg };
   });
 }
-function linearRegression(series) {
-  if (series.length < 2) return { slope: 0, intercept: series[0]?.weight_kg || 0 };
-  const base = keyToDate(series[0].date);
-  const pts = series.map(p => ({ x: daysBetween(series[0].date, p.date), y: p.weight_kg }));
+// v1.10.30 — T-012: generalized linearRegression with optional valueKey.
+function linearRegression(series, valueKey = 'weight_kg') {
+  if (series.length < 2) return { slope: 0, intercept: series[0]?.[valueKey] || 0 };
+  const pts = series.map(p => ({ x: daysBetween(series[0].date, p.date), y: p[valueKey] }));
   const n = pts.length;
   const sx = pts.reduce((s, p) => s + p.x, 0);
   const sy = pts.reduce((s, p) => s + p.y, 0);
@@ -1927,6 +1929,63 @@ function weightChangeOver(user, days) {
 function latestWeight(user) {
   const all = sortedWeights(user);
   return all.length ? all[all.length - 1] : null;
+}
+
+// v1.10.30 — T-012: waist circumference tracking. Mirrors weight helpers.
+// Schema: u.waist = [{ date: 'YYYY-MM-DD', waist_cm: 82 }, ...]
+function setWaist(user, key, cm) {
+  user.waist = user.waist || [];
+  const existing = user.waist.find(x => x.date === key);
+  if (existing) existing.waist_cm = cm;
+  else user.waist.push({ date: key, waist_cm: cm });
+  user.waist.sort((a, b) => a.date.localeCompare(b.date));
+}
+function removeWaist(user, key) {
+  if (!user.waist) return;
+  user.waist = user.waist.filter(x => x.date !== key);
+}
+function sortedWaist(user, days = null) {
+  const all = (user?.waist || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (days == null) return all;
+  const cutoff = dateToKey(addDays(new Date(), -days + 1));
+  return all.filter(w => w.date >= cutoff);
+}
+function latestWaist(user) {
+  const all = sortedWaist(user);
+  return all.length ? all[all.length - 1] : null;
+}
+function waistChangeOver(user, days) {
+  const recent = sortedWaist(user, days);
+  if (recent.length < 2) return null;
+  return recent[recent.length - 1].waist_cm - recent[0].waist_cm;
+}
+function waistTrend(user, days = 14) {
+  const recent = sortedWaist(user, days);
+  if (recent.length < 2) return null;
+  const { slope } = linearRegression(recent, 'waist_cm');
+  return slope;
+}
+// waist:height ratio — body-composition signal (better than weight alone)
+function waistHeightRatio(u, waist_cm) {
+  const h = Number(u?.height) || 0;
+  if (!h || !waist_cm) return null;
+  return waist_cm / h;
+}
+// Returns { color: 'green'|'amber'|'red', text: string, ratio: number } or null
+function waistHealthFlag(u, waist_cm) {
+  const ratio = waistHeightRatio(u, waist_cm);
+  if (ratio == null) return null;
+  let color, text;
+  if (ratio < 0.4) { color = 'amber'; text = '⚠️ ต่ำกว่า 0.4 — เอวเล็กผิดปกติ ปรึกษาแพทย์'; }
+  else if (ratio < 0.5) { color = 'green'; text = '✅ สุขภาพดี (waist:height < 0.5)'; }
+  else if (ratio < 0.55) { color = 'amber'; text = '⚠️ ความเสี่ยงเพิ่ม — ดูแลไขมันรอบเอว'; }
+  else if (ratio < 0.6) { color = 'red'; text = '⚠️ ความเสี่ยงสูง — visceral fat สะสม'; }
+  else { color = 'red'; text = '🔴 ความเสี่ยงสูงมาก — ปรึกษาแพทย์'; }
+  // Asian gender-specific cutoff hint (secondary)
+  let asianHint = '';
+  if (u.gender === 'male' && waist_cm > 90) asianHint = ' · WHO Asian male > 90cm = abdominal obesity';
+  else if (u.gender === 'female' && waist_cm > 80) asianHint = ' · WHO Asian female > 80cm = abdominal obesity';
+  return { color, text: text + asianHint, ratio };
 }
 
 /* ========== STREAKS ========== */
@@ -2238,15 +2297,23 @@ function rangeAggregate(userId, rangeSpec) {
 }
 
 /* ========== SVG CHART (weight line) ========== */
-function svgLineChart(series, avgSeries, w = 320, h = 140) {
+// v1.10.30 — T-012: generalized with optional opts (valueKey + ariaLabel +
+// colors). Existing callers (Reports weight, Weight Log weight) pass nothing
+// → defaults preserve identical visual output.
+function svgLineChart(series, avgSeries, w = 320, h = 140, opts) {
   if (!series.length) {
     return `<svg viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${h/2}" text-anchor="middle" fill="#aaa" font-size="12">ไม่มีข้อมูล</text></svg>`;
   }
+  const valueKey = (opts && opts.valueKey) || 'weight_kg';
+  const ariaLabel = (opts && opts.ariaLabel) || 'กราฟน้ำหนัก';
+  const dotColor = (opts && opts.dotColor) || '#d97706';
+  const lineColor = (opts && opts.lineColor) || '#fde7c8';
+  const avgColor = (opts && opts.avgColor) || '#b35d00';
   const padL = 32, padR = 8, padT = 10, padB = 22;
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
   const all = series.concat(avgSeries || []);
-  const values = all.map(p => p.weight_kg);
+  const values = all.map(p => p[valueKey]);
   let minV = Math.min(...values);
   let maxV = Math.max(...values);
   if (minV === maxV) { minV -= 1; maxV += 1; }
@@ -2257,17 +2324,17 @@ function svgLineChart(series, avgSeries, w = 320, h = 140) {
   const xFor = (pt) => padL + (daysBetween(series[0].date, pt.date) / spanDays) * innerW;
   const yFor = (v) => padT + (1 - (v - minV) / (maxV - minV)) * innerH;
 
-  const path = (arr) => arr.map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(p).toFixed(1)},${yFor(p.weight_kg).toFixed(1)}`).join(' ');
+  const path = (arr) => arr.map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(p).toFixed(1)},${yFor(p[valueKey]).toFixed(1)}`).join(' ');
   const gridY = [minV, (minV + maxV) / 2, maxV];
   const grid = gridY.map(v => `<line x1="${padL}" y1="${yFor(v)}" x2="${w - padR}" y2="${yFor(v)}" stroke="#eee" stroke-width="1"/><text x="${padL - 4}" y="${yFor(v) + 4}" text-anchor="end" fill="#999" font-size="10">${v.toFixed(1)}</text>`).join('');
-  const dots = series.map(p => `<circle cx="${xFor(p).toFixed(1)}" cy="${yFor(p.weight_kg).toFixed(1)}" r="2.8" fill="#d97706"/>`).join('');
+  const dots = series.map(p => `<circle cx="${xFor(p).toFixed(1)}" cy="${yFor(p[valueKey]).toFixed(1)}" r="2.8" fill="${dotColor}"/>`).join('');
   const avgPath = (avgSeries && avgSeries.length > 1)
-    ? `<path d="${path(avgSeries)}" fill="none" stroke="#b35d00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+    ? `<path d="${path(avgSeries)}" fill="none" stroke="${avgColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
     : '';
-  const dataPath = `<path d="${path(series)}" fill="none" stroke="#fde7c8" stroke-width="1.5" stroke-linecap="round"/>`;
+  const dataPath = `<path d="${path(series)}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round"/>`;
   const startLbl = `${firstDate.getDate()}/${firstDate.getMonth() + 1}`;
   const endLbl = `${lastDate.getDate()}/${lastDate.getMonth() + 1}`;
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="กราฟน้ำหนัก">
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${ariaLabel}">
     ${grid}
     ${dataPath}
     ${avgPath}
@@ -5188,6 +5255,15 @@ function renderReports() {
   const wEnd = rangeWeights[rangeWeights.length - 1];
   const wChange = (wStart && wEnd) ? (wEnd.weight_kg - wStart.weight_kg) : null;
 
+  // v1.10.30 — T-012: waist data in range
+  const rangeWaist = (u.waist || []).filter(w => w.date >= rStart && w.date <= rEnd).sort((a, b) => a.date.localeCompare(b.date));
+  const waistStart = rangeWaist[0];
+  const waistEnd = rangeWaist[rangeWaist.length - 1];
+  const waistChange = (waistStart && waistEnd) ? (waistEnd.waist_cm - waistStart.waist_cm) : null;
+  const waistFlagRpt = waistEnd ? waistHealthFlag(u, waistEnd.waist_cm) : null;
+  const waistFlagColor = waistFlagRpt ? (waistFlagRpt.color === 'green' ? 'var(--green)' : waistFlagRpt.color === 'red' ? 'var(--red)' : 'var(--amber)') : '';
+  const waistFlagBg = waistFlagRpt ? (waistFlagRpt.color === 'green' ? 'var(--green-soft)' : waistFlagRpt.color === 'red' ? 'var(--red-soft)' : 'var(--amber-soft)') : '';
+
   // Real energy delta (includes exercise per day) — projection from this is accurate
   const avgEnergyDelta = agg.avg.energyDelta;        // − = avg deficit, + = avg surplus
   const avgGoalDelta = agg.avg.goalDelta;            // 0 = average day on goal
@@ -5334,6 +5410,22 @@ function renderReports() {
         </div>
       ` : ''}
 
+      ${rangeWaist.length >= 1 ? `
+        <div class="stat-card">
+          <h3>📐 รอบเอว (${rangeLabel})</h3>
+          <div class="stat-row"><span>เริ่มต้น</span><b>${waistStart.waist_cm.toFixed(1)} cm</b></div>
+          <div class="stat-row"><span>ล่าสุด</span><b>${waistEnd.waist_cm.toFixed(1)} cm</b></div>
+          ${waistChange !== null && rangeWaist.length > 1 ? `
+            <div class="stat-row bold"><span>เปลี่ยนแปลง</span><b style="color:${waistChange < 0 ? 'var(--green)' : waistChange > 0 ? 'var(--red)' : ''}">${waistChange > 0 ? '+' : ''}${waistChange.toFixed(1)} cm ${waistChange < 0 ? '⬇️' : waistChange > 0 ? '⬆️' : ''}</b></div>
+            <div class="chart-card mt">${svgLineChart(rangeWaist, movingAverage(rangeWaist, 7, 'waist_cm'), 320, 140, { valueKey: 'waist_cm', ariaLabel: 'กราฟรอบเอว', dotColor: '#818cf8', lineColor: '#e0e7ff', avgColor: '#3730a3' })}</div>
+          ` : ''}
+          ${waistFlagRpt ? `
+            <div class="stat-row mt"><span>waist:height ratio</span><b style="color:${waistFlagColor}">${waistFlagRpt.ratio.toFixed(2)}</b></div>
+            <div style="background:${waistFlagBg};color:${waistFlagColor};font-weight:500;font-size:13px;padding:8px 10px;border-radius:8px;margin-top:6px;line-height:1.5">${waistFlagRpt.text}</div>
+          ` : ''}
+        </div>
+      ` : ''}
+
       ${agg.loggedCount > 0 ? `
         <div class="stat-card">
           <h3>🔥 แคลอรี่ (${rangeLabel}) ${helpHtml('deficit')}</h3>
@@ -5401,6 +5493,8 @@ function renderReports() {
   `;
 }
 
+// v1.10.30 — T-012: renamed view to body-log to include waist circumference.
+// Schema: u.waist[] paired with existing u.weights[]; either-or-both saving.
 function renderWeightLog() {
   const u = currentUser();
   if (!u) return '';
@@ -5425,22 +5519,33 @@ function renderWeightLog() {
     else if (weeklyRate > 1) healthFlag = '⚠️ เพิ่มเร็วเกินไป — อาจได้ไขมันเยอะกว่ากล้ามเนื้อ';
   }
 
+  // v1.10.30 — T-012 waist data
+  const waistSeries30 = sortedWaist(u, 30);
+  const waistAvg = waistSeries30.length >= 2 ? movingAverage(waistSeries30, 7, 'waist_cm') : null;
+  const latestW = latestWaist(u);
+  const waistC30 = waistChangeOver(u, 30);
+  const waistFlag = latestW ? waistHealthFlag(u, latestW.waist_cm) : null;
+  const waistColorVar = waistFlag ? (waistFlag.color === 'green' ? 'var(--green)' : waistFlag.color === 'red' ? 'var(--red)' : 'var(--amber)') : '';
+  const waistBg = waistFlag ? (waistFlag.color === 'green' ? 'var(--green-soft)' : waistFlag.color === 'red' ? 'var(--red-soft)' : 'var(--amber-soft)') : '';
+
   return `
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1>⚖️ บันทึกน้ำหนัก</h1>
+        <h1>📊 บันทึกร่างกาย</h1>
       </div>
 
       <div class="card">
-        <div class="row" style="gap:10px;align-items:flex-end">
-          <div style="flex:1">
-            <label for="wt-input">น้ำหนักวันนี้ (กก.)</label>
-            <input id="wt-input" type="number" inputmode="decimal" class="input" placeholder="${latest ? latest.weight_kg.toFixed(1) : u.weight || '70'}" min="20" max="300" step="0.1">
-          </div>
-          <button class="btn" data-act="save-weight" style="min-height:52px">บันทึก</button>
+        <div class="field">
+          <label for="wt-input">⚖️ น้ำหนักวันนี้ (กก.)</label>
+          <input id="wt-input" type="number" inputmode="decimal" class="input" placeholder="${latest ? latest.weight_kg.toFixed(1) : u.weight || '70'}" min="20" max="300" step="0.1">
         </div>
-        <div class="hint">ชั่งตอนเช้าหลังตื่น (ก่อนกินอาหาร) ให้ผลแม่นที่สุด</div>
+        <div class="field">
+          <label for="waist-input">📐 รอบเอว (ซม. — ถ้ามี)</label>
+          <input id="waist-input" type="number" inputmode="decimal" class="input" placeholder="${latestW ? latestW.waist_cm.toFixed(1) : '80'}" min="40" max="200" step="0.1">
+        </div>
+        <button class="btn block" data-act="save-weight" style="min-height:48px">บันทึก</button>
+        <div class="hint mt">ชั่ง/วัดตอนเช้าหลังตื่น (ก่อนกินอาหาร) ให้ผลแม่นที่สุด · กรอกแค่อันใดอันหนึ่งก็ได้</div>
       </div>
 
       ${series30.length >= 2 ? `
@@ -5479,8 +5584,34 @@ function renderWeightLog() {
         <div class="card empty"><div class="big">⚖️</div><div>ยังไม่มีข้อมูลน้ำหนัก</div><div class="muted" style="font-size:14px;margin-top:6px">บันทึกน้ำหนักวันนี้เพื่อเริ่มต้น</div></div>
       `}
 
+      ${waistSeries30.length >= 2 ? `
+        <div class="card">
+          <div class="row between" style="margin-bottom:6px">
+            <h3 style="margin:0">📐 รอบเอว 30 วันล่าสุด</h3>
+            <span class="muted" style="font-size:12px">${waistSeries30.length} จุด</span>
+          </div>
+          <div class="chart-card">${svgLineChart(waistSeries30, waistAvg, 320, 140, { valueKey: 'waist_cm', ariaLabel: 'กราฟรอบเอว', dotColor: '#818cf8', lineColor: '#e0e7ff', avgColor: '#3730a3' })}</div>
+          <div class="hint" style="margin-top:6px">
+            <span style="color:#e0e7ff">━</span> จุดรายวัน
+            &nbsp;&nbsp;
+            <span style="color:#3730a3">━</span> เฉลี่ย 7 วัน
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="stat-row"><span>ล่าสุด</span><b>${latestW.waist_cm.toFixed(1)} cm</b></div>
+          ${waistC30 !== null ? `<div class="stat-row"><span>เปลี่ยน 30 วัน</span><b style="color:${waistC30 < 0 ? 'var(--green)' : waistC30 > 0 ? 'var(--red)' : ''}">${waistC30 > 0 ? '+' : ''}${waistC30.toFixed(1)} cm</b></div>` : ''}
+          ${waistFlag ? `
+            <div class="stat-row"><span>waist:height ratio</span><b style="color:${waistColorVar}">${waistFlag.ratio.toFixed(2)}</b></div>
+            <div style="background:${waistBg};color:${waistColorVar};font-weight:500;font-size:13px;padding:8px 10px;border-radius:8px;margin-top:8px;line-height:1.5">${waistFlag.text}</div>
+          ` : ''}
+        </div>
+      ` : waistSeries30.length === 1 ? `
+        <div class="card empty"><div class="big">📐</div><div>บันทึกรอบเอวไว้ 1 จุด</div><div class="muted" style="font-size:14px;margin-top:6px">บันทึกเพิ่มอีกอย่างน้อย 1 จุดเพื่อดูแนวโน้ม</div></div>
+      ` : ''}
+
       ${sortedWeights(u).length ? `
-        <h2>ประวัติทั้งหมด</h2>
+        <h2>ประวัติน้ำหนัก</h2>
         ${sortedWeights(u).slice().reverse().slice(0, 60).map(w => `
           <div class="card tight">
             <div class="row between">
@@ -5491,6 +5622,24 @@ function renderWeightLog() {
               <div style="display:flex;align-items:center;gap:10px">
                 <b style="font-size:17px">${w.weight_kg.toFixed(1)} kg</b>
                 <button class="icon-btn ghost" data-act="delete-weight" data-v="${w.date}" aria-label="ลบ">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      ` : ''}
+
+      ${sortedWaist(u).length ? `
+        <h2>ประวัติรอบเอว</h2>
+        ${sortedWaist(u).slice().reverse().slice(0, 60).map(w => `
+          <div class="card tight">
+            <div class="row between">
+              <div>
+                <div style="font-weight:500">${formatDateTH(w.date)}</div>
+                <div class="muted" style="font-size:12px">${w.date === todayKey() ? 'วันนี้' : ''}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <b style="font-size:17px">${w.waist_cm.toFixed(1)} cm</b>
+                <button class="icon-btn ghost" data-act="delete-waist" data-v="${w.date}" aria-label="ลบ">🗑️</button>
               </div>
             </div>
           </div>
@@ -6653,20 +6802,46 @@ const actions = {
     render();
   },
 
+  // v1.10.30 — T-012: also captures waist (optional). At least one must be valid.
   'save-weight': () => {
     const u = currentUser();
     if (!u) return;
-    const v = parseFloat(document.getElementById('wt-input')?.value);
-    if (!v || v < 20 || v > 300) return toast('น้ำหนักไม่ถูกต้อง (20-300 kg)', true);
-    setWeight(u, todayKey(), Math.round(v * 10) / 10);
+    const wRaw = document.getElementById('wt-input')?.value;
+    const waistRaw = document.getElementById('waist-input')?.value;
+    const w = wRaw ? parseFloat(wRaw) : null;
+    const waist = waistRaw ? parseFloat(waistRaw) : null;
+    const hasWeight = w != null && !isNaN(w) && w >= 20 && w <= 300;
+    const hasWaist = waist != null && !isNaN(waist) && waist >= 40 && waist <= 200;
+    if (!hasWeight && !hasWaist) return toast('กรอกน้ำหนัก (20-300 kg) หรือรอบเอว (40-200 cm)', true);
+    if (wRaw && !hasWeight) return toast('น้ำหนักไม่ถูกต้อง (20-300 kg)', true);
+    if (waistRaw && !hasWaist) return toast('รอบเอวไม่ถูกต้อง (40-200 cm)', true);
+    const today = todayKey();
+    const parts = [];
+    if (hasWeight) {
+      setWeight(u, today, Math.round(w * 10) / 10);
+      parts.push('น้ำหนัก');
+    }
+    if (hasWaist) {
+      setWaist(u, today, Math.round(waist * 10) / 10);
+      parts.push('รอบเอว');
+    }
     persist();
-    toast('บันทึกน้ำหนักแล้ว ✅');
+    toast(`บันทึก${parts.join(' + ')}แล้ว ✅`);
     render();
   },
   'delete-weight': (e, btn) => {
-    if (!confirm('ลบจุดนี้?')) return;
+    if (!confirm('ลบจุดน้ำหนักนี้?')) return;
     const u = currentUser();
     removeWeight(u, btn.dataset.v);
+    persist();
+    render();
+    toast('ลบแล้ว');
+  },
+  // v1.10.30 — T-012
+  'delete-waist': (e, btn) => {
+    if (!confirm('ลบจุดรอบเอวนี้?')) return;
+    const u = currentUser();
+    removeWaist(u, btn.dataset.v);
     persist();
     render();
     toast('ลบแล้ว');
@@ -7819,6 +7994,7 @@ function migrateData() {
   let changed = false;
   state.users.forEach(u => {
     if (!u.weights) { u.weights = []; changed = true; }
+    if (!u.waist) { u.waist = []; changed = true; }   // v1.10.30 — T-012
     if (!u.displayMode) { u.displayMode = 'normal'; changed = true; }
     if (!u.defaultActivity) { u.defaultActivity = 'none'; changed = true; }
     if (!u.scannedProducts) { u.scannedProducts = []; changed = true; }
