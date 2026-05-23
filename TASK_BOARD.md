@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-012 → `done` (v1.10.30 ships · waist tracking live) · T-013 (photos Phase 1) next — needs scope-gate proposal
+Last updated: T-013a → `done` (v1.10.31 ships) · T-013b HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -153,25 +153,72 @@ Every task in the Registry must have:
   - `in_progress → review` — helpers + UI + handlers + schema + audit clean
   - `review → done` — user approved (single-letter "A")
 
-### T-013 — Progress photos · Phase 1 *(placeholder)*
+### T-013 — Body Progress Center · Phase 1 MVP *(split into 4 sub-tasks)*
 
-- **Status:** `todo` (queued; user explicitly approved as next after T-012)
-- **Owner:** Execution Agent (when picked up)
-- **Spec:** TBD — Phase 1 = camera/file capture + IndexedDB storage + compression + timeline view
-- **Notes:** Architecture decision pending: IndexedDB (chosen direction) or save-to-device-only. Privacy: 100% local.
+User decision: split into 4 gated sub-tasks instead of single 1,300-line commit. Each stops at review.
 
-### T-014 — Progress photos · Phase 2 *(placeholder)*
+**Locked direction:**
+- IndexedDB for photo blobs · `u.checkIns[]` metadata in localStorage
+- Front/Side required · Back optional · Timer Mode for Back · file picker fallback
+- BPC entry: Dashboard chip + link from "📊 บันทึกร่างกาย"
+- Neutral / no-shame tone · NO "muscle gain confirmed" claim
+- training_count / strength_count / cardio_count = frequency proxy only · no performance trend claim
+- Video Frame Mode for Back → deferred to Phase 2 (was original spec; explicitly deferred per split decision)
 
-- **Status:** `todo` (queued after T-013)
+### T-013a — Foundation + Schema + IndexedDB
+
+- **Status:** `done` ✅
 - **Owner:** Execution Agent
-- **Spec:** TBD — Phase 2 = compare slider · pose guide overlay · share/export
+- **Spec:** [`docs/specs/body-progress-foundation.md`](docs/specs/body-progress-foundation.md)
+- **Gate criteria:** reload safe · old users safe · no localStorage bloat · no photo/metadata mismatch · BPC entry visible with empty state
+- **Scope:**
+  - [x] IndexedDB `photos` store + 6 helpers (open · save · get · delete · list · getUrl)
+  - [x] Photo compression helper (Canvas resize 1080px · JPEG q=0.75)
+  - [x] `u.checkIns[]` schema migration (auto-init for existing users)
+  - [x] 4 check-in CRUD helpers (add/get/delete with photo cleanup/orphan scan)
+  - [x] BPC view with empty state + privacy banner + roadmap (T-013a/b/c/d/Phase 2/3)
+  - [x] Dashboard chip → BPC (gated: only if user has weight OR waist data)
+  - [x] Body-log view link → BPC
+  - [x] `nav-bpc` handler + 'bpc' view dispatch route
+  - [x] VERSION v1.10.30 → v1.10.31 (sw + index)
+  - [x] Data file hashes unchanged (meals.json / branded_products.json / audit-meals.js)
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-012 commit; user chose split path
+  - `in_progress → review` — foundation complete · empty-state view live · no capture flow yet (T-013b)
+  - `review → done` — user approved; ran 5 final gate checks (VERSION sync · lazy IDB · migration · delete safety · orphan cleanup); all pass. **Held T-013b pickup per user instruction** — wait for next approval before starting capture flow.
 
-### T-015 — Insight Engine *(placeholder, 4th deferral)*
+### T-013b — Weekly Check-in Capture Flow *(blocked by T-013a done)*
 
 - **Status:** `todo`
-- **Owner:** Execution Agent
-- **Spec:** TBD — Path B recommended (5 detectors · Reports + Dashboard surfaces)
-- **Notes:** Deferred 4 times now (was T-010 candidate, then T-011, T-012, now T-015). User pattern: concrete metrics before interpretation. May become genuinely actionable once waist + photos provide richer data to interpret.
+- **Scope:** Front required · Side required · Back optional · Timer Mode for Back · file picker fallback · manual metadata (weight/waist/note) · auto-fill derived stats (7-day avg weight, deficit avg, protein pass, training count) · draft/resume state
+- **Gate:** capture/save works · skip Back works · permission denied → fallback works · draft safe
+
+### T-013c — Timeline + Viewer + Side-by-side Compare *(blocked by T-013b done)*
+
+- **Status:** `todo`
+- **Scope:** grouped timeline · latest pinned · thumbnail stat chips · fullscreen viewer · delete/export · 3 compare modes (Start vs Latest · Previous Week vs Latest · Lowest Waist vs Latest)
+- **Gate:** compare handles missing angles · delete syncs metadata + IndexedDB · no crash on partial data
+
+### T-013d — Recomp Insight Card + Status Logic *(blocked by T-013c done)*
+
+- **Status:** `todo`
+- **Scope:** predicted-vs-actual weight comparison · 5 status labels · conservative copy · no overclaim · uncertainty downgrade when data missing · 21-day review logic
+- **Gate:** no overclaim · no shame language · early-data state works · 21-day review fires correctly
+
+### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
+
+- **Status:** `todo`
+- **Scope (deferred from Phase 1 split):** Ghost overlay · Slider compare · Auto-suggest comparison · Milestone photo prompts · Best Lean Week · Same Weight Different Shape · **Video Frame Mode for Back**
+
+### T-015 — Body Progress Phase 3 *(placeholder)*
+
+- **Status:** `todo`
+- **Scope:** PIN lock · Face crop · Pose-match score · Advanced overlay opacity · Monthly timeline scrub
+
+### T-016 — Insight Engine *(placeholder, 5th deferral)*
+
+- **Status:** `todo`
+- **Notes:** Pattern continues — user prioritizes concrete tracking over interpretation. Will likely become more actionable after T-013 series gives rich check-in data.
 
 ### T-011 — Custom date range for Reports
 
