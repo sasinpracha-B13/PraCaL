@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013a → `done` (v1.10.31 ships) · T-013b HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013b → `done` ✅ (v1.10.32 shipped) · T-013c HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -187,11 +187,58 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - `in_progress → review` — foundation complete · empty-state view live · no capture flow yet (T-013b)
   - `review → done` — user approved; ran 5 final gate checks (VERSION sync · lazy IDB · migration · delete safety · orphan cleanup); all pass. **Held T-013b pickup per user instruction** — wait for next approval before starting capture flow.
 
-### T-013b — Weekly Check-in Capture Flow *(blocked by T-013a done)*
+### T-013b — Weekly Check-in Capture Flow
 
-- **Status:** `todo`
-- **Scope:** Front required · Side required · Back optional · Timer Mode for Back · file picker fallback · manual metadata (weight/waist/note) · auto-fill derived stats (7-day avg weight, deficit avg, protein pass, training count) · draft/resume state
-- **Gate:** capture/save works · skip Back works · permission denied → fallback works · draft safe
+- **Status:** `done` ✅ (v1.10.32 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-progress-checkin-flow.md`](docs/specs/body-progress-checkin-flow.md)
+- **User-locked scope (this turn):**
+  - Front + Side required · Back optional · "ข้าม Back" works without shame
+  - File picker with `capture="environment"` as **the** primary path
+  - **Timer Mode = deferred to Phase 2** (placeholder text only; no getUserMedia in T-013b — kept contained & safe per user instruction)
+  - Draft persists in `localStorage` per userId · resume + discard supported
+  - Photos saved to IndexedDB immediately on capture · orphans cleaned on discard
+  - Auto-fill metadata from `compute7DayCheckinStats(user)`
+  - Validation: Front + Side required · weight/waist editable + nullable
+  - Privacy copy on every step · neutral tone throughout
+- **Forbidden in this sub-task (audited at gate · all verified 0 matches):**
+  - Timeline/gallery (T-013c) · Comparison views (T-013c)
+  - Insight Card · Status labels (T-013d)
+  - Ghost overlay · Slider compare · Video frame mode (Phase 2)
+  - Live Timer Mode (Phase 2)
+  - Any muscle-gain or performance claims
+- **Definition of Done (all met):**
+  - [x] 5 new helpers (`compute7DayCheckinStats` + `getCheckinDraft` + `setCheckinDraft` + `clearCheckinDraft` + `discardCheckinDraftWithCleanup`)
+  - [x] `renderCheckinFlow` with 4-step state machine (front/side/back/review)
+  - [x] BPC view: "เริ่ม Check-in" button enabled (replaces T-013a placeholder) · resume banner when draft exists
+  - [x] File picker `capture="environment"` for all 3 angles · no getUserMedia anywhere
+  - [x] Back step: "ข้าม" button + "📷 Timer/Video — มาใน Phase 2" placeholder text
+  - [x] Photos compress (1080px JPEG q=0.75) + save to IndexedDB immediately on capture
+  - [x] Draft persists across reloads · resume works via banner · discard cleans up orphan photo blobs
+  - [x] Step 4 auto-fills derived stats from `compute7DayCheckinStats` (graceful "ยังไม่มีข้อมูล" when missing)
+  - [x] Step 4 weight/waist editable · can be empty · live update via `input` listener (no re-render, preserves focus)
+  - [x] Validation: Front + Side required to save (re-checked in `checkin-save` handler)
+  - [x] Compression failure → toast "ลองรูปอื่น" · draft uncorrupted
+  - [x] Missing data → graceful "ยังไม่มีข้อมูล" / nulls allowed in saved check-in
+  - [x] Privacy copy on every step (footer in steps 1-3 · full copy in review)
+  - [x] Neutral tone throughout · no "fatter / worse / failed" / no shame language
+  - [x] VERSION v1.10.31 → v1.10.32 (sw + index, both verified)
+  - [x] PROJECT_STATE updated (Current Version · Active Task · Latest Completed Work)
+  - [x] Data file hashes unchanged (`meals.json`, `branded_products.json`, `audit-meals.js`)
+- **Audit evidence (scope-lock verified at gate):**
+  - timeline = 0 matches · ghost = 0 · slider = 0 · video = 0 · getUserMedia = 0
+  - "muscle gain" / "performance improvement" / "fatter" / "worse" / "failed" = 0
+  - "compare" = 1 match (roadmap text in BPC view: "T-013c — Timeline · viewer · side-by-side compare" — informational placeholder only, not a feature leak)
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013a approval; user-locked scope confirmed
+  - `in_progress → review` — implementation complete · scope-lock audit clean · VERSION synced · state files updated · held at review per user instruction (no commit, no push)
+  - `review → done` — user approved with explicit instruction "approve T-013b, but include the untracked spec file before commit". Spec staged, final gates re-run (forbidden features all 0 · data hashes unchanged · 5 files staged exactly), then committed + pushed
+- **Notes:**
+  - First task in the operating model to formally include a `docs/specs/*.md` file in the same commit as its implementation (prior tasks left specs untracked or as separate commits). User's instruction codified this pattern: spec lives with the change.
+  - Architectural simplifications vs spec (both meet functional intent):
+    - `checkin-resume` not a separate handler — "▶️ ทำต่อ" reuses `nav-checkin`, which auto-resumes from saved step if draft exists
+    - `checkin-retake` not a separate handler — same `<input type="file">` handles both first-capture and re-capture; button label flips between "ถ่าย/อัปโหลด" and "ถ่ายใหม่" based on photo state
+  - **T-013c HOLD per user instruction** ("Do not start T-013c until I approve the next pickup") — mechanical pickup suspended.
 
 ### T-013c — Timeline + Viewer + Side-by-side Compare *(blocked by T-013b done)*
 
