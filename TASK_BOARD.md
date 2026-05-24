@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013d → `done` ✅ (v1.10.35 shipped) · **BPC Phase 1 MVP COMPLETE** · T-014/T-015 HOLD per user instruction
+Last updated: T-013d.1 → `done` ✅ (v1.10.36 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -426,6 +426,65 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **Hardest design constraint:** tone discipline on possible-recomp. The card MUST render the literal negation "ไม่ได้แปลว่ากล้ามเพิ่ม" before showing any "recomp" wording — this is enforced both in the spec (DoD checkbox) and in code (grep verifies the caveat is present exactly once, in the possible-recomp branch).
   - **`rpe` false-positive lesson learned:** future scope-lock audits should distinguish case-sensitive vs case-insensitive grep when checking for short acronyms (RPE, BMR, TDEE). Case-insensitive matches inside camelCase property names like `perPersonCal` can produce false positives. Captured in this Notes section for future spec authors.
   - **T-014 / T-015 HOLD per user instruction** ("Do not start T-014/T-015 until I approve the next pickup") — Phase 2 (ghost overlay · slider · auto-suggest · video frame · timer for Back) and Phase 3 (PIN lock · face crop · pose-match) both blocked from auto-pickup.
+
+### T-013d.1 — Body Recomp Insight summary in Reports tab *(small surface addition on T-013d)*
+
+- **Status:** `done` ✅ (v1.10.36 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-recomp-insight-reports-summary.md`](docs/specs/body-recomp-insight-reports-summary.md)
+- **User-locked scope (this turn):**
+  - Compact Body Recomp Insight summary card in Reports tab
+  - Reuses `computeBodyProgressInsight(user)` from T-013d — single source of truth
+  - Card shows: status badge + confidence + actual/predicted/gap weight numbers + waist if available + one explanation line + one what-next line + CTA "ดูรายละเอียดใน Body Progress Center"
+  - Not-Enough-Data variant: lists missing data + "เริ่ม Body Check-in" CTA (when 0 check-ins)
+  - Possible-Recomp variant MUST include literal "ยังไม่ยืนยันว่ากล้ามเพิ่ม" caveat
+  - Inserted between waist card and calorie card in Reports
+  - No new classifier, no new schema, no new handlers/listeners, no new localStorage keys
+  - Reports remains a summary page · BPC remains the detailed page
+- **Forbidden (audited at gate · all verified):**
+  - Duplicate classifier — `classifyBodyProgressStatus` def count = 1 · `getInsightConfidence` def count = 1 · `computeBodyProgressInsight` def count = 1 (single source of truth preserved)
+  - New status labels — 0 new
+  - New schema · new localStorage · IndexedDB writes — 0
+  - Photo gallery / viewer / compare in Reports — 0
+  - `getUserMedia` = 0 · `slider compare` = 0 · `sliderCompare` = 0 · `ghostOverlay` = 0
+  - `muscle gain confirmed` = 0 · `muscle gain` = 0 · `performance improvement` = 0 · `strength progress` = 0 · `getting stronger` = 0 · `แข็งแรงขึ้น` = 0 · `กล้ามขึ้น` = 0
+  - Shame/value-judgment: `อ้วนขึ้น` = 0 · `แย่ลง` = 0 · `ผอมลง` = 0 · `แย่กว่า` = 0 · `ดีขึ้น` = 0 · `ล้มเหลว` = 0 · `ทำผิด` = 0
+  - `ghost overlay` = 1 (unchanged BPC roadmap text · pre-existing)
+- **Definition of Done (all met):**
+  - [x] `renderReportsInsightSummary(insight, user)` renderer added (the only new function)
+  - [x] Wired into `renderReports` between waist card (L6087) and calorie card (L6089)
+  - [x] `computeBodyProgressInsight(user)` called from Reports view (single source of truth — total call sites 4 = 1 def + BPC + Reports + spec-comment reference; underlying classifier still has exactly 1 def)
+  - [x] No duplicate classifier · zero copy/paste of T-013d's classify/confidence logic
+  - [x] All 6 status branches handled (5 main + special not-enough-data variant)
+  - [x] Not-Enough-Data variant card lists what's missing (check-ins, waist, deficit-logged days) + conditional "เริ่ม Body Check-in" CTA when checkin_count === 0
+  - [x] CTA "→ ดูรายละเอียดใน Body Progress Center" uses existing `nav-bpc` handler
+  - [x] CTA "📸 เริ่ม Body Check-in" uses existing `nav-checkin` handler
+  - [x] No new handlers · no new event listeners
+  - [x] Possible-Recomp branch renders literal "ยังไม่ยืนยันว่ากล้ามเพิ่ม" (grep verified: 1 occurrence)
+  - [x] T-013d's existing "ไม่ได้แปลว่ากล้ามเพิ่ม" caveat preserved on BPC side (grep verified: still 1 occurrence)
+  - [x] No color coding implying good/bad direction on deltas — neutral palette
+  - [x] Tone audit clean across all forbidden phrases (English + Thai)
+  - [x] VERSION v1.10.35 → v1.10.36 (sw + index, both verified)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (all 3 byte-identical to v1.10.35)
+- **Audit evidence (single-source-of-truth verified):**
+  - `function classifyBodyProgressStatus` definitions = **1**
+  - `function getInsightConfidence` definitions = **1**
+  - `function computeBodyProgressInsight` definitions = **1**
+  - `renderReportsInsightSummary` references = 2 (def + call site)
+  - `computeBodyProgressInsight(` total references = 4 (def + BPC call + Reports call + spec-comment in JSDoc)
+  - **Mandatory caveats both present**:
+    - `ยังไม่ยืนยันว่ากล้ามเพิ่ม` = 1 (new Reports possible-recomp caveat)
+    - `ไม่ได้แปลว่ากล้ามเพิ่ม` = 1 (existing BPC possible-recomp caveat, untouched)
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013d ship + user approval to add Reports surface
+  - `in_progress → review` — implementation complete · 1 renderer + 1 insertion · single-source-of-truth preserved · scope-lock audit clean · tone audit clean · VERSION synced · state files updated · held at review per user instruction (no commit, no push)
+  - `review → done` — user approved with instruction "stage the untracked spec before commit". Spec staged, final gates re-run (forbidden phrases all 0 · single source of truth verified: each classifier helper has exactly 1 def · Reports calls `computeBodyProgressInsight(u)` at L6089 · both caveats present (Reports `ยังไม่ยืนยันว่ากล้ามเพิ่ม` = 1, BPC `ไม่ได้แปลว่ากล้ามเพิ่ม` = 1 preserved) · data hashes unchanged · 5 files staged exactly · VERSION sync v1.10.36), then committed + pushed
+- **Notes:**
+  - **Cleanest "reuse don't duplicate" example** in the operating-model history so far. One renderer, one insertion line, ~123 lines added to index.html, zero new computation logic.
+  - **Lesson captured:** scope-lock grep must extend to comments. The initial draft had a guardrail comment containing the literal phrase "strength progress" (warning future maintainers not to use that phrase). The grep flagged it as 1 match. Rewrote the comment to avoid the literal substring even in guardrail context. Future spec authors: when banning a phrase, write the comment in a way that doesn't include the banned phrase verbatim, or grep with semantic context.
+  - **Pattern reinforced**: spec-with-implementation in same commit (5th time now: T-013b, T-013b.1, T-013c, T-013d, T-013d.1). This is the established release pattern for this project.
+  - **T-014 / T-015 still HOLD per user instruction** — Phase 2 (ghost overlay · slider · auto-suggest · video frame · timer for Back) and Phase 3 (PIN lock · face crop · pose-match) both blocked from auto-pickup. Mechanical pickup remains suspended.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

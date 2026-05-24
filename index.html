@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.35';
+const VERSION = 'v1.10.36';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -6086,6 +6086,8 @@ function renderReports() {
         </div>
       ` : ''}
 
+      ${renderReportsInsightSummary(computeBodyProgressInsight(u), u)}
+
       ${agg.loggedCount > 0 ? `
         <div class="stat-card">
           <h3>🔥 แคลอรี่ (${rangeLabel}) ${helpHtml('deficit')}</h3>
@@ -7194,6 +7196,125 @@ function renderInsightCard(insight, expanded) {
       <button class="btn ghost block mt" data-act="toggle-insight-details" style="font-size:12.5px;min-height:38px">
         ${expanded ? '▲ ย่อ' : '▼ ดูรายละเอียด'}
       </button>
+    </div>
+  `;
+}
+
+// ====================================================================
+// v1.10.36 — T-013d.1: Compact Body Recomp Insight summary for Reports tab.
+// REUSES computeBodyProgressInsight(user) from T-013d — single source of truth.
+// No duplicate classifier · no new schema · no new handlers.
+// ====================================================================
+function renderReportsInsightSummary(insight, user) {
+  if (!insight || !user) return '';
+  const { status, confidence, weightTrend, waistTrend, predictedLoss, checkinSnap, training } = insight;
+
+  // Status visual config — neutral palette (no good/bad green/red)
+  const statusConfig = {
+    'fat-loss-confirmed':  { label: '✅ ไขมันลดยืนยันได้', bg: '#e0e7ff', color: '#3730a3', border: '#818cf8' },
+    'possible-recomp':     { label: '💭 อาจมี Recomp',      bg: '#ede9fe', color: '#5b21b6', border: '#a78bfa', dashed: true },
+    'water-noise-likely':  { label: '💧 น่าจะเป็นน้ำ',        bg: '#dbeafe', color: '#1e3a8a', border: '#93c5fd' },
+    'review-needed':       { label: '🔍 ลองทบทวน tracking',  bg: '#fef3c7', color: '#92400e', border: '#fbbf24' },
+    'progress-in-motion':  { label: '🚶 ทิศทางกำลังมา',      bg: '#f3f4f6', color: '#374151', border: '#9ca3af' },
+    'not-enough-data':     { label: '📊 ข้อมูลยังไม่พอ',      bg: '#f3f4f6', color: '#374151', border: '#d1d5db' }
+  };
+  const cfg = statusConfig[status] || statusConfig['not-enough-data'];
+  const confLabel = { high: 'High', medium: 'Medium', low: 'Low' }[confidence] || 'Low';
+
+  // Special compact variant for Not Enough Data — surfaces what's missing
+  if (status === 'not-enough-data') {
+    const checkinCount = checkinSnap.checkin_count || 0;
+    const hasWaist = waistTrend.has_data;
+    const deficitLogged = predictedLoss.has_data ? predictedLoss.days_logged : 0;
+    const missing = [];
+    if (checkinCount < 2) missing.push(`Check-in (ตอนนี้ ${checkinCount} ครั้ง · ต้องการ ≥2)`);
+    if (!hasWaist) missing.push(`รอบเอว (ตอนนี้ยังไม่มี)`);
+    if (deficitLogged < 7) missing.push(`บันทึกอาหารต่อเนื่อง ≥7 วัน (ตอนนี้ ${deficitLogged} วัน)`);
+    return `
+      <div class="stat-card" style="border:1.5px dashed ${cfg.border}">
+        <h3>🎯 Body Recomp Insight</h3>
+        <div class="hint" style="font-size:12px;margin-top:-4px;margin-bottom:8px;color:var(--ink-2)">สรุปจากน้ำหนักเฉลี่ย รอบเอว แคลขาดดุล และความสม่ำเสมอในการซ้อม</div>
+        <div style="margin-bottom:8px">
+          <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${cfg.bg};color:${cfg.color};font-weight:600">${cfg.label}</span>
+        </div>
+        <div class="hint" style="font-size:12.5px;line-height:1.8">
+          <div style="font-weight:600;margin-bottom:4px">ต้องการเพิ่ม:</div>
+          ${missing.map(m => `<div>• ${h(m)}</div>`).join('')}
+        </div>
+        ${checkinCount === 0 ? `
+          <button class="btn green block mt2" data-act="nav-checkin" style="min-height:44px;font-size:13.5px">📸 เริ่ม Body Check-in</button>
+        ` : ''}
+        <button class="btn secondary block mt" data-act="nav-bpc" style="min-height:42px;font-size:13px">→ ดู Body Progress Center</button>
+      </div>
+    `;
+  }
+
+  // Numerical lines — actual weight change, predicted-from-deficit, gap, optional waist
+  const actualChangeKg = weightTrend.has_data && weightTrend.data_points >= 2 ? weightTrend.change_kg : null;
+  const predictedChangeKg = predictedLoss.has_data ? -predictedLoss.predicted_loss_kg : null; // positive predicted_loss => negative "change"
+  let gapKg = null;
+  if (actualChangeKg != null && predictedChangeKg != null) {
+    gapKg = actualChangeKg - predictedChangeKg; // positive = lost less than predicted
+  }
+  const waistChangeCm = waistTrend.has_data && waistTrend.data_points >= 2 ? waistTrend.change_cm : null;
+  const fmtSigned = (v, unit) => {
+    if (v == null) return `<span class="muted" style="font-size:12px">—</span>`;
+    const sign = v >= 0 ? '+' : '';
+    return `<b>${sign}${v.toFixed(1)} ${unit}</b>`;
+  };
+
+  // Per-status one-liners (locked Thai copy per spec)
+  const explainCopy = {
+    'fat-loss-confirmed': 'น้ำหนักเฉลี่ยและรอบเอวไปในทิศทางเดียวกัน พร้อมข้อมูลแคลขาดดุลที่รองรับ',
+    'possible-recomp': 'น้ำหนักจริงลงช้ากว่าที่แคลคาด แต่รอบเอวยังมีสัญญาณที่ดี จึงอาจเป็น recomp หรือ water/glycogen noise ได้',
+    'water-noise-likely': 'น้ำหนักช่วงสั้นอาจถูกกวนจากน้ำในกล้าม ไกลโคเจน โซเดียม หรือการซ้อมหนัก',
+    'review-needed': 'ข้อมูลเริ่มขัดกับแผน ควรทบทวนการบันทึกอาหาร TDEE exercise calories หรือความสม่ำเสมอของการวัด',
+    'progress-in-motion': 'ทิศทางเริ่มมาแล้ว ยังต้องเก็บข้อมูลเพิ่มเพื่อยืนยัน'
+  };
+  const whatNextCopy = {
+    'fat-loss-confirmed': 'บันทึกต่อ · ดูแลโปรตีนถึงเป้า',
+    'possible-recomp': 'บันทึกต่อ · ดูรอบเอวร่วมกับแรงเวท',
+    'water-noise-likely': 'รอ 1-2 สัปดาห์ · ดูค่าเฉลี่ย 7 วัน',
+    'review-needed': 'ทบทวน tracking · ลด TDEE estimate 100-150 kcal',
+    'progress-in-motion': 'บันทึกต่อให้ครบ · อีก 1-2 สัปดาห์ชัดขึ้น'
+  };
+
+  // Mandatory caveat (possible-recomp only — locked text per spec)
+  const recompCaveat = status === 'possible-recomp'
+    ? `<div class="hint mt" style="font-size:11.5px;line-height:1.6;color:#92400e;background:#fef3c7;border-left:3px solid #fbbf24;padding:6px 10px;border-radius:4px">⚠️ ยังไม่ยืนยันว่ากล้ามเพิ่ม · ใช้เป็น hypothesis เท่านั้น</div>`
+    : '';
+
+  // Training summary line (frequency count only · no performance claims)
+  const trainingLine = training.training_count > 0
+    ? `<div class="hint" style="font-size:11.5px;color:var(--muted);margin-top:4px">💪 Training: ${training.training_count} ครั้ง (เวท ${training.strength_count} · คาร์ดิโอ ${training.cardio_count})</div>`
+    : '';
+
+  return `
+    <div class="stat-card" style="border:${cfg.dashed ? '1.5px dashed' : '1.5px solid'} ${cfg.border}">
+      <h3>🎯 Body Recomp Insight</h3>
+      <div class="hint" style="font-size:12px;margin-top:-4px;margin-bottom:8px;color:var(--ink-2)">สรุปจากน้ำหนักเฉลี่ย รอบเอว แคลขาดดุล และความสม่ำเสมอในการซ้อม</div>
+
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${cfg.bg};color:${cfg.color};font-weight:600">${cfg.label}</span>
+        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;background:var(--bg-2);color:var(--ink-2)">ความเชื่อมั่น: ${confLabel}</span>
+      </div>
+
+      <div class="stat-row"><span>⚖️ น้ำหนักจริง</span>${fmtSigned(actualChangeKg, 'kg')}</div>
+      <div class="stat-row"><span>💡 แคลคาด</span>${fmtSigned(predictedChangeKg, 'kg')}</div>
+      <div class="stat-row"><span>▶ ส่วนต่าง</span>${fmtSigned(gapKg, 'kg')}</div>
+      ${waistChangeCm != null ? `<div class="stat-row"><span>📐 รอบเอว</span>${fmtSigned(waistChangeCm, 'cm')}</div>` : ''}
+      ${trainingLine}
+
+      <div class="hint mt" style="font-size:12.5px;line-height:1.7;color:var(--ink-2)">
+        💭 ${h(explainCopy[status] || '')}
+      </div>
+      <div class="hint mt" style="font-size:12px;line-height:1.6;color:var(--ink-2)">
+        📝 ${h(whatNextCopy[status] || '')}
+      </div>
+
+      ${recompCaveat}
+
+      <button class="btn secondary block mt2" data-act="nav-bpc" style="min-height:44px;font-size:13px">→ ดูรายละเอียดใน Body Progress Center</button>
     </div>
   `;
 }
