@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.34';
+const VERSION = 'v1.10.35';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2266,6 +2266,310 @@ function pickCompareDefaults(checkIns, mode) {
   }
   // custom: default both to latest; user picks
   return { leftId: latest.id, rightId: latest.id };
+}
+
+// ====================================================================
+// v1.10.35 — T-013d: Recomp Insight helpers (pure · testable · null-safe)
+// ====================================================================
+const INSIGHT_THRESHOLDS = {
+  MIN_DAYS_FOR_INSIGHT: 7,
+  MIN_DAYS_FOR_CONFIRMED: 14,
+  MIN_DAYS_FOR_REVIEW_NEEDED: 21,
+  MEANINGFUL_WEIGHT_DROP_KG: 0.5,
+  MIN_WEEKLY_DROP_KG: 0.15,
+  FLAT_WEIGHT_BAND_KG: 0.3,
+  WAIST_FLAT_BAND_CM: 1.0,
+  KCAL_PER_KG_FAT: 7700,
+  MIN_DEFICIT_FOR_CONFIRMED: 200,
+  RECOMP_GAP_THRESHOLD_KG: 0.5,
+  RECOMP_MIN_TRAINING_COUNT: 4,
+  DEFAULT_INSIGHT_WINDOW_DAYS: 21
+};
+
+// Average weight at one end of the window (uses ±3-day local mean if available, else nearest single point)
+function _localWeightMean(weights, anchorDate) {
+  if (!weights || weights.length === 0) return null;
+  const anchor = keyToDate(anchorDate);
+  const windowMs = 3 * 86400000;
+  const near = weights.filter(w => Math.abs(keyToDate(w.date) - anchor) <= windowMs);
+  if (near.length > 0) {
+    return near.reduce((s, w) => s + w.weight_kg, 0) / near.length;
+  }
+  // Fall back to nearest single point
+  let best = null, bestDiff = Infinity;
+  for (const w of weights) {
+    const d = Math.abs(keyToDate(w.date) - anchor);
+    if (d < bestDiff) { bestDiff = d; best = w; }
+  }
+  return best ? best.weight_kg : null;
+}
+
+function computeWeightTrend(user, endDate, windowDays) {
+  const out = { has_data: false, data_points: 0, latest_kg: null, oldest_kg: null,
+                days_span: 0, change_kg: null, change_per_week_kg: null, direction: 'flat' };
+  if (!user) return out;
+  const weights = (user.weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (weights.length === 0) return out;
+  const end = endDate || todayKey();
+  const start = dateToKey(addDays(keyToDate(end), -(windowDays - 1)));
+  const inWindow = weights.filter(w => w.date >= start && w.date <= end);
+  if (inWindow.length < 2) {
+    // If user only has 1 point in window, still surface it as latest with no change
+    if (inWindow.length === 1) {
+      out.has_data = true;
+      out.data_points = 1;
+      out.latest_kg = inWindow[0].weight_kg;
+      out.oldest_kg = inWindow[0].weight_kg;
+    }
+    return out;
+  }
+  const oldest = inWindow[0], latest = inWindow[inWindow.length - 1];
+  const oldest_mean = _localWeightMean(weights, oldest.date);
+  const latest_mean = _localWeightMean(weights, latest.date);
+  const change = latest_mean - oldest_mean;
+  const days = daysBetween(oldest.date, latest.date);
+  const change_per_week = days > 0 ? change * 7 / days : 0;
+  let direction = 'flat';
+  if (change <= -INSIGHT_THRESHOLDS.FLAT_WEIGHT_BAND_KG) direction = 'down';
+  else if (change >= INSIGHT_THRESHOLDS.FLAT_WEIGHT_BAND_KG) direction = 'up';
+  out.has_data = true;
+  out.data_points = inWindow.length;
+  out.latest_kg = latest_mean;
+  out.oldest_kg = oldest_mean;
+  out.days_span = days;
+  out.change_kg = change;
+  out.change_per_week_kg = change_per_week;
+  out.direction = direction;
+  return out;
+}
+
+function computeWaistTrend(user, endDate, windowDays) {
+  const out = { has_data: false, data_points: 0, latest_cm: null, oldest_cm: null,
+                days_span: 0, change_cm: null, direction: 'flat' };
+  if (!user) return out;
+  const waist = (user.waist || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (waist.length === 0) return out;
+  const end = endDate || todayKey();
+  const start = dateToKey(addDays(keyToDate(end), -(windowDays - 1)));
+  const inWindow = waist.filter(w => w.date >= start && w.date <= end);
+  if (inWindow.length < 1) return out;
+  if (inWindow.length === 1) {
+    out.has_data = true;
+    out.data_points = 1;
+    out.latest_cm = inWindow[0].waist_cm;
+    out.oldest_cm = inWindow[0].waist_cm;
+    return out;
+  }
+  const oldest = inWindow[0], latest = inWindow[inWindow.length - 1];
+  const change = latest.waist_cm - oldest.waist_cm;
+  const days = daysBetween(oldest.date, latest.date);
+  let direction = 'flat';
+  if (change <= -INSIGHT_THRESHOLDS.WAIST_FLAT_BAND_CM) direction = 'down';
+  else if (change >= INSIGHT_THRESHOLDS.WAIST_FLAT_BAND_CM) direction = 'up';
+  out.has_data = true;
+  out.data_points = inWindow.length;
+  out.latest_cm = latest.waist_cm;
+  out.oldest_cm = oldest.waist_cm;
+  out.days_span = days;
+  out.change_cm = change;
+  out.direction = direction;
+  return out;
+}
+
+function computePredictedLossFromDeficit(user, windowDays, endDate) {
+  const out = { has_data: false, avg_deficit_per_day_kcal: null, total_deficit_kcal: null,
+                predicted_loss_kg: null, days_logged: 0, data_quality: 'low' };
+  if (!user) return out;
+  const end = endDate || todayKey();
+  const keys = lastNDaysKeys(windowDays, end);
+  const tdee = calcTDEE(user);
+  const incExercise = activityIncludesExercise(user);
+  let totalDeficit = 0, daysLogged = 0;
+  for (const k of keys) {
+    const { entries, totals } = dayTotals(user.id, k);
+    if (entries.length > 0) {
+      const burn = tdee + (incExercise ? 0 : sumActivitiesBurn(user.id, k));
+      // deficit (positive) means ate less than burned
+      const deficitDay = burn - totals.calories;
+      totalDeficit += deficitDay;
+      daysLogged++;
+    }
+  }
+  if (daysLogged === 0) return out;
+  const avg = totalDeficit / daysLogged;
+  // Scale "what would have been lost" to full window length (treats unlogged days as average)
+  const scaledTotal = avg * windowDays;
+  const predictedLoss = scaledTotal / INSIGHT_THRESHOLDS.KCAL_PER_KG_FAT; // positive = loss
+  let dq = 'low';
+  if (daysLogged >= 14) dq = 'high';
+  else if (daysLogged >= 7) dq = 'medium';
+  out.has_data = true;
+  out.avg_deficit_per_day_kcal = avg;
+  out.total_deficit_kcal = scaledTotal;
+  out.predicted_loss_kg = predictedLoss;
+  out.days_logged = daysLogged;
+  out.data_quality = dq;
+  return out;
+}
+
+function computeCheckinSnapshot(user, windowDays, endDate) {
+  const out = { checkin_count: 0, latest_checkin: null, days_since_last: null,
+                has_photos: false, has_waist_in_checkins: false };
+  if (!user || !user.checkIns || user.checkIns.length === 0) return out;
+  const end = endDate || todayKey();
+  const start = dateToKey(addDays(keyToDate(end), -(windowDays - 1)));
+  const inWindow = user.checkIns.filter(c => c.date >= start && c.date <= end);
+  const sorted = inWindow.slice().sort((a, b) => b.date.localeCompare(a.date));
+  out.checkin_count = inWindow.length;
+  if (sorted.length > 0) {
+    out.latest_checkin = sorted[0];
+    out.days_since_last = daysBetween(sorted[0].date, end);
+    out.has_photos = sorted.some(c => c.photoIds && Object.values(c.photoIds).some(Boolean));
+    out.has_waist_in_checkins = sorted.some(c => c.waist_cm != null);
+  }
+  return out;
+}
+
+function computeTrainingFrequency(user, windowDays, endDate) {
+  const out = { training_count: 0, strength_count: 0, cardio_count: 0 };
+  if (!user) return out;
+  const end = endDate || todayKey();
+  const keys = lastNDaysKeys(windowDays, end);
+  const cardioTypes = ['running','cycling','swimming','walking','sports','fitness'];
+  for (const k of keys) {
+    const acts = (user.activities && user.activities[k]) || [];
+    for (const a of acts) {
+      out.training_count++;
+      if (a.type === 'weights') out.strength_count++;
+      else if (cardioTypes.includes(a.type)) out.cardio_count++;
+    }
+  }
+  return out;
+}
+
+// Decision tree — first match wins. Returns { status, primary_signal, reasons: [...] }
+function classifyBodyProgressStatus(input) {
+  const { weightTrend, waistTrend, predictedLoss, checkinSnap, training, windowDays } = input;
+  const T = INSIGHT_THRESHOLDS;
+  const reasons = [];
+
+  // 1. Not Enough Data
+  if (!weightTrend.has_data || weightTrend.data_points < 2 || windowDays < T.MIN_DAYS_FOR_INSIGHT) {
+    reasons.push('window สั้น หรือ weight data ไม่พอ');
+    return { status: 'not-enough-data', primary_signal: 'insufficient', reasons };
+  }
+  if (checkinSnap.checkin_count === 0 && weightTrend.data_points < 3) {
+    reasons.push('ไม่มี check-in และ weight ยังน้อย');
+    return { status: 'not-enough-data', primary_signal: 'insufficient', reasons };
+  }
+
+  const windowReady = windowDays >= T.MIN_DAYS_FOR_REVIEW_NEEDED;
+  const deficitOK = predictedLoss.has_data && predictedLoss.days_logged >= 7;
+  const meaningfulWeightDrop = weightTrend.change_kg <= -T.MEANINGFUL_WEIGHT_DROP_KG;
+  const meaningfulWeeklyDrop = weightTrend.change_per_week_kg <= -T.MIN_WEEKLY_DROP_KG;
+  const weightFlat = Math.abs(weightTrend.change_kg) < T.FLAT_WEIGHT_BAND_KG;
+  const waistDownOrFlat = !waistTrend.has_data || waistTrend.change_cm <= T.WAIST_FLAT_BAND_CM;
+  const waistTrendingDown = waistTrend.has_data && waistTrend.change_cm < -T.WAIST_FLAT_BAND_CM;
+  const waistFlatBand = waistTrend.has_data && Math.abs(waistTrend.change_cm) < T.WAIST_FLAT_BAND_CM;
+  const waistGoingUp = waistTrend.has_data && waistTrend.change_cm > T.WAIST_FLAT_BAND_CM;
+
+  // 2. Review Needed (long window, deficit logged, but no movement OR conflict)
+  if (windowReady && deficitOK) {
+    const noMovement = weightFlat && (!waistTrend.has_data || waistFlatBand || waistGoingUp);
+    const strongConflict = weightTrend.direction === 'down' && waistGoingUp;
+    if (noMovement) {
+      reasons.push('window 21+ วัน · มีขาดดุล · น้ำหนัก+เอวไม่ขยับ');
+      return { status: 'review-needed', primary_signal: 'no-movement', reasons };
+    }
+    if (strongConflict) {
+      reasons.push('น้ำหนักลง แต่เอวเพิ่มขึ้น');
+      return { status: 'review-needed', primary_signal: 'conflict', reasons };
+    }
+  }
+
+  // 3. Water Noise Likely (short window, weight spike or flat, recent training)
+  if (windowDays < T.MIN_DAYS_FOR_CONFIRMED) {
+    const spikeOrFlat = weightTrend.change_kg > 0 || weightFlat;
+    if (spikeOrFlat && waistDownOrFlat && training.training_count >= 3) {
+      reasons.push('window สั้น · มี training ในช่วงนี้ · เอวไม่เพิ่ม');
+      return { status: 'water-noise-likely', primary_signal: 'water', reasons };
+    }
+  }
+
+  // 4. Fat Loss Confirmed
+  if (windowDays >= T.MIN_DAYS_FOR_CONFIRMED
+      && meaningfulWeightDrop
+      && meaningfulWeeklyDrop
+      && waistDownOrFlat
+      && deficitOK
+      && predictedLoss.avg_deficit_per_day_kcal >= T.MIN_DEFICIT_FOR_CONFIRMED) {
+    reasons.push('window พอ · น้ำหนักลง · เอวลด/ทรง · ขาดดุลคงเส้น');
+    return { status: 'fat-loss-confirmed', primary_signal: 'fat-loss', reasons };
+  }
+
+  // 5. Possible Recomp — requires waist data
+  if (waistTrend.has_data && waistTrendingDown
+      && predictedLoss.has_data
+      && predictedLoss.predicted_loss_kg - Math.max(0, -weightTrend.change_kg) >= T.RECOMP_GAP_THRESHOLD_KG
+      && training.training_count >= T.RECOMP_MIN_TRAINING_COUNT
+      && predictedLoss.avg_deficit_per_day_kcal >= T.MIN_DEFICIT_FOR_CONFIRMED * 0.7) {
+    reasons.push('น้ำหนักลงช้ากว่าที่แคลคาด · เอวยังลด · มี training');
+    return { status: 'possible-recomp', primary_signal: 'recomp-tentative', reasons };
+  }
+
+  // 6. Progress In Motion — fallback when SOME direction exists
+  if (Math.abs(weightTrend.change_kg) >= 0.2
+      || (waistTrend.has_data && Math.abs(waistTrend.change_cm) >= 0.5)) {
+    reasons.push('ทิศทางเริ่มเห็น แต่ window/data ยังไม่พอ');
+    return { status: 'progress-in-motion', primary_signal: 'in-motion', reasons };
+  }
+
+  // Defensive fallback
+  reasons.push('สัญญาณไม่ชัด · window ยังต้องการเวลา');
+  return { status: 'not-enough-data', primary_signal: 'unclear', reasons };
+}
+
+// Confidence with downgrade rules.
+function getInsightConfidence(input, status) {
+  const { weightTrend, waistTrend, predictedLoss, checkinSnap, windowDays } = input;
+  let level;
+  const highOK = windowDays >= 21
+    && checkinSnap.checkin_count >= 2
+    && waistTrend.has_data && waistTrend.data_points >= 2
+    && weightTrend.data_points >= 5
+    && predictedLoss.has_data && predictedLoss.days_logged >= 10;
+  const mediumOK = windowDays >= 14
+    && weightTrend.data_points >= 3
+    && predictedLoss.has_data && predictedLoss.days_logged >= 7
+    && (waistTrend.has_data || checkinSnap.checkin_count >= 1);
+  if (highOK) level = 'high';
+  else if (mediumOK) level = 'medium';
+  else level = 'low';
+  // Downgrades
+  if (status === 'possible-recomp' && level === 'high') level = 'medium';
+  if (!waistTrend.has_data && level !== 'low') level = level === 'high' ? 'medium' : 'low';
+  if (checkinSnap.checkin_count === 1 && level !== 'low') level = level === 'high' ? 'medium' : 'low';
+  if (status === 'not-enough-data') level = 'low';
+  return level;
+}
+
+// Top-level bundle for the renderer.
+function computeBodyProgressInsight(user, endDate, windowDays) {
+  const end = endDate || todayKey();
+  const win = windowDays || INSIGHT_THRESHOLDS.DEFAULT_INSIGHT_WINDOW_DAYS;
+  const weightTrend = computeWeightTrend(user, end, win);
+  const waistTrend = computeWaistTrend(user, end, win);
+  const predictedLoss = computePredictedLossFromDeficit(user, win, end);
+  const checkinSnap = computeCheckinSnapshot(user, win, end);
+  const training = computeTrainingFrequency(user, win, end);
+  const input = { weightTrend, waistTrend, predictedLoss, checkinSnap, training, windowDays: win };
+  const { status, primary_signal, reasons } = classifyBodyProgressStatus(input);
+  const confidence = getInsightConfidence(input, status);
+  return {
+    window_days: win, end_date: end,
+    weightTrend, waistTrend, predictedLoss, checkinSnap, training,
+    status, primary_signal, confidence, reasons
+  };
 }
 
 // v1.10.30 — T-012: waist circumference tracking. Mirrors weight helpers.
@@ -6099,6 +6403,8 @@ function renderBodyProgressCenter() {
           </div>
         </div>
       ` : `
+        ${renderInsightCard(computeBodyProgressInsight(u), !!state.tmp.bpcInsightExpanded)}
+
         <div class="card tight" style="background:var(--bg-2);margin-bottom:8px">
           <div class="row" style="align-items:center;gap:8px">
             <div style="flex:1;font-weight:600;font-size:14px">มี check-in ${checkIns.length} รายการ</div>
@@ -6745,10 +7051,150 @@ function renderBpcCompare() {
       </div>
 
       <button class="btn secondary block mt" data-act="nav-bpc-timeline" style="min-height:46px">📅 ดู Timeline</button>
-      <button class="btn ghost block mt" data-act="nav-bpc" style="min-height:42px">← กลับ BPC</button>
+      <button class="btn ghost block mt" data-act="nav-bpc" style="min-height:42px">🎯 ดู Insight Card · ← กลับ BPC</button>
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('')}
+  `;
+}
+
+// ====================================================================
+// v1.10.35 — T-013d: Recomp Insight Card renderer
+// ====================================================================
+function renderInsightCard(insight, expanded) {
+  if (!insight) return '';
+  const T = INSIGHT_THRESHOLDS;
+  const { status, confidence, weightTrend, waistTrend, predictedLoss, checkinSnap, training, window_days } = insight;
+
+  // Status visual config — neutral colors, no good/bad green/red
+  const statusConfig = {
+    'fat-loss-confirmed':  { label: '✅ ไขมันลดยืนยันได้',  badgeBg: '#e0e7ff', badgeColor: '#3730a3', border: '#818cf8' },
+    'possible-recomp':     { label: '💭 อาจมี Recomp',       badgeBg: '#ede9fe', badgeColor: '#5b21b6', border: '#a78bfa', dashed: true },
+    'water-noise-likely':  { label: '💧 น่าจะเป็นน้ำ',         badgeBg: '#dbeafe', badgeColor: '#1e3a8a', border: '#93c5fd' },
+    'review-needed':       { label: '🔍 ลองทบทวน tracking',   badgeBg: '#fef3c7', badgeColor: '#92400e', border: '#fbbf24' },
+    'progress-in-motion':  { label: '🚶 ทิศทางกำลังมา',       badgeBg: '#f3f4f6', badgeColor: '#374151', border: '#9ca3af' },
+    'not-enough-data':     { label: '📊 ข้อมูลยังไม่พอ',       badgeBg: '#f3f4f6', badgeColor: '#374151', border: '#d1d5db' }
+  };
+  const cfg = statusConfig[status] || statusConfig['not-enough-data'];
+  const confLabel = { high: 'High', medium: 'Medium', low: 'Low' }[confidence] || 'Low';
+
+  // Headline copy per status
+  const headlines = {
+    'fat-loss-confirmed':  'ข้อมูลบ่งชี้ว่าไขมันกำลังลด',
+    'possible-recomp':     'อาจมีสัญญาณ Recomp',
+    'water-noise-likely':  'น้ำหนักแกว่งช่วงสั้น · น่าจะเป็นน้ำ',
+    'review-needed':       'ลองทบทวน tracking สักนิด',
+    'progress-in-motion':  'ทิศทางเริ่มมาแล้ว · ยังต้องรอดูต่อ',
+    'not-enough-data':     'ข้อมูลยังไม่พอให้ประเมิน'
+  };
+  const headline = headlines[status] || headlines['not-enough-data'];
+
+  // "What the app sees" data lines (always shown · short bullets)
+  const lines = [];
+  if (weightTrend.has_data && weightTrend.change_kg != null && weightTrend.data_points >= 2) {
+    const sign = weightTrend.change_kg >= 0 ? '+' : '';
+    const wkly = weightTrend.change_per_week_kg != null
+      ? ` (${weightTrend.change_per_week_kg >= 0 ? '+' : ''}${weightTrend.change_per_week_kg.toFixed(2)}/สัปดาห์)`
+      : '';
+    lines.push(`⚖️ น้ำหนัก ${sign}${weightTrend.change_kg.toFixed(1)} กก. ใน ${weightTrend.days_span} วัน${wkly}`);
+  } else if (weightTrend.has_data && weightTrend.data_points === 1) {
+    lines.push(`⚖️ น้ำหนัก: มี 1 จุดในช่วงนี้ · ยังเทียบไม่ได้`);
+  } else {
+    lines.push(`⚖️ น้ำหนัก: ยังไม่มีข้อมูลในช่วงนี้`);
+  }
+  if (waistTrend.has_data && waistTrend.change_cm != null && waistTrend.data_points >= 2) {
+    const sign = waistTrend.change_cm >= 0 ? '+' : '';
+    lines.push(`📐 รอบเอว ${sign}${waistTrend.change_cm.toFixed(1)} ซม.`);
+  } else if (waistTrend.has_data && waistTrend.data_points === 1) {
+    lines.push(`📐 รอบเอว: มี 1 จุด · ยังเทียบไม่ได้`);
+  } else {
+    lines.push(`📐 รอบเอว: ไม่มีข้อมูล (วัดเพิ่มจะช่วยมาก)`);
+  }
+  if (predictedLoss.has_data) {
+    const sign = predictedLoss.avg_deficit_per_day_kcal >= 0 ? '-' : '+';
+    const absV = Math.abs(Math.round(predictedLoss.avg_deficit_per_day_kcal));
+    lines.push(`⚡ ขาดดุล ~${sign}${absV} kcal/วัน (logged ${predictedLoss.days_logged}/${window_days})`);
+  } else {
+    lines.push(`⚡ ขาดดุล: ยังไม่มีบันทึกในช่วงนี้`);
+  }
+  if (checkinSnap.checkin_count > 0) {
+    lines.push(`📸 Check-in ${checkinSnap.checkin_count} ครั้ง`);
+  }
+  if (training.training_count > 0) {
+    lines.push(`💪 Training: ${training.training_count} ครั้ง (เวท ${training.strength_count} · คาร์ดิโอ ${training.cardio_count})`);
+  }
+
+  // Expandable copy (why differ + what next)
+  const whyDifferCopy = {
+    'fat-loss-confirmed':  'น้ำหนัก + รอบเอว + แคลขาดดุล สอดคล้องไปด้วยกัน',
+    'possible-recomp':     'น้ำหนักลงช้ากว่าที่แคลคาด · รอบเอวยังลด · มี training ในช่วงนี้ · อาจเป็นน้ำในกล้าม / ไกลโคเจน / lean mass retention / TDEE estimate สูงไป',
+    'water-noise-likely':  'น้ำในกล้าม + ไกลโคเจน + โซเดียม + การซ้อมหนัก = น้ำหนักแกว่งได้ 1-2 กก. โดยไม่ใช่ไขมัน',
+    'review-needed':       'ขาดดุลตามบันทึกมี · แต่น้ำหนัก/รอบเอวไม่ขยับ · ขาดดุลจริงอาจไม่เท่าที่บันทึก · TDEE จริงอาจต่ำกว่าประเมิน · การวัดอาจคลาดเคลื่อน',
+    'progress-in-motion':  'ข้อมูลเริ่มเห็นทิศทาง แต่ยังเร็วเกินจะสรุปแน่ ๆ',
+    'not-enough-data':     ''
+  };
+  const whatNextCopy = {
+    'fat-loss-confirmed':  'บันทึกต่อ · ดูแลโปรตีนให้ถึงเป้า · ออกกำลังกายต่อเนื่อง = good baseline',
+    'possible-recomp':     'รอบเอวยังลดอยู่ → สัญญาณดี · บันทึกต่ออีก 2-3 สัปดาห์ · ดูภาพถ่ายเทียบกัน',
+    'water-noise-likely':  'ให้เวลาอีก 1-2 สัปดาห์ · ดูค่าเฉลี่ย 7 วัน ไม่ใช่ค่ารายวัน · ดื่มน้ำพอ',
+    'review-needed':       'ลองบันทึกอาหารแม่นยิ่งขึ้น (ชั่ง/ตวง) · ลด TDEE estimate ลง 100-150 kcal · วัดเอวเวลาเดียวกัน · ดู exercise calories ที่อาจประมาณสูง',
+    'progress-in-motion':  'บันทึกต่อให้ครบ · อีก 1-2 สัปดาห์จะชัดขึ้น',
+    'not-enough-data':     'ต้องการ: weight ≥3 จุด · check-in ≥2 ครั้ง · บันทึกอาหารต่อเนื่อง ≥7 วัน · วัดเอวจะช่วยมาก'
+  };
+  // Mandatory caveat for possible-recomp (locked by spec)
+  const recompCaveat = status === 'possible-recomp'
+    ? `<div class="hint mt" style="font-size:11.5px;line-height:1.6;color:#991b1b;background:#fef2f2;border-left:3px solid #f87171;padding:8px;border-radius:4px">⚠️ ข้อความนี้ไม่ได้แปลว่ากล้ามเพิ่ม · ไม่มีข้อมูล performance หรือ DEXA · ใช้เป็น hypothesis เท่านั้น</div>`
+    : '';
+
+  // Confidence detail rows (shown in expanded section)
+  const confDetail = expanded ? `
+    <div class="card tight mt">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">🎯 ความเชื่อมั่น: ${confLabel}</div>
+      <div class="hint" style="font-size:11.5px;line-height:1.7">
+        ${window_days >= 21 ? '✓' : '—'} Window: ${window_days} วัน (need 21 for High)<br>
+        ${checkinSnap.checkin_count >= 2 ? '✓' : '—'} Check-in: ${checkinSnap.checkin_count} ครั้ง (need 2+ for High)<br>
+        ${waistTrend.has_data ? '✓' : '—'} รอบเอว: ${waistTrend.has_data ? `มีข้อมูล (${waistTrend.data_points} จุด)` : 'ไม่มี'}<br>
+        ${predictedLoss.has_data && predictedLoss.days_logged >= 7 ? '✓' : '—'} บันทึกอาหาร: ${predictedLoss.days_logged}/${window_days} วัน
+      </div>
+    </div>
+  ` : '';
+
+  const expandedBlock = expanded ? `
+    ${whyDifferCopy[status] ? `
+      <div class="card tight mt">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">💭 ทำไมเลขอาจไม่ตรงกัน</div>
+        <div class="hint" style="font-size:12px;line-height:1.7;color:var(--ink-2)">${h(whyDifferCopy[status])}</div>
+      </div>
+    ` : ''}
+    <div class="card tight mt">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">📝 สิ่งที่ควรเช็คต่อ</div>
+      <div class="hint" style="font-size:12px;line-height:1.7;color:var(--ink-2)">${h(whatNextCopy[status])}</div>
+    </div>
+    ${confDetail}
+    <div class="hint mt" style="font-size:11px;line-height:1.6;color:var(--muted);text-align:center">
+      📌 ตัวเลขเป็นการประเมินจากข้อมูลที่บันทึกเท่านั้น · ไม่ใช่ผลตรวจร่างกาย
+    </div>
+  ` : '';
+
+  return `
+    <div class="card" style="border:${cfg.dashed ? '1.5px dashed' : '1.5px solid'} ${cfg.border};margin-bottom:10px">
+      <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+        <div style="font-weight:700;font-size:14.5px">🎯 Body Recomp Insight</div>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${cfg.badgeBg};color:${cfg.badgeColor};font-weight:600">${cfg.label}</span>
+        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;background:var(--bg-2);color:var(--ink-2)">ความเชื่อมั่น: ${confLabel}</span>
+      </div>
+      <div style="font-size:13.5px;font-weight:600;margin-bottom:6px">${h(headline)}</div>
+      <div class="hint" style="font-size:12px;line-height:1.8">
+        ${lines.map(l => `<div>${h(l)}</div>`).join('')}
+      </div>
+      ${recompCaveat}
+      ${expandedBlock}
+      <button class="btn ghost block mt" data-act="toggle-insight-details" style="font-size:12.5px;min-height:38px">
+        ${expanded ? '▲ ย่อ' : '▼ ดูรายละเอียด'}
+      </button>
+    </div>
   `;
 }
 
@@ -8221,6 +8667,13 @@ const actions = {
     const a = btn?.dataset?.angle;
     if (!['front','side','back'].includes(a)) return;
     state.tmp.angle = a;
+    render();
+  },
+
+  // v1.10.35 — T-013d: toggle expanded state of the Body Recomp Insight card on BPC home.
+  // Stateless beyond state.tmp (resets on navigation away from BPC — by design).
+  'toggle-insight-details': () => {
+    state.tmp.bpcInsightExpanded = !state.tmp.bpcInsightExpanded;
     render();
   },
 

@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013c → `done` ✅ (v1.10.34 shipped) · T-013d HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013d → `done` ✅ (v1.10.35 shipped) · **BPC Phase 1 MVP COMPLETE** · T-014/T-015 HOLD per user instruction
 
 ---
 
@@ -364,11 +364,68 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **Object URL lifecycle** is now an established pattern across BPC views: `fetchCheckinPhotoUrls` builds the map on entry, `revokeUrlMap` clears it on view exit / compare mode switch / `delete-checkin` cleanup. T-013d should follow this convention for any new media views.
   - **T-013d HOLD per user instruction** ("Do not start T-013d until I approve the next pickup") — mechanical pickup remains suspended.
 
-### T-013d — Recomp Insight Card + Status Logic *(blocked by T-013c done)*
+### T-013d — Recomp Insight Card + Status Logic
 
-- **Status:** `todo`
-- **Scope:** predicted-vs-actual weight comparison · 5 status labels · conservative copy · no overclaim · uncertainty downgrade when data missing · 21-day review logic
-- **Gate:** no overclaim · no shame language · early-data state works · 21-day review fires correctly
+- **Status:** `done` ✅ (v1.10.35 shipped · **BPC Phase 1 MVP complete**)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-progress-recomp-insight.md`](docs/specs/body-progress-recomp-insight.md)
+- **User-locked scope (this turn):**
+  - 6 status labels: fat-loss-confirmed · possible-recomp · water-noise-likely · review-needed · progress-in-motion · not-enough-data
+  - 3 confidence levels: low/medium/high with hard downgrade rules
+  - Decision tree (first match wins): not-enough-data → review-needed → water-noise-likely → fat-loss-confirmed → possible-recomp → progress-in-motion
+  - Possible-recomp REQUIRES literal copy "ไม่ได้แปลว่ากล้ามเพิ่ม"; never claims muscle gain
+  - Review-needed copy NEVER uses "ล้มเหลว"/"ทำผิด"
+  - Insight card on BPC home above Timeline/Compare buttons; expandable details
+  - Compare view gets small "back to insight" hint only (no evaluation logic on compare page)
+  - No new schema · no workout performance tracking · no DEXA/BIA · no localStorage keys
+- **Forbidden (audited at gate · all verified):**
+  - Ghost overlay · Slider compare · Auto-suggest · Video frame · Timer mode · `getUserMedia` — all 0 (or roadmap-text-only)
+  - Muscle gain confirmed / performance improvement / strength progress — `muscle gain confirmed`=0, `muscle gain`=0, `performance improvement`=0, `strength progress`=0, `getting stronger`=0, `แข็งแรงขึ้น`=0, `กล้ามขึ้น`=0
+  - `กล้ามเพิ่ม`=1 — appears ONLY inside the mandatory negation caveat "ไม่ได้แปลว่ากล้ามเพิ่ม" (verified by grep equality with the full caveat string)
+  - Workout performance schema (lifts/reps/RPE) — none added
+  - Shame/value-judgment language — `อ้วนขึ้น`=0, `แย่ลง`=0, `ล้มเหลว`=0, `ผอมลง`=0, `แย่กว่า`=0, `ดีขึ้น`=0, `ทำผิด`=0
+  - "Fat gain confirmed" — 0 (per spec, prefer Review Needed)
+  - Color coding implying good/bad direction on weight/waist deltas — none added; status badge colors are neutral palette (indigo/amber/blue/gray) chosen for distinguishability not value-judgment
+- **Definition of Done (all met):**
+  - [x] `INSIGHT_THRESHOLDS` constant block (9 references — used throughout helpers)
+  - [x] `computeWeightTrend` helper · null-safe · returns has_data:false gracefully
+  - [x] `computeWaistTrend` helper · null-safe · uses 1.0 cm flat band (accounts for tape variability)
+  - [x] `computePredictedLossFromDeficit` helper · uses 7700 kcal/kg · respects activityIncludesExercise · returns data_quality tier
+  - [x] `computeCheckinSnapshot` helper · returns checkin_count + has_photos + has_waist_in_checkins
+  - [x] `computeTrainingFrequency` helper · returns counts only (frequency proxy, not performance)
+  - [x] `classifyBodyProgressStatus` decision tree (first-match-wins in 6 levels)
+  - [x] `getInsightConfidence` with hard downgrade rules (possible-recomp ≤ medium; missing waist; 1 check-in)
+  - [x] `computeBodyProgressInsight` top-level bundle for renderer
+  - [x] `renderInsightCard` component with collapsed/expanded modes
+  - [x] BPC home renders the insight card when ≥1 check-in (computeBodyProgressInsight called inline; no caching)
+  - [x] `toggle-insight-details` handler · state.tmp.bpcInsightExpanded boolean
+  - [x] Compare view gets small "back to insight" hint (data-act="nav-bpc")
+  - [x] All 6 status keys present in code (fat-loss-confirmed=5, possible-recomp=7, water-noise-likely=5, review-needed=6, progress-in-motion=5, not-enough-data=10 references each)
+  - [x] **Mandatory caveat verified**: `ไม่ได้แปลว่ากล้ามเพิ่ม` appears exactly 1 time, inside the possible-recomp card. Without this caveat, possible-recomp would never render.
+  - [x] Review-Needed copy uses "ลองทบทวน tracking" — never "ล้มเหลว"/"ทำผิด" (greps = 0)
+  - [x] training_count rendered as "Training: N ครั้ง (เวท X · คาร์ดิโอ Y)" — NEVER "you're getting stronger" or "strength progress"
+  - [x] Status badge colors are neutral palette · no green=good/red=bad semantics
+  - [x] 0 check-ins safely returns not-enough-data (helper short-circuits at `checkin_count === 0 && weight_data_points < 3`)
+  - [x] Tone audit clean (all shame/value-judgment grep counts = 0)
+  - [x] VERSION v1.10.34 → v1.10.35 (sw + index, both verified)
+  - [x] PROJECT_STATE updated (Current Version · Active Task · run history · Latest Completed Work)
+  - [x] Data file hashes unchanged (meals.json, branded_products.json, audit-meals.js byte-identical to v1.10.34 baseline)
+- **Audit evidence (scope-lock verified at gate):**
+  - **Forbidden phrases (all 0):** `getUserMedia`, `slider compare`, `sliderCompare`, `ghostOverlay`, `muscle gain confirmed`, `muscle gain`, `performance improvement`, `strength progress`, `getting stronger`, `แข็งแรงขึ้น`, `กล้ามขึ้น`, `fat gain confirmed`, `อ้วนขึ้น`, `แย่ลง`, `ผอมลง`, `แย่กว่า`, `ดีขึ้น`, `ล้มเหลว`, `ทำผิด`
+  - **Intentional non-zero matches (justified):**
+    - `ghost overlay` = 1 — unchanged roadmap text L6096
+    - `กล้ามเพิ่ม` = 1 — IS the mandatory negation caveat (literal `ไม่ได้แปลว่ากล้ามเพิ่ม`), required by spec
+  - **Wiring matches:** all helpers, renderer, handler, status keys present at expected reference counts (see DoD).
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013c ship + user approval to start (after their mobile test of T-013c passed)
+  - `in_progress → review` — implementation complete · 9 helpers + 1 renderer + 1 handler · 6 status labels wired · decision tree in order · mandatory caveat present (1 occurrence) · scope-lock audit clean · tone audit clean · VERSION synced · state files updated · held at review per user instruction (no commit, no push)
+  - `review → done` — user approved with instruction "stage the untracked spec before commit". Spec staged, final gates re-run (all forbidden phrases 0 · `กล้ามเพิ่ม` = 1 verified inside mandatory negation caveat at L7146 · `rpe` substring matches confirmed false positives in pre-existing `perPersonCal`/`perPersonProtein` properties · data hashes unchanged · 5 files staged exactly · VERSION sync v1.10.35), then committed + pushed
+- **Notes:**
+  - Fourth and final BPC Phase 1 sub-task. Same "spec-with-implementation" commit pattern as T-013b/b.1/c.
+  - **BPC Phase 1 MVP is now functionally complete:** T-013a (foundation) → T-013b (capture) → T-013b.1 (capture-source + edit) → T-013c (timeline + viewer + compare) → T-013d (insight + status).
+  - **Hardest design constraint:** tone discipline on possible-recomp. The card MUST render the literal negation "ไม่ได้แปลว่ากล้ามเพิ่ม" before showing any "recomp" wording — this is enforced both in the spec (DoD checkbox) and in code (grep verifies the caveat is present exactly once, in the possible-recomp branch).
+  - **`rpe` false-positive lesson learned:** future scope-lock audits should distinguish case-sensitive vs case-insensitive grep when checking for short acronyms (RPE, BMR, TDEE). Case-insensitive matches inside camelCase property names like `perPersonCal` can produce false positives. Captured in this Notes section for future spec authors.
+  - **T-014 / T-015 HOLD per user instruction** ("Do not start T-014/T-015 until I approve the next pickup") — Phase 2 (ghost overlay · slider · auto-suggest · video frame · timer for Back) and Phase 3 (PIN lock · face crop · pose-match) both blocked from auto-pickup.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
