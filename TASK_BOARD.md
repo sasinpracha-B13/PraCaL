@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013d.2 → `done` ✅ (v1.10.37 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013d.3 → `done` ✅ (v1.10.38 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -530,6 +530,72 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **First net-negative diff in BPC series** (+71/-129 in tracked files). Consolidation removed ~115 lines of compact-summary renderer while adding ~24 lines of call site + CTAs. Demonstrates the operating-model can collapse complexity, not just add.
   - **Pattern reinforced**: "supersede" relationship between T-013d.1 and T-013d.2 — T-013d.1 stays `done` in registry but is annotated as "(superseded by T-013d.2)" in PROJECT_STATE run history. Task IDs remain immutable per Conventions.
   - **T-014/T-015 still HOLD per prior user instruction** — Phase 2 (ghost · slider · auto-suggest · video · timer for Back) and Phase 3 (PIN · face crop · pose-match) blocked from auto-pickup.
+
+### T-013d.3 — BPC Date Range + Insight Window Controls *(extends T-013d / T-013d.2)*
+
+- **Status:** `done` ✅ (v1.10.38 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/bpc-date-range-insight-window.md`](docs/specs/bpc-date-range-insight-window.md)
+- **ID note:** user-supplied task title said "T-013d.2"; that ID is taken (Reports consolidation, shipped v1.10.37). Renumbered to T-013d.3 per Conventions ("Task IDs are immutable").
+- **User-locked scope (this turn):**
+  - `state.bpcRange = { preset, startDate?, endDate? }` at root state · default `{ preset: '30d' }` · defensive read (no migration)
+  - 6 range presets on BPC home: 7d / 14d / 30d / 90d / all / custom
+  - Custom range: two date inputs; validate start ≤ end; defensive fallback on bad input
+  - Every insight card shows analysis window label + data counts (weight points, waist points, check-ins, days logged, training count)
+  - `computeBodyProgressInsight(user, options?)` refactor — accepts `{ startDate, endDate, windowDays }`; back-compat preserved
+  - Timeline filters by selected range; header shows range label
+  - Compare defaults to check-ins in range; custom-mode dropdowns still show all
+  - Reports uses Reports' own range (independent of BPC's); displays same window-label row
+  - Not-Enough-Data copy mentions selected range + suggests longer range / more data
+  - All tone discipline from T-013d preserved (Possible-Recomp caveat still present)
+- **Forbidden (audited at gate):**
+  - Duplicate classifier (`classifyBodyProgressStatus` / `getInsightConfidence` / `computeBodyProgressInsight` def count must stay 1 each)
+  - New schema fields on `u.*`
+  - Ghost overlay · Slider compare · Auto-suggest · Video frame · Timer · `getUserMedia` · Workout performance tracking
+  - Muscle gain confirmed / performance improvement / strength progress
+  - Shame/value-judgment language
+- **Gate criteria:** see spec DoD + 18-step test plan (range presets, custom validation, range-aware not-enough-data copy, timeline/compare filtering, Reports parity, possible-recomp caveat preserved, single-source-of-truth maintained)
+- **Definition of Done (all met):**
+  - [x] `state.bpcRange` defaults to `{ preset: '30d' }` · persists via existing `persist()` · defensive read pattern in all consumers (`state.bpcRange || { preset: '30d' }`) · loadStored restores it
+  - [x] `resolveInsightWindow(rangeSpec, user)` helper with 6 preset branches (7d/14d/30d/90d/all/custom) · defensive fallback to 30d on bad input
+  - [x] `formatInsightWindowLabel(start, end)` helper
+  - [x] `computeBodyProgressInsight(user, ...args)` accepts optional `{ startDate, endDate, windowDays }` AND retains positional-arg back-compat (legacy `(user, endDateString, windowDays)` calls still work)
+  - [x] Insight bundle includes `window_start_date`, `window_end_date`, `window_label`
+  - [x] `renderBpcRangeControls(rangeSpec, win)` component renders 6 chips + conditional custom date inputs
+  - [x] BPC home wires range controls above insight card · passes range to insight via options
+  - [x] `renderInsightCard` shows analysis window label + data-counts row at the top
+  - [x] `renderInsightCard` not-enough-data copy mentions selected range + suggests longer range / more data
+  - [x] `renderBpcTimeline` filters check-ins by selected range · header shows range label + filtered/total counts · empty state when 0 in range
+  - [x] `nav-bpc-compare` defaults to check-ins within range · falls back to "ต้องมี check-in 2 รายการ" with range-aware hint when <2 in range
+  - [x] `compare-set-mode` defaults from in-range pool for start-latest/prev-latest; custom-mode still uses all check-ins (per spec)
+  - [x] Reports insight call passes `{ startDate, endDate }` derived from Reports' own range (rolling or custom)
+  - [x] Reports insight card displays the same window-label row (via shared `renderInsightCard`)
+  - [x] `set-bpc-range-preset` handler · pre-fills 30d range on first 'custom' selection · clears custom dates on non-custom presets · persists
+  - [x] Input listener for `#bpc-range-start` / `#bpc-range-end` · debounced · persists
+  - [x] Single-source-of-truth preserved: each of classifyBodyProgressStatus / getInsightConfidence / computeBodyProgressInsight / renderInsightCard def = 1
+  - [x] Tone audit clean (all forbidden phrases = 0)
+  - [x] BPC's `ไม่ได้แปลว่ากล้ามเพิ่ม` caveat still present at exactly 1 occurrence (in `renderInsightCard`'s possible-recomp branch)
+  - [x] T-013d.1's `ยังไม่ยืนยันว่ากล้ามเพิ่ม` literal still at 0 (consolidated by T-013d.2, not re-introduced)
+  - [x] No new schema fields on `u.*` (verified: `u.workouts` = 0, `u.lifts` = 0)
+  - [x] VERSION v1.10.37 → v1.10.38 (sw + index, both verified)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (all 3 byte-identical to v1.10.37 baseline)
+- **Audit evidence:**
+  - Single source of truth: `classifyBodyProgressStatus` def=1 · `getInsightConfidence` def=1 · `computeBodyProgressInsight` def=1 · `renderInsightCard` def=1
+  - New helpers: `resolveInsightWindow` def=1 · `formatInsightWindowLabel` def=1 · `renderBpcRangeControls` def=1
+  - Caveats: `ไม่ได้แปลว่ากล้ามเพิ่ม` = 1 (preserved) · `ยังไม่ยืนยันว่ากล้ามเพิ่ม` = 0 (still consolidated)
+  - Wiring: `set-bpc-range-preset` = 3 · `state.bpcRange` = 19 (init + persist + load + all read sites + write sites) · `bpc-range-start` = 3 · `bpc-range-end` = 2
+  - Forbidden phrases all 0 except `ghost overlay` = 1 (unchanged roadmap text L6517)
+  - No new schema: `u.workouts` = 0 · `u.lifts` = 0
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013d.2 ship + user request for date-range controls + window labels (user-supplied "T-013d.2" ID renumbered to T-013d.3 per Conventions)
+  - `in_progress → review` — implementation complete · 3 new helpers + 1 component + 1 handler + 1 listener + computeBodyProgressInsight refactor · scope-lock audit clean · single-source-of-truth strengthened · VERSION synced · state files updated · held at review per established gate pattern
+  - `review → done` — user approved with instruction "stage the untracked spec before commit". Spec staged, final gates re-run (all forbidden phrases 0 · single-source-of-truth verified: 4 classifier helpers def=1 each · Reports threads its own range at L6195/L6196 · BPC `วิเคราะห์ช่วง` label rendered · no workout schema · data hashes unchanged · 5 files staged · VERSION sync v1.10.38), then committed + pushed
+- **Notes:**
+  - **First refactor in BPC series.** `computeBodyProgressInsight` signature changed from `(user, endDate, windowDays)` positional to `(user, ...args)` with type-detection. Legacy call signature preserved via runtime type-check on first arg. All 2 current call sites use the new options-object form.
+  - **Pattern reinforced**: when a function gains new optional inputs, prefer rest-args + type-detection over breaking signature changes. Keeps internal call sites flexible while honoring back-compat audit gates.
+  - **ID-immutability rule applied**: user-supplied task title said "T-013d.2"; that ID was already taken by the Reports consolidation. Renumbered to T-013d.3. Documented in spec + state files. This is the second time the rule was invoked (T-013b → T-013b.1 was the first sub-letter use). Convention holds.
+  - **T-014 / T-015 still HOLD per prior user instruction** — Phase 2/3 features remain blocked from auto-pickup.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.37';
+const VERSION = 'v1.10.38';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1038,6 +1038,9 @@ const state = {
   favorites: [],
   logs: {},
   dailyTargets: {},
+  // v1.10.38 — T-013d.3: persisted BPC date range UI preference.
+  // Defensive read pattern elsewhere: const r = state.bpcRange || { preset: '30d' };
+  bpcRange: { preset: '30d' },
   tmp: {},
   editingEntryId: null,
   scanner: null
@@ -1060,7 +1063,9 @@ function persist() {
       customMeals: state.customMeals,
       favorites: state.favorites,
       logs: state.logs,
-      dailyTargets: state.dailyTargets
+      dailyTargets: state.dailyTargets,
+      // v1.10.38 — T-013d.3: persist BPC range UI preference
+      bpcRange: state.bpcRange
     }));
   } catch (e) {
     toast('ไม่สามารถบันทึกข้อมูลได้', true);
@@ -2553,10 +2558,103 @@ function getInsightConfidence(input, status) {
   return level;
 }
 
+// v1.10.38 — T-013d.3: resolve a user-selected BPC range into a concrete window.
+// rangeSpec = { preset: '7d'|'14d'|'30d'|'90d'|'all'|'custom', startDate?, endDate? }
+// Returns { startDate, endDate, windowDays, label }. Defensive on bad input
+// (start>end, missing dates, future end) — falls back to 30-day rolling window.
+function resolveInsightWindow(rangeSpec, user) {
+  const today = todayKey();
+  const fallback = () => {
+    const win = 30;
+    return {
+      startDate: dateToKey(addDays(keyToDate(today), -(win - 1))),
+      endDate: today,
+      windowDays: win,
+      label: '30 วันล่าสุด'
+    };
+  };
+  const spec = rangeSpec || { preset: '30d' };
+  const presetDays = { '7d': 7, '14d': 14, '30d': 30, '90d': 90 };
+  if (spec.preset in presetDays) {
+    const win = presetDays[spec.preset];
+    return {
+      startDate: dateToKey(addDays(keyToDate(today), -(win - 1))),
+      endDate: today,
+      windowDays: win,
+      label: `${win} วันล่าสุด`
+    };
+  }
+  if (spec.preset === 'all') {
+    // Earliest user data point: min(first weight · first waist · first check-in · first activity)
+    const candidates = [];
+    if (user?.weights && user.weights.length) candidates.push(user.weights.slice().sort((a,b)=>a.date.localeCompare(b.date))[0].date);
+    if (user?.waist && user.waist.length) candidates.push(user.waist.slice().sort((a,b)=>a.date.localeCompare(b.date))[0].date);
+    if (user?.checkIns && user.checkIns.length) candidates.push(user.checkIns.slice().sort((a,b)=>a.date.localeCompare(b.date))[0].date);
+    if (user?.activities) {
+      const actKeys = Object.keys(user.activities).filter(k => (user.activities[k] || []).length > 0).sort();
+      if (actKeys.length) candidates.push(actKeys[0]);
+    }
+    if (candidates.length === 0) return fallback();
+    const start = candidates.sort()[0];
+    const win = daysBetween(start, today) + 1;
+    return {
+      startDate: start,
+      endDate: today,
+      windowDays: win,
+      label: `ทั้งหมด (${formatDateTH(start)} – ${formatDateTH(today)})`
+    };
+  }
+  if (spec.preset === 'custom') {
+    if (!spec.startDate || !spec.endDate) return fallback();
+    // Clamp end to today; auto-swap if start > end
+    let s = spec.startDate;
+    let e = spec.endDate > today ? today : spec.endDate;
+    if (s > e) { const t = s; s = e; e = t; }
+    const win = daysBetween(s, e) + 1;
+    if (win < 1) return fallback();
+    return {
+      startDate: s,
+      endDate: e,
+      windowDays: win,
+      label: `${formatDateTH(s)} – ${formatDateTH(e)}`
+    };
+  }
+  return fallback();
+}
+
+// v1.10.38 — T-013d.3: short human label for an insight window.
+function formatInsightWindowLabel(startDate, endDate) {
+  if (!startDate || !endDate) return '';
+  return `${formatDateTH(startDate)} – ${formatDateTH(endDate)}`;
+}
+
 // Top-level bundle for the renderer.
-function computeBodyProgressInsight(user, endDate, windowDays) {
-  const end = endDate || todayKey();
-  const win = windowDays || INSIGHT_THRESHOLDS.DEFAULT_INSIGHT_WINDOW_DAYS;
+// v1.10.38 — T-013d.3: refactored to accept an options object with optional
+// { startDate, endDate, windowDays }. Back-compat: legacy positional calls
+// computeBodyProgressInsight(user, endDate, windowDays) still supported via
+// option-object detection. No-args call still returns the 21-day default.
+function computeBodyProgressInsight(user, ...args) {
+  // Detect legacy positional call: (user, endDateString, windowDaysNumber)
+  let opts;
+  if (args.length > 0 && typeof args[0] === 'string') {
+    opts = { endDate: args[0], windowDays: args[1] };
+  } else {
+    opts = args[0] || {};
+  }
+  // Resolve concrete window
+  let end, win, startKey, label;
+  if (opts.startDate && opts.endDate) {
+    startKey = opts.startDate;
+    end = opts.endDate;
+    win = daysBetween(startKey, end) + 1;
+    if (win < 1) win = 1;
+    label = formatInsightWindowLabel(startKey, end);
+  } else {
+    end = opts.endDate || todayKey();
+    win = opts.windowDays || INSIGHT_THRESHOLDS.DEFAULT_INSIGHT_WINDOW_DAYS;
+    startKey = dateToKey(addDays(keyToDate(end), -(win - 1)));
+    label = `${win} วันล่าสุด`;
+  }
   const weightTrend = computeWeightTrend(user, end, win);
   const waistTrend = computeWaistTrend(user, end, win);
   const predictedLoss = computePredictedLossFromDeficit(user, win, end);
@@ -2567,6 +2665,9 @@ function computeBodyProgressInsight(user, endDate, windowDays) {
   const confidence = getInsightConfidence(input, status);
   return {
     window_days: win, end_date: end,
+    window_start_date: startKey,
+    window_end_date: end,
+    window_label: label,
     weightTrend, waistTrend, predictedLoss, checkinSnap, training,
     status, primary_signal, confidence, reasons
   };
@@ -6088,10 +6189,12 @@ function renderReports() {
 
       ${(() => {
         // v1.10.37 — T-013d.2: Reports surfaces the SAME full-detail insight card as BPC.
+        // v1.10.38 — T-013d.3: Reports' insight uses Reports' own date range (rolling or custom).
         // Single source of truth: renderInsightCard + computeBodyProgressInsight (T-013d).
-        // CTAs below the card are Reports-specific (jump to BPC for Timeline/Compare,
-        // or kick off check-in flow when none exist yet).
-        const insight = computeBodyProgressInsight(u);
+        const insightOpts = (rangeMode === 'custom' && t.customStart && t.customEnd)
+          ? { startDate: rStart, endDate: rEnd }
+          : { startDate: rStart, endDate: rEnd };
+        const insight = computeBodyProgressInsight(u, insightOpts);
         const ctaStartCheckin = insight.checkinSnap.checkin_count === 0
           ? `<button class="btn green block" data-act="nav-checkin" style="margin-top:6px;min-height:44px;font-size:13.5px">📸 เริ่ม Body Check-in</button>`
           : '';
@@ -6346,6 +6449,9 @@ function renderBodyProgressCenter() {
   const hasAnyBodyData = (u.weights || []).length > 0 || (u.waist || []).length > 0;
   const draft = getCheckinDraft(u.id);
   const draftAge = draft ? Math.floor((Date.now() - (draft.startedAt || 0)) / 60000) : 0;
+  // v1.10.38 — T-013d.3: resolve user-selected range for insight + timeline scoping
+  const bpcRange = state.bpcRange || { preset: '30d' };
+  const window = resolveInsightWindow(bpcRange, u);
 
   return `
     <div class="screen">
@@ -6419,11 +6525,13 @@ function renderBodyProgressCenter() {
           </div>
         </div>
       ` : `
-        ${renderInsightCard(computeBodyProgressInsight(u), !!state.tmp.bpcInsightExpanded)}
+        ${renderBpcRangeControls(bpcRange, window)}
+        ${renderInsightCard(computeBodyProgressInsight(u, { startDate: window.startDate, endDate: window.endDate }), !!state.tmp.bpcInsightExpanded)}
 
         <div class="card tight" style="background:var(--bg-2);margin-bottom:8px">
           <div class="row" style="align-items:center;gap:8px">
             <div style="flex:1;font-weight:600;font-size:14px">มี check-in ${checkIns.length} รายการ</div>
+            <div class="muted" style="font-size:11px">${(() => { const inRange = checkIns.filter(c => c.date >= window.startDate && c.date <= window.endDate); return inRange.length === checkIns.length ? '' : `(ในช่วงที่เลือก: ${inRange.length})`; })()}</div>
           </div>
         </div>
         ${!draft ? `
@@ -6434,16 +6542,16 @@ function renderBodyProgressCenter() {
         ${renderBpcCheckinCards(checkIns.slice(0, 2))}
         <div class="row mt" style="gap:8px">
           <button class="btn secondary block" data-act="nav-bpc-timeline" style="flex:1;min-height:50px;font-size:14px">
-            📅 ดู Timeline ทั้งหมด (${checkIns.length})
+            📅 ดู Timeline (${checkIns.filter(c => c.date >= window.startDate && c.date <= window.endDate).length} ในช่วงนี้ · ทั้งหมด ${checkIns.length})
           </button>
         </div>
-        ${checkIns.length >= 2 ? `
+        ${checkIns.filter(c => c.date >= window.startDate && c.date <= window.endDate).length >= 2 ? `
           <button class="btn block mt" data-act="nav-bpc-compare" style="min-height:50px;font-size:14px;background:#818cf8;color:#fff">
-            🆚 เปรียบเทียบ progress
+            🆚 เปรียบเทียบ progress (ในช่วงนี้)
           </button>
         ` : `
           <div class="card tight mt" style="background:var(--bg-2);text-align:center">
-            <div class="muted" style="font-size:12.5px;line-height:1.6">🆚 เปรียบเทียบ progress<br>ต้องมีอย่างน้อย 2 check-in</div>
+            <div class="muted" style="font-size:12.5px;line-height:1.6">🆚 เปรียบเทียบ progress<br>ต้องมีอย่างน้อย 2 check-in${checkIns.length >= 2 ? ' ในช่วงที่เลือก · ลองเลือกช่วงที่กว้างขึ้น' : ''}</div>
           </div>
         `}
       `}
@@ -6451,6 +6559,41 @@ function renderBodyProgressCenter() {
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('')}
+  `;
+}
+
+// v1.10.38 — T-013d.3: BPC date range chips + optional custom date inputs.
+// Updates state.bpcRange via set-bpc-range-preset handler / input listener.
+function renderBpcRangeControls(rangeSpec, win) {
+  const preset = (rangeSpec && rangeSpec.preset) || '30d';
+  const chip = (key, label) => {
+    const active = preset === key;
+    return `<button type="button" class="${active ? 'on' : ''}" data-act="set-bpc-range-preset" data-preset="${key}">${label}</button>`;
+  };
+  const customInputs = preset === 'custom' ? `
+    <div class="card tight" style="margin-bottom:8px;padding:10px 12px">
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="muted" style="font-size:13px">ตั้งแต่</span>
+        <input id="bpc-range-start" type="date" class="input" value="${h(rangeSpec.startDate || '')}" max="${todayKey()}" style="flex:1;min-width:120px;height:36px;font-size:13px">
+        <span class="muted" style="font-size:13px">ถึง</span>
+        <input id="bpc-range-end" type="date" class="input" value="${h(rangeSpec.endDate || '')}" max="${todayKey()}" style="flex:1;min-width:120px;height:36px;font-size:13px">
+      </div>
+      ${(!rangeSpec.startDate || !rangeSpec.endDate) ? `<div class="hint" style="font-size:11.5px;margin-top:6px;color:var(--amber)">เลือกวันที่เริ่มและสิ้นสุด · ระหว่างนี้ใช้ 30 วันล่าสุดเป็นค่าเริ่มต้น</div>` : ''}
+    </div>
+  ` : '';
+  return `
+    <div style="margin-bottom:8px">
+      <div class="hint" style="font-size:11.5px;color:var(--ink-2);margin-bottom:4px">🗓️ ช่วงเวลาที่ดู</div>
+      <div class="seg" style="margin-bottom:0">
+        ${chip('7d', '7 วัน')}
+        ${chip('14d', '14 วัน')}
+        ${chip('30d', '30 วัน')}
+        ${chip('90d', '90 วัน')}
+        ${chip('all', 'ทั้งหมด')}
+        ${chip('custom', '📅 กำหนดเอง')}
+      </div>
+    </div>
+    ${customInputs}
   `;
 }
 
@@ -6791,8 +6934,13 @@ function renderTimelineCard(c, isLatest) {
 function renderBpcTimeline() {
   const u = currentUser();
   if (!u) return '';
-  const checkIns = (u.checkIns || []).slice();
-  if (checkIns.length === 0) {
+  const allCheckIns = (u.checkIns || []).slice();
+  // v1.10.38 — T-013d.3: filter by BPC range
+  const bpcRange = state.bpcRange || { preset: '30d' };
+  const win = resolveInsightWindow(bpcRange, u);
+  const checkIns = allCheckIns.filter(c => c.date >= win.startDate && c.date <= win.endDate);
+
+  if (allCheckIns.length === 0) {
     return `
       <div class="screen">
         <div class="header">
@@ -6808,6 +6956,27 @@ function renderBpcTimeline() {
       </div>
     `;
   }
+
+  // v1.10.38 — T-013d.3: empty state when filter yields no check-ins in range
+  if (checkIns.length === 0) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1 style="flex:1;font-size:18px">📅 Timeline</h1>
+        </div>
+        <div class="hint" style="font-size:12px;margin-bottom:8px;color:var(--ink-2)">🗓️ ช่วง: ${h(win.label)}</div>
+        <div class="card empty">
+          <div class="big">📅</div>
+          <div class="muted" style="margin-top:8px">ไม่มี check-in ในช่วงนี้</div>
+          <div class="hint mt" style="font-size:12px;line-height:1.6">ทั้งหมดที่บันทึก: ${allCheckIns.length} รายการ<br>ลองเลือกช่วงที่กว้างขึ้นใน BPC หรือเริ่ม check-in ใหม่</div>
+          <button class="btn secondary block mt2" data-act="nav-bpc">← กลับ BPC</button>
+        </div>
+        ${bottomNavHtml('')}
+      </div>
+    `;
+  }
+
   const sortedNewestFirst = checkIns.slice().sort((a, b) => b.date.localeCompare(a.date));
   const latestId = sortedNewestFirst[0].id;
   const groups = groupCheckInsByMonth(checkIns);
@@ -6819,14 +6988,15 @@ function renderBpcTimeline() {
     <div class="screen">
       <div class="header">
         <button class="icon-btn" data-act="back">←</button>
-        <h1 style="flex:1;font-size:18px">📅 Timeline · ${checkIns.length} รายการ</h1>
+        <h1 style="flex:1;font-size:18px">📅 Timeline · ${checkIns.length}/${allCheckIns.length}</h1>
       </div>
-      <div class="callout info" style="font-size:12.5px;border-left:3px solid #818cf8;background:#e0e7ff;color:#3730a3;margin-bottom:8px">
+      <div class="callout info" style="font-size:12.5px;border-left:3px solid #818cf8;background:#e0e7ff;color:#3730a3;margin-bottom:6px">
         🔒 รูปเก็บบนเครื่องนี้เท่านั้น
       </div>
+      <div class="hint" style="font-size:11.5px;margin-bottom:8px;color:var(--ink-2)">🗓️ ช่วง: ${h(win.label)} · แสดง ${checkIns.length} จากทั้งหมด ${allCheckIns.length} รายการ</div>
       ${checkIns.length >= 2 ? `
         <button class="btn block" data-act="nav-bpc-compare" style="margin-bottom:8px;min-height:48px;background:#818cf8;color:#fff;font-size:14px">
-          🆚 เปรียบเทียบ progress
+          🆚 เปรียบเทียบ progress (ในช่วงนี้)
         </button>
       ` : ''}
       ${groupsHtml}
@@ -7080,7 +7250,9 @@ function renderBpcCompare() {
 function renderInsightCard(insight, expanded) {
   if (!insight) return '';
   const T = INSIGHT_THRESHOLDS;
-  const { status, confidence, weightTrend, waistTrend, predictedLoss, checkinSnap, training, window_days } = insight;
+  // v1.10.38 — T-013d.3: window fields surfaced for the label + count rows
+  const { status, confidence, weightTrend, waistTrend, predictedLoss, checkinSnap, training,
+          window_days, window_start_date, window_end_date, window_label } = insight;
 
   // Status visual config — neutral colors, no good/bad green/red
   const statusConfig = {
@@ -7192,16 +7364,46 @@ function renderInsightCard(insight, expanded) {
     </div>
   ` : '';
 
+  // v1.10.38 — T-013d.3: analysis window label + data counts row (always visible)
+  const windowLabel = window_label || (window_start_date && window_end_date
+    ? `${formatDateTH(window_start_date)} – ${formatDateTH(window_end_date)}`
+    : `${window_days} วันล่าสุด`);
+  const countsLine = [
+    `น้ำหนัก ${weightTrend.data_points || 0} จุด`,
+    `รอบเอว ${waistTrend.data_points || 0} จุด`,
+    `Check-in ${checkinSnap.checkin_count || 0} ครั้ง`,
+    `อาหาร ${predictedLoss.days_logged || 0} วัน`,
+    `Training ${training.training_count || 0} ครั้ง`
+  ].join(' · ');
+
+  // v1.10.38 — T-013d.3: not-enough-data copy adapts to the selected range.
+  // Mentions current range explicitly + suggests longer range OR adding data.
+  let notEnoughAdvice = '';
+  if (status === 'not-enough-data') {
+    const lacks = [];
+    if ((weightTrend.data_points || 0) < 2) lacks.push('น้ำหนัก');
+    if (!waistTrend.has_data) lacks.push('รอบเอว');
+    if ((checkinSnap.checkin_count || 0) < 2) lacks.push('Check-in');
+    if (!predictedLoss.has_data || predictedLoss.days_logged < 7) lacks.push('บันทึกอาหาร');
+    const lacksTxt = lacks.length ? lacks.join(' · ') : 'ข้อมูลหลายชนิด';
+    notEnoughAdvice = `<div class="hint mt" style="font-size:12px;line-height:1.6;color:var(--ink-2);background:var(--bg-2);padding:8px 10px;border-radius:6px">💡 ช่วง ${h(windowLabel)} นี้ยังไม่พอ — ขาด: <b>${h(lacksTxt)}</b><br>ลองเลือกช่วงที่กว้างขึ้น หรือเพิ่มข้อมูลใน check-in/บันทึกถัดไป</div>`;
+  }
+
   return `
     <div class="card" style="border:${cfg.dashed ? '1.5px dashed' : '1.5px solid'} ${cfg.border};margin-bottom:10px">
       <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
         <div style="font-weight:700;font-size:14.5px">🎯 Body Recomp Insight</div>
+      </div>
+      <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--ink-2);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--bg-2)">
+        🗓️ <b>วิเคราะห์ช่วง:</b> ${h(windowLabel)}${window_days ? ` <span class="muted">(${window_days} วัน)</span>` : ''}<br>
+        📊 ${h(countsLine)}
       </div>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">
         <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:${cfg.badgeBg};color:${cfg.badgeColor};font-weight:600">${cfg.label}</span>
         <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;background:var(--bg-2);color:var(--ink-2)">ความเชื่อมั่น: ${confLabel}</span>
       </div>
       <div style="font-size:13.5px;font-weight:600;margin-bottom:6px">${h(headline)}</div>
+      ${notEnoughAdvice}
       <div class="hint" style="font-size:12px;line-height:1.8">
         ${lines.map(l => `<div>${h(l)}</div>`).join('')}
       </div>
@@ -8643,12 +8845,20 @@ const actions = {
     const u = currentUser();
     if (!u) return;
     const all = u.checkIns || [];
-    if (all.length < 2) { toast('ต้องมี check-in อย่างน้อย 2 รายการ', true); return; }
+    // v1.10.38 — T-013d.3: defaults use check-ins within selected BPC range
+    const bpcRange = state.bpcRange || { preset: '30d' };
+    const win = resolveInsightWindow(bpcRange, u);
+    const inRange = all.filter(c => c.date >= win.startDate && c.date <= win.endDate);
+    if (inRange.length < 2) {
+      if (all.length < 2) { toast('ต้องมี check-in อย่างน้อย 2 รายการ', true); return; }
+      toast(`มี check-in ในช่วงที่เลือก ${inRange.length} รายการ · ลองเลือกช่วงที่กว้างขึ้น`, true);
+      return;
+    }
     const mode = 'start-latest';
-    const defaults = pickCompareDefaults(all, mode);
+    const defaults = pickCompareDefaults(inRange, mode);
     if (!defaults) { toast('เปรียบเทียบไม่ได้', true); return; }
-    const leftCi = all.find(c => c.id === defaults.leftId);
-    const rightCi = all.find(c => c.id === defaults.rightId);
+    const leftCi = inRange.find(c => c.id === defaults.leftId);
+    const rightCi = inRange.find(c => c.id === defaults.rightId);
     const comparePhotoUrls = {};
     Object.assign(comparePhotoUrls, await fetchCheckinPhotoUrls(leftCi));
     Object.assign(comparePhotoUrls, await fetchCheckinPhotoUrls(rightCi));
@@ -8662,13 +8872,21 @@ const actions = {
   },
 
   // v1.10.34 — T-013c: switch compare mode · re-fetch URLs for new defaults.
+  // v1.10.38 — T-013d.3: defaults for start-latest/prev-latest come from in-range
+  // check-ins; custom-mode dropdowns still show ALL check-ins (per spec).
   'compare-set-mode': async (e, btn) => {
     const mode = btn?.dataset?.mode;
     if (!['start-latest','prev-latest','custom'].includes(mode)) return;
     const u = currentUser();
     if (!u) return;
     const all = u.checkIns || [];
-    const defaults = pickCompareDefaults(all, mode);
+    const bpcRange = state.bpcRange || { preset: '30d' };
+    const win = resolveInsightWindow(bpcRange, u);
+    const inRange = all.filter(c => c.date >= win.startDate && c.date <= win.endDate);
+    // For start-latest / prev-latest, pick defaults from inRange (≥2 required).
+    // For custom, leave current left/right unchanged so user picks freely from full list.
+    const poolForDefaults = mode === 'custom' ? all : (inRange.length >= 2 ? inRange : all);
+    const defaults = pickCompareDefaults(poolForDefaults, mode);
     if (!defaults) return;
     revokeUrlMap(state.tmp.comparePhotoUrls);
     state.tmp.compareMode = mode;
@@ -8694,6 +8912,29 @@ const actions = {
   // Stateless beyond state.tmp (resets on navigation away from BPC — by design).
   'toggle-insight-details': () => {
     state.tmp.bpcInsightExpanded = !state.tmp.bpcInsightExpanded;
+    render();
+  },
+
+  // v1.10.38 — T-013d.3: switch the BPC date-range preset (7d / 14d / 30d / 90d / all / custom).
+  // Persists via state.bpcRange + persist(); survives reloads and view-navigation.
+  'set-bpc-range-preset': (e, btn) => {
+    const preset = btn?.dataset?.preset;
+    if (!['7d','14d','30d','90d','all','custom'].includes(preset)) return;
+    if (!state.bpcRange) state.bpcRange = { preset: '30d' };
+    state.bpcRange.preset = preset;
+    if (preset !== 'custom') {
+      // Clear stale custom dates so re-selecting 'custom' later starts fresh
+      delete state.bpcRange.startDate;
+      delete state.bpcRange.endDate;
+    } else {
+      // First-time 'custom' click: pre-fill with last 30 days as starting point
+      if (!state.bpcRange.startDate || !state.bpcRange.endDate) {
+        const end = todayKey();
+        state.bpcRange.startDate = dateToKey(addDays(keyToDate(end), -29));
+        state.bpcRange.endDate = end;
+      }
+    }
+    persist();
     render();
   },
 
@@ -9992,6 +10233,16 @@ document.addEventListener('input', (e) => {
     clearTimeout(render._t);
     render._t = setTimeout(render, 200);
   }
+  // v1.10.38 — T-013d.3: BPC custom-range date inputs (live update, debounced, persisted)
+  if (e.target.id === 'bpc-range-start' || e.target.id === 'bpc-range-end') {
+    if (!state.bpcRange) state.bpcRange = { preset: '30d' };
+    state.bpcRange.preset = 'custom';
+    const field = e.target.id === 'bpc-range-start' ? 'startDate' : 'endDate';
+    state.bpcRange[field] = e.target.value;
+    persist();
+    clearTimeout(render._t);
+    render._t = setTimeout(render, 200);
+  }
   // v1.10.18 — meal-plan setup live inputs (drives breakdown + projection cards)
   const planFilterMap = {
     'plan-cal':           'calPerDay',
@@ -10132,6 +10383,8 @@ function initFromStorage() {
     state.favorites = s.favorites || [];
     state.logs = s.logs || {};
     state.dailyTargets = s.dailyTargets || {};
+    // v1.10.38 — T-013d.3: restore BPC range UI preference (defensive default)
+    state.bpcRange = s.bpcRange || { preset: '30d' };
   }
   migrateData();
 }
