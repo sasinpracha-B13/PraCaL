@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013b → `done` ✅ (v1.10.32 shipped) · T-013c HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013b.1 → `done` ✅ (v1.10.33 shipped) · T-013c HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -240,7 +240,63 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
     - `checkin-retake` not a separate handler — same `<input type="file">` handles both first-capture and re-capture; button label flips between "ถ่าย/อัปโหลด" and "ถ่ายใหม่" based on photo state
   - **T-013c HOLD per user instruction** ("Do not start T-013c until I approve the next pickup") — mechanical pickup suspended.
 
-### T-013c — Timeline + Viewer + Side-by-side Compare *(blocked by T-013b done)*
+### T-013b.1 — Capture Source + Edit Check-in *(hotfix on T-013b)*
+
+- **Status:** `done` ✅ (v1.10.33 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-progress-checkin-hotfix.md`](docs/specs/body-progress-checkin-hotfix.md)
+- **User-locked scope (this turn):**
+  - Two source buttons per angle: "📷 ถ่ายใหม่" (capture="environment") + "🖼️ เลือกรูปจากเครื่อง" (NO capture attr)
+  - Edit existing check-in: date · weight · waist · note · replace any photo · add/replace/remove Back
+  - Preserve original blobs until edit saves; clean up replaced blobs only after successful update
+  - Cancel edit MUST NOT mutate saved check-in
+  - BPC entry: latest check-in card with Edit + Delete (optional last-3 cards, plain — no comparison/timeline)
+  - Draft conflict guard: single per-user draft key; `mode` + `editingId` + `originalPhotoIds` in JSON
+  - Front + Side required in both modes; weight/waist nullable; date required
+- **Forbidden (audited at gate · all verified 0 new occurrences):**
+  - Timeline / viewer / gallery (T-013c) · Comparison views (T-013c)
+  - Insight Card / Status labels (T-013d)
+  - Ghost overlay · Slider compare · Video frame (Phase 2) · `getUserMedia` (Phase 2)
+  - Muscle gain / performance improvement claims
+- **Definition of Done (all met):**
+  - [x] Two-button capture source for all 3 angles (Front · Side · Back) — 2 `<input>` per angle (camera + gallery)
+  - [x] Gallery picker `<input>` does NOT have `capture` attribute (grep-verified: 0 matches for `gallery.*capture` or `capture.*gallery` in same line)
+  - [x] Camera picker `<input>` retains `capture="environment"` (4 matches — 2 from `renderCheckinStepPhoto` template + 2 literal in `renderCheckinStepBack`)
+  - [x] `updateCheckIn(user, id, patch)` helper added · preserves id/addedAt · adds updatedAt
+  - [x] Edit mode wired: draft has `mode`/`editingId`/`originalPhotoIds`; all handlers respect mode
+  - [x] BPC latest check-in card(s) — up to 3 most-recent shown via `renderBpcCheckinCards`; each has Edit + Delete
+  - [x] `edit-checkin` handler loads saved check-in into edit draft at step:'review'
+  - [x] `delete-checkin` handler wraps `deleteCheckIn` helper + persist + render
+  - [x] `checkin-remove-back` handler (edit mode only) clears Back · transient uploads deleted · originals preserved
+  - [x] `handleCheckinPhotoUpload` mode-aware: in edit mode, does NOT delete blob if it's in `originalPhotoIds`
+  - [x] `discardCheckinDraftWithCleanup` mode-aware: edit mode preserves original blobs; deletes only transient
+  - [x] `checkin-save` branches: new → addCheckIn (T-013b unchanged); edit → updateCheckIn + cleanup replaced blobs
+  - [x] Snapshot fields (`weight_7day_avg`, `deficit_7day_avg`, etc.) preserved on edit (not recomputed)
+  - [x] Date editable via `<input type="date">` in Review step
+  - [x] Review step copy adapts for edit mode (snapshot-preserved note + edit-mode banner)
+  - [x] Resume banner copy adapts: new vs edit, with editingId data attr for direct resume
+  - [x] Privacy copy on every step (`🔒 รูปเก็บบนเครื่องนี้เท่านั้น`)
+  - [x] Neutral tone throughout · no shame language (Thai grep clean: อ้วนกว่า=0, แย่กว่า=0, ล้มเหลว=0, กล้ามขึ้น=0)
+  - [x] VERSION v1.10.32 → v1.10.33 (sw + index, both verified)
+  - [x] PROJECT_STATE updated (Current Version · Active Task · Latest Completed Work · operating-model run history)
+  - [x] Data file hashes unchanged (`meals.json`, `branded_products.json`, `audit-meals.js` all match v1.10.32 baseline)
+- **Audit evidence (scope-lock verified at gate):**
+  - `getUserMedia` = 0 · `slider compare` = 0 · `sliderCompare` = 0 · `ghostOverlay` = 0
+  - `muscle gain` = 0 · `performance improvement` = 0 · `กล้ามขึ้น` = 0
+  - `ghost overlay` = 1 match — line 6016 inside BPC roadmap card text ("Phase 2 (T-014) — ghost overlay · slider · auto-suggest · timer/video for Back") — informational, not implementation
+  - Wiring: `updateCheckIn`×3, `edit-checkin`×4, `delete-checkin`×2, `checkin-remove-back`×2, `renderBpcCheckinCards`×2, `mode === 'edit'`×8, `originalPhotoIds`×13
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013b ship; user reported 2 usability issues
+  - `in_progress → review` — implementation complete · scope-lock audit clean · VERSION synced · state files updated · held at review per user instruction (no commit, no push)
+  - `review → done` — user approved with instruction "stage the untracked spec before commit". Spec staged, final gates re-run (forbidden features all 0 · data hashes unchanged · 5 files staged exactly · timeline/gallery/compare matches all classified as pre-existing JS date sorting OR roadmap text OR T-013b.1's own gallery-picker identifiers — no T-013c implementation leak), then committed + pushed
+- **Notes:**
+  - Second task to formally include `docs/specs/*.md` in the same commit as its implementation (T-013b first set this pattern; T-013b.1 continues it).
+  - Two real architectural decisions documented in spec for future hotfix work:
+    - **Mode-aware blob lifecycle** — in edit mode, `handleCheckinPhotoUpload` and `discardCheckinDraftWithCleanup` must check `originalPhotoIds` before deleting (else cancel could orphan saved photos)
+    - **Snapshot preservation on edit** — `weight_7day_avg`, `deficit_7day_avg`, etc. are NOT recomputed when an edit lands. They reflect the original 7-day window from save time. Documented in Review step with a small hint so users understand.
+  - **T-013c HOLD per user instruction** ("Do not start T-013c until I approve the next pickup") — mechanical pickup remains suspended.
+
+### T-013c — Timeline + Viewer + Side-by-side Compare *(blocked by T-013b.1 done)*
 
 - **Status:** `todo`
 - **Scope:** grouped timeline · latest pinned · thumbnail stat chips · fullscreen viewer · delete/export · 3 compare modes (Start vs Latest · Previous Week vs Latest · Lowest Waist vs Latest)

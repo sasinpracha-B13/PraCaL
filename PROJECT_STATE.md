@@ -7,13 +7,13 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.32` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.32';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.32';` (drives cache name `pracal-${VERSION}` and cache invalidation)
-- **`meals.json` data version:** `1.10.13` (unchanged in T-013b; code-only task).
-- **User schema:** `u.waist = []` (T-012), `u.checkIns = []` (T-013a). Auto-migrated.
-- **IndexedDB:** database `PraCaLBodyProgress` (v1) with `photos` store. Lazy-init on first photo save (T-013a + T-013b).
-- **localStorage draft key:** `pracal_checkin_draft_<userId>` — holds in-progress check-in across reloads (T-013b).
+- **App version:** `v1.10.33` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.33';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.33';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **`meals.json` data version:** `1.10.13` (unchanged in T-013b.1; code-only task).
+- **User schema:** `u.waist = []` (T-012), `u.checkIns = []` (T-013a). Check-in entries gain optional `updatedAt: number` field in T-013b.1 (no migration needed; absent = original entry). Auto-migrated.
+- **IndexedDB:** database `PraCaLBodyProgress` (v1) with `photos` store. Lazy-init on first photo save (T-013a + T-013b + T-013b.1).
+- **localStorage draft key:** `pracal_checkin_draft_<userId>` — holds in-progress check-in across reloads (T-013b). T-013b.1 extended the draft JSON with `mode: 'new' | 'edit'`, `editingId`, `originalPhotoIds` (same key; mode in payload).
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
 - **Working tree:** clean as of this writing (no uncommitted changes).
@@ -86,7 +86,7 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.32 ship. T-013b done — Weekly Check-in Capture Flow live (4-step state machine + 5 helpers + BPC integration + draft persistence + IndexedDB photo storage). **T-013c HOLD** per explicit user instruction "Do not start T-013c until I approve the next pickup" — mechanical pickup suspended; wait for next approval before starting timeline/viewer/compare.
+**No active task** as of v1.10.33 ship. T-013b.1 done — capture-source split (camera vs gallery) and edit-check-in mode both live. **T-013c HOLD** per explicit user instruction "Do not start T-013c until I approve the next pickup" — mechanical pickup remains suspended; wait for next approval before starting timeline/viewer/compare.
 
 14 tasks through operating model. **T-013c/d** still queued in split sequence (blocked) · **T-014/T-015** = BPC Phase 2/3 · **T-016 Insight Engine** = 5th deferral.
 
@@ -105,6 +105,7 @@ Operating-model run history:
 - T-012 (Waist circumference tracking) — `done` ✅ — `u.waist[]` schema + body-comp signal + WHO-based health flag
 - T-013a (Body Progress Foundation) — `done` ✅ — IndexedDB + schema + empty-state view
 - T-013b (Weekly Check-in Capture Flow) — `done` ✅ — 4-step capture flow · draft persistence · file picker primary · Timer Mode placeholder (Phase 2)
+- T-013b.1 (Capture Source + Edit Check-in hotfix) — `done` ✅ — camera/gallery split · edit-mode flow · BPC latest-card entry
 - T-013c/d (BPC Phase 1 continuation) — `todo` placeholders, blocked chain (T-013c HOLD per user instruction)
 - T-014 (BPC Phase 2 features) — `todo` placeholder
 - T-015 (BPC Phase 3 features) — `todo` placeholder
@@ -122,6 +123,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.33 | T-013b.1 — Capture Source + Edit Check-in (hotfix on T-013b). **Two source buttons per angle:** "📷 ถ่ายใหม่" (`capture="environment"`) + "🖼️ เลือกรูปจากเครื่อง" (NO capture attr — mobile gallery now works for all 3 angles). **Edit mode:** existing saved check-ins editable via Edit button on BPC latest-check-in cards. Date/weight/waist/note/photos all editable; cancel preserves saved data; replaced blobs cleaned up only after successful save. **BPC entry:** up to 3 most-recent check-in cards (plain, no comparison — full timeline still T-013c) with Edit + Delete buttons. New helper `updateCheckIn(user, id, patch)`. `handleCheckinPhotoUpload` + `discardCheckinDraftWithCleanup` made mode-aware (preserve original blobs in edit mode). Draft extended with `mode` + `editingId` + `originalPhotoIds` (single per-user draft key; mode in payload). Resume banner copy adapts. **Snapshot fields preserved on edit** (`weight_7day_avg` etc. NOT recomputed — history stays accurate). New handlers: `edit-checkin`, `delete-checkin`, `checkin-remove-back` (edit mode only). Change-listener regex updated. Code-only · data file hashes unchanged. No T-013c/d features leaked (audit verified: timeline=0 new, ghost overlay=1 roadmap-only, slider=0, video=0, getUserMedia=0, muscle gain=0). |
 | v1.10.32 | T-013b — Weekly Check-in Capture Flow (2 of 4 split sub-tasks for BPC Phase 1 MVP). Multi-step state machine (Front → Side → Back → Review) routed via `state.view = 'checkin'`. 5 new helpers: `compute7DayCheckinStats` (auto-fill bundle: weight/waist/deficit/protein-pass-rate/training counts) + 4 draft I/O helpers (`getCheckinDraft`/`setCheckinDraft`/`clearCheckinDraft`/`discardCheckinDraftWithCleanup`). Draft persists in localStorage (`pracal_checkin_draft_<userId>`), photo blobs saved to IndexedDB immediately on capture (resume-friendly across reloads, orphan cleanup on discard). File picker with `capture="environment"` is the **only** capture path for all 3 angles. Back step shows "📷 Timer/Video — มาใน Phase 2" placeholder (Timer Mode deferred per user instruction — kept contained & safe). BPC view: "เริ่ม Check-in" button enabled + resume banner on draft. Review step: auto-filled stats + editable weight/waist (nullable) + textarea note. Validation: Front + Side required. Neutral tone + privacy copy on every step. **Code-only** — no data file changes. No T-013c/d features leaked (audit verified: timeline=0, insight=0, ghost=0, slider=0, video=0, getUserMedia=0, muscle-gain claims=0). |
 | v1.10.31 | T-013a — Body Progress Foundation (1 of 4 split sub-tasks for BPC Phase 1 MVP). IndexedDB `photos` store + 6 helpers (open/save/get/delete/list/getUrl) · `compressPhoto` (Canvas-based, 1080px JPEG q=0.75) · `u.checkIns[]` schema + migration · 4 check-in CRUD helpers · BPC view with empty state + privacy banner + roadmap. Dashboard chip + body-log link → BPC. No capture flow yet (T-013b). |
 | v1.10.30 | T-012 — Waist circumference tracking. New `u.waist[]` schema · 8 waist helpers · weight-log view extended ("📊 บันทึกร่างกาย") with 2nd input + waist chart + waist history. Reports gets new "📐 รอบเอว" stat-card with line chart + waist:height ratio + health flag (WHO-based thresholds). `movingAverage`/`linearRegression`/`svgLineChart` generalized with optional `valueKey` (backward-compat). Code-only. |

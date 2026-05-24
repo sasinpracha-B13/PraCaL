@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.32';
+const VERSION = 'v1.10.33';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2042,6 +2042,21 @@ function addCheckIn(user, checkIn) {
 function getCheckIn(user, id) {
   return (user?.checkIns || []).find(c => c.id === id) || null;
 }
+// v1.10.33 — T-013b.1: in-place update of an existing check-in.
+// Preserves id + addedAt + snapshot fields (weight_7day_avg, deficit_7day_avg,
+// protein_pass_rate, training_count, strength_count, cardio_count) unless caller
+// passes them explicitly. Adds updatedAt timestamp.
+function updateCheckIn(user, id, patch) {
+  const ci = (user?.checkIns || []).find(c => c.id === id);
+  if (!ci) return null;
+  // Block immutable fields from being overwritten by patch
+  const { id: _id, addedAt: _addedAt, ...editable } = patch || {};
+  Object.assign(ci, editable);
+  ci.updatedAt = Date.now();
+  // Re-sort in case date changed
+  (user.checkIns || []).sort((a, b) => a.date.localeCompare(b.date));
+  return ci;
+}
 // Deletes metadata AND associated photo blobs in IndexedDB
 async function deleteCheckIn(user, id) {
   const checkIn = getCheckIn(user, id);
@@ -2153,11 +2168,19 @@ function clearCheckinDraft(userId) {
   catch (e) {}
 }
 // Delete photo blobs referenced by draft + remove draft. Used on "discard" actions.
+// v1.10.33 — T-013b.1: mode-aware. In edit mode, only delete blobs that were
+// uploaded during this edit session (i.e., current photoIds NOT in originalPhotoIds).
+// Original blobs survive because the saved check-in still references them.
 async function discardCheckinDraftWithCleanup(user) {
   if (!user) return;
   const draft = getCheckinDraft(user.id);
   if (draft && draft.photoIds) {
+    const isEdit = draft.mode === 'edit';
+    const originals = isEdit && draft.originalPhotoIds
+      ? new Set(Object.values(draft.originalPhotoIds).filter(Boolean))
+      : new Set();
     for (const pid of Object.values(draft.photoIds).filter(Boolean)) {
+      if (isEdit && originals.has(pid)) continue; // preserve original
       try { await deletePhotoBlob(pid); }
       catch (e) { console.warn('Failed to delete draft photo blob', pid, e); }
     }
@@ -5936,21 +5959,26 @@ function renderBodyProgressCenter() {
         <span style="font-size:11.5px">Photos are stored locally on this device by default.</span>
       </div>
 
-      ${draft ? `
+      ${draft ? (() => {
+        const isEdit = draft.mode === 'edit';
+        const resumeAct = isEdit ? 'edit-checkin' : 'nav-checkin';
+        const resumeAttrs = isEdit && draft.editingId ? ` data-checkin-id="${h(draft.editingId)}"` : '';
+        return `
         <div class="card" style="background:#fef3c7;border:1.5px solid #f59e0b;margin-bottom:10px">
           <div class="row" style="gap:10px;align-items:center">
-            <div style="font-size:28px">📝</div>
+            <div style="font-size:28px">${isEdit ? '✏️' : '📝'}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;color:#92400e">มี check-in ค้างอยู่</div>
+              <div style="font-weight:600;color:#92400e">${isEdit ? `กำลังแก้ไข check-in วันที่ ${h(draft.date || '')}` : 'มี check-in ค้างอยู่'}</div>
               <div class="muted" style="font-size:12.5px">เริ่มเมื่อ ${draftAge < 60 ? draftAge + ' นาทีก่อน' : Math.floor(draftAge / 60) + ' ชั่วโมงก่อน'} · ${Object.values(draft.photoIds || {}).filter(Boolean).length} รูป</div>
             </div>
           </div>
           <div class="row mt" style="gap:8px">
-            <button class="btn block green" data-act="nav-checkin" style="flex:2">▶️ ทำต่อ</button>
+            <button class="btn block green" data-act="${resumeAct}"${resumeAttrs} style="flex:2">▶️ ทำต่อ</button>
             <button class="btn ghost" data-act="checkin-discard" style="flex:1;color:var(--red)">🗑️ ทิ้ง</button>
           </div>
         </div>
-      ` : ''}
+        `;
+      })() : ''}
 
       ${checkIns.length === 0 ? `
         <div class="card empty">
@@ -5990,20 +6018,62 @@ function renderBodyProgressCenter() {
           </div>
         </div>
       ` : `
-        <div class="card empty">
-          <div class="muted">มี check-in ${checkIns.length} รายการ · timeline viewer มาใน T-013c</div>
-          ${!draft ? `
-            <button class="btn green block lg mt2" data-act="nav-checkin">
-              📸 เริ่ม Check-in สัปดาห์นี้
-            </button>
-          ` : ''}
+        <div class="card tight" style="background:var(--bg-2);margin-bottom:8px">
+          <div class="row" style="align-items:center;gap:8px">
+            <div style="flex:1;font-weight:600;font-size:14px">มี check-in ${checkIns.length} รายการ</div>
+            <div class="muted" style="font-size:11.5px">timeline viewer มาใน T-013c</div>
+          </div>
         </div>
+        ${!draft ? `
+          <button class="btn green block lg" data-act="nav-checkin" style="margin-bottom:10px;min-height:54px">
+            📸 เริ่ม Check-in ใหม่
+          </button>
+        ` : ''}
+        ${renderBpcCheckinCards(checkIns)}
       `}
 
       <div style="height:30px"></div>
     </div>
     ${bottomNavHtml('')}
   `;
+}
+
+// v1.10.33 — T-013b.1: render up to 3 most recent check-in cards (plain, no
+// comparison/timeline — full timeline is T-013c). Each card has Edit + Delete.
+function renderBpcCheckinCards(checkIns) {
+  if (!checkIns || checkIns.length === 0) return '';
+  // checkIns is already sorted newest-first by caller; take up to 3
+  const recent = checkIns.slice(0, 3);
+  return recent.map((c, i) => {
+    const isLatest = i === 0;
+    const w = c.weight_kg != null ? Number(c.weight_kg).toFixed(1) + ' กก.' : '—';
+    const waist = c.waist_cm != null ? Number(c.waist_cm).toFixed(1) + ' ซม.' : '—';
+    const photoIds = c.photoIds || {};
+    const chips = ['front', 'side', 'back'].map(angle => {
+      const has = !!photoIds[angle];
+      const label = angle === 'front' ? 'Front' : angle === 'side' ? 'Side' : 'Back';
+      return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:${has ? '#dcfce7' : 'var(--bg-2)'};color:${has ? '#166534' : 'var(--muted)'};margin-right:4px">${has ? '✓' : '—'} ${label}</span>`;
+    }).join('');
+    const note = c.note ? `<div class="hint mt" style="font-size:11.5px;color:var(--ink-2);line-height:1.5">📝 ${h(c.note)}</div>` : '';
+    return `
+      <div class="card" style="${isLatest ? 'border:1.5px solid #818cf8' : ''}">
+        <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+          <div style="font-weight:600;font-size:${isLatest ? '15px' : '13.5px'}">${isLatest ? '⭐ ล่าสุด · ' : ''}${h(c.date)}</div>
+          ${c.updatedAt ? `<span class="muted" style="font-size:10.5px">· แก้ไขแล้ว</span>` : ''}
+        </div>
+        <div class="row" style="gap:14px;font-size:13px">
+          <div><span class="muted">⚖️</span> <b>${w}</b></div>
+          <div><span class="muted">📐</span> <b>${waist}</b></div>
+        </div>
+        <div class="mt" style="font-size:11.5px">${chips}</div>
+        ${note}
+        <div class="row mt" style="gap:8px">
+          <button class="btn secondary block" data-act="edit-checkin" data-checkin-id="${h(c.id)}" style="flex:1;font-size:13px;min-height:42px">✏️ แก้ไข</button>
+          <button class="btn ghost" data-act="delete-checkin" data-checkin-id="${h(c.id)}" style="color:var(--red);font-size:13px;min-height:42px;padding:0 12px">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // v1.10.32 — T-013b: multi-step weekly check-in capture flow.
@@ -6052,13 +6122,16 @@ function renderCheckinFlow() {
 }
 
 // Photo step sub-renderer (used for Front + Side)
+// v1.10.33 — T-013b.1: two source buttons (camera vs gallery) per angle.
+// Gallery input MUST NOT have capture attribute (presence of capture forces camera on mobile).
 function renderCheckinStepPhoto(checkin, angle, label, required, stepNum) {
   const pid = checkin.photoIds[angle];
   const url = pid && state.tmp.checkinPhotoUrls ? state.tmp.checkinPhotoUrls[pid] : null;
   const tip = angle === 'front'
     ? 'ยืนหันหน้าตรง · แขนข้างลำตัว · พื้นเดิม'
     : 'ยืนหันข้าง · แขนข้างลำตัว · ระยะกล้องเดิม';
-  const inputId = `checkin-photo-${angle}`;
+  const camId = `checkin-photo-${angle}-camera`;
+  const galId = `checkin-photo-${angle}-gallery`;
   return `
     <div class="card">
       <div style="font-weight:600;font-size:15px">Step ${stepNum}/4 · ${label} <span style="font-weight:400;color:var(--muted);font-size:13px">(${required})</span></div>
@@ -6076,10 +6149,17 @@ function renderCheckinStepPhoto(checkin, angle, label, required, stepNum) {
       </div>
     `}
 
-    <label for="${inputId}" class="btn green block lg" style="text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:15px">
-      📷 ${url ? 'ถ่ายใหม่' : 'ถ่าย/อัปโหลดรูป'}
-    </label>
-    <input id="${inputId}" type="file" accept="image/*" capture="environment" style="display:none">
+    <div class="row" style="gap:8px">
+      <label for="${camId}" class="btn green block lg" style="flex:1;text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:14.5px">
+        📷 ${url ? 'ถ่ายใหม่' : 'ถ่ายใหม่'}
+      </label>
+      <label for="${galId}" class="btn secondary block lg" style="flex:1;text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:14.5px">
+        🖼️ ${url ? 'เลือกรูปใหม่' : 'เลือกรูปจากเครื่อง'}
+      </label>
+    </div>
+    <input id="${camId}" type="file" accept="image/*" capture="environment" style="display:none">
+    <input id="${galId}" type="file" accept="image/*" style="display:none">
+    <div class="hint center" style="font-size:11px;color:var(--muted);margin-top:4px">📷 ถ่ายใหม่ = เปิดกล้อง · 🖼️ เลือกรูปจากเครื่อง = เลือกจากแกลเลอรี/รูปที่มีอยู่</div>
 
     <div class="row mt2" style="gap:8px">
       ${angle === 'front'
@@ -6093,16 +6173,18 @@ function renderCheckinStepPhoto(checkin, angle, label, required, stepNum) {
 }
 
 // Back step sub-renderer (optional · skip allowed)
+// v1.10.33 — T-013b.1: two source buttons (camera + gallery); edit mode adds "ลบรูปหลัง".
 function renderCheckinStepBack(checkin) {
   const pid = checkin.photoIds.back;
   const url = pid && state.tmp.checkinPhotoUrls ? state.tmp.checkinPhotoUrls[pid] : null;
+  const isEdit = checkin.mode === 'edit';
   return `
     <div class="card">
       <div style="font-weight:600;font-size:15px">Step 3/4 · รูปหลัง (Back) <span style="font-weight:400;color:var(--muted);font-size:13px">(ไม่บังคับ)</span></div>
       <div class="hint mt" style="font-size:12.5px;line-height:1.5">💡 ถ่ายรูปหลังคนเดียวยากกว่ารูปหน้า/ข้าง — ข้ามได้ ไม่เป็นไร</div>
       <div class="callout info" style="font-size:11.5px;margin-top:8px;background:var(--bg-2);color:var(--ink-2);border-left:3px solid #818cf8;line-height:1.5">
         📷 <b>Timer Mode / Video Frame Mode — มาใน Phase 2</b><br>
-        ตอนนี้: ใช้ file picker (กล้องโทรศัพท์) หรืออัปโหลดรูปที่มีอยู่
+        ตอนนี้: ใช้กล้องโทรศัพท์ หรือเลือกรูปจากเครื่อง
       </div>
     </div>
 
@@ -6117,14 +6199,27 @@ function renderCheckinStepBack(checkin) {
       </div>
     `}
 
-    <label for="checkin-photo-back" class="btn green block lg" style="text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:15px">
-      📷 ${url ? 'ถ่ายใหม่' : 'ถ่าย/อัปโหลดรูปหลัง'}
-    </label>
-    <input id="checkin-photo-back" type="file" accept="image/*" capture="environment" style="display:none">
+    <div class="row" style="gap:8px">
+      <label for="checkin-photo-back-camera" class="btn green block lg" style="flex:1;text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:14.5px">
+        📷 ${url ? 'ถ่ายใหม่' : 'ถ่ายใหม่'}
+      </label>
+      <label for="checkin-photo-back-gallery" class="btn secondary block lg" style="flex:1;text-align:center;cursor:pointer;min-height:54px;display:flex;align-items:center;justify-content:center;font-size:14.5px">
+        🖼️ ${url ? 'เลือกรูปใหม่' : 'เลือกรูปจากเครื่อง'}
+      </label>
+    </div>
+    <input id="checkin-photo-back-camera" type="file" accept="image/*" capture="environment" style="display:none">
+    <input id="checkin-photo-back-gallery" type="file" accept="image/*" style="display:none">
+    <div class="hint center" style="font-size:11px;color:var(--muted);margin-top:4px">📷 ถ่ายใหม่ = เปิดกล้อง · 🖼️ เลือกรูปจากเครื่อง = เลือกจากแกลเลอรี</div>
 
-    <button class="btn ghost block mt" data-act="checkin-skip-back" style="font-size:14px;min-height:48px">
-      ⏭️ ข้าม Back photo (ไม่บังคับ)
-    </button>
+    ${isEdit && pid ? `
+      <button class="btn ghost block mt" data-act="checkin-remove-back" style="font-size:13px;min-height:44px;color:var(--red)">
+        🗑️ ลบรูปหลัง (เก็บเป็นไม่มีรูปหลัง)
+      </button>
+    ` : `
+      <button class="btn ghost block mt" data-act="checkin-skip-back" style="font-size:14px;min-height:48px">
+        ⏭️ ข้าม Back photo (ไม่บังคับ)
+      </button>
+    `}
 
     <div class="row mt2" style="gap:8px">
       <button class="btn secondary" data-act="checkin-prev" style="flex:1">← ย้อนกลับ</button>
@@ -6136,11 +6231,28 @@ function renderCheckinStepBack(checkin) {
 }
 
 // Review/save sub-renderer
+// v1.10.33 — T-013b.1: adds editable date field + edit-mode copy.
+// In edit mode, the derived 7-day stats are SNAPSHOT (carried from save time) — not recomputed.
 function renderCheckinReview(u, checkin) {
-  const derived = compute7DayCheckinStats(u, checkin.date);
+  const isEdit = checkin.mode === 'edit';
+  // For new mode, compute live; for edit mode, use the snapshot fields already on the draft
+  // (those were copied from the saved check-in when edit started — see edit-checkin handler).
+  const derived = isEdit
+    ? {
+        weight_kg: checkin.weight_kg,
+        waist_cm: checkin.waist_cm,
+        weight_7day_avg: checkin.weight_7day_avg,
+        deficit_7day_avg: checkin.deficit_7day_avg,
+        protein_pass_rate: checkin.protein_pass_rate,
+        training_count: checkin.training_count,
+        strength_count: checkin.strength_count,
+        cardio_count: checkin.cardio_count
+      }
+    : compute7DayCheckinStats(u, checkin.date);
   const weight = checkin.weight_kg != null ? checkin.weight_kg : (derived && derived.weight_kg);
   const waist = checkin.waist_cm != null ? checkin.waist_cm : (derived && derived.waist_cm);
   const note = checkin.note || '';
+  const dateVal = checkin.date || todayKey();
 
   const photoBlock = (angle, label) => {
     const pid = checkin.photoIds[angle];
@@ -6157,7 +6269,8 @@ function renderCheckinReview(u, checkin) {
 
   return `
     <div class="card">
-      <div style="font-weight:600;font-size:15px">Step 4/4 · ตรวจสอบและบันทึก</div>
+      <div style="font-weight:600;font-size:15px">Step 4/4 · ${isEdit ? 'แก้ไข check-in' : 'ตรวจสอบและบันทึก'}</div>
+      ${isEdit ? `<div class="hint mt" style="font-size:12px;line-height:1.5;color:var(--ink-2)">✏️ กำลังแก้ไขรายการที่บันทึกแล้ว · ยกเลิกได้โดยไม่กระทบข้อมูลเดิม</div>` : ''}
     </div>
 
     <div class="card">
@@ -6173,23 +6286,27 @@ function renderCheckinReview(u, checkin) {
     <div class="card">
       <div style="font-weight:600;font-size:14px;margin-bottom:8px">📊 ข้อมูลร่างกาย (แก้ไขได้)</div>
       <div class="field">
+        <label for="checkin-date">📅 วันที่</label>
+        <input id="checkin-date" type="date" class="input" value="${h(dateVal)}" max="${todayKey()}">
+      </div>
+      <div class="field">
         <label for="checkin-weight">⚖️ น้ำหนัก (กก.)</label>
-        <input id="checkin-weight" type="number" inputmode="decimal" class="input" placeholder="${derived && derived.weight_kg ? derived.weight_kg.toFixed(1) : '70'}" value="${weight != null ? weight : ''}" min="20" max="300" step="0.1">
+        <input id="checkin-weight" type="number" inputmode="decimal" class="input" placeholder="${derived && derived.weight_kg ? Number(derived.weight_kg).toFixed(1) : '70'}" value="${weight != null ? weight : ''}" min="20" max="300" step="0.1">
       </div>
       <div class="field">
         <label for="checkin-waist">📐 รอบเอว (ซม. — ถ้ามี)</label>
-        <input id="checkin-waist" type="number" inputmode="decimal" class="input" placeholder="${derived && derived.waist_cm ? derived.waist_cm.toFixed(1) : '80'}" value="${waist != null ? waist : ''}" min="40" max="200" step="0.1">
+        <input id="checkin-waist" type="number" inputmode="decimal" class="input" placeholder="${derived && derived.waist_cm ? Number(derived.waist_cm).toFixed(1) : '80'}" value="${waist != null ? waist : ''}" min="40" max="200" step="0.1">
       </div>
       <div class="hint" style="font-size:11.5px">ปล่อยว่างได้ถ้าไม่มีข้อมูล</div>
     </div>
 
     <div class="card">
-      <div style="font-weight:600;font-size:14px;margin-bottom:8px">📈 7-day stats (auto · snapshot)</div>
-      ${statRowOrMissing('น้ำหนักเฉลี่ย', derived?.weight_7day_avg != null ? derived.weight_7day_avg.toFixed(1) : null, ' kg')}
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">📈 7-day stats ${isEdit ? '(snapshot จากตอนบันทึกครั้งแรก · ไม่คำนวณใหม่)' : '(auto · snapshot)'}</div>
+      ${statRowOrMissing('น้ำหนักเฉลี่ย', derived?.weight_7day_avg != null ? Number(derived.weight_7day_avg).toFixed(1) : null, ' kg')}
       ${statRowOrMissing('ส่วนต่างเฉลี่ย', derived?.deficit_7day_avg != null ? (derived.deficit_7day_avg >= 0 ? '+' : '') + Math.round(derived.deficit_7day_avg) : null, ' kcal/วัน')}
       ${statRowOrMissing('โปรตีนผ่านเป้า', derived?.protein_pass_rate != null ? derived.protein_pass_rate + '/7' : null, ' วัน')}
       <div class="stat-row"><span>Training (7 วัน)</span><b>${derived?.training_count || 0} ครั้ง <span class="muted" style="font-weight:400;font-size:12px">(💪 ${derived?.strength_count || 0} · 🏃 ${derived?.cardio_count || 0})</span></b></div>
-      <div class="hint mt" style="font-size:11.5px;line-height:1.6">📌 ตัวเลขเหล่านี้เป็น snapshot ของสัปดาห์นี้ — จะใช้เปรียบเทียบกับ check-in ต่อๆ ไป</div>
+      <div class="hint mt" style="font-size:11.5px;line-height:1.6">📌 ${isEdit ? 'ค่าเหล่านี้เป็น snapshot ของวันที่บันทึก check-in ครั้งแรก · การแก้ไขจะไม่คำนวณใหม่' : 'ตัวเลขเหล่านี้เป็น snapshot ของสัปดาห์นี้ — จะใช้เปรียบเทียบกับ check-in ต่อๆ ไป'}</div>
     </div>
 
     <div class="card">
@@ -6205,12 +6322,12 @@ function renderCheckinReview(u, checkin) {
     </div>
 
     <button class="btn green block lg mt2" data-act="checkin-save" style="font-size:16px;min-height:54px">
-      💾 บันทึก check-in
+      💾 ${isEdit ? 'บันทึกการแก้ไข' : 'บันทึก check-in'}
     </button>
 
     <div class="row mt" style="gap:8px">
       <button class="btn secondary" data-act="checkin-prev" style="flex:1">← ย้อนกลับ</button>
-      <button class="btn ghost" data-act="checkin-cancel" style="flex:1;color:var(--red)">✗ ยกเลิก</button>
+      <button class="btn ghost" data-act="checkin-cancel" style="flex:1;color:var(--red)">✗ ${isEdit ? 'ยกเลิกการแก้ไข' : 'ยกเลิก'}</button>
     </div>
   `;
 }
@@ -6260,10 +6377,18 @@ async function handleCheckinPhotoUpload(angle, file) {
     console.warn('Save photo blob failed', e);
     return toast('บันทึกรูปไม่สำเร็จ · ลองอีกครั้ง', true);
   }
-  // Replace old photo for this angle (if any) — delete blob + revoke URL
+  // Replace old photo for this angle (if any) — delete blob + revoke URL.
+  // v1.10.33 — T-013b.1: in edit mode, do NOT delete the blob if it's an
+  // original (saved check-in still references it; deletion happens at save time
+  // only if the photo actually gets replaced).
   const oldId = checkin.photoIds[angle];
   if (oldId && oldId !== newId) {
-    try { await deletePhotoBlob(oldId); } catch (e) {}
+    const isEdit = checkin.mode === 'edit';
+    const isOriginal = isEdit && checkin.originalPhotoIds &&
+      Object.values(checkin.originalPhotoIds).includes(oldId);
+    if (!isOriginal) {
+      try { await deletePhotoBlob(oldId); } catch (e) {}
+    }
     const oldUrl = state.tmp.checkinPhotoUrls?.[oldId];
     if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch (e) {} delete state.tmp.checkinPhotoUrls[oldId]; }
   }
@@ -7468,12 +7593,14 @@ const actions = {
 
   // v1.10.32 — T-013b: weekly check-in capture flow
   // Start new check-in OR resume existing draft. Pre-fetches photo URLs.
+  // v1.10.33 — T-013b.1: drafts now have a `mode` field ('new' | 'edit').
   'nav-checkin': async () => {
     const u = currentUser();
     if (!u) return;
     let checkin = getCheckinDraft(u.id);
     if (!checkin) {
       checkin = {
+        mode: 'new',
         step: 'front',
         date: todayKey(),
         photoIds: {},
@@ -7483,6 +7610,9 @@ const actions = {
         startedAt: Date.now()
       };
       setCheckinDraft(u.id, checkin);
+    } else if (!checkin.mode) {
+      // Back-compat: drafts created by T-013b have no mode field — treat as 'new'
+      checkin.mode = 'new';
     }
     // Pre-fetch photo URLs (await before nav so review/photos render immediately)
     const checkinPhotoUrls = {};
@@ -7496,6 +7626,94 @@ const actions = {
       }
     }
     go('checkin', { checkin, checkinPhotoUrls });
+  },
+
+  // v1.10.33 — T-013b.1: load saved check-in into an edit draft and route to flow.
+  'edit-checkin': async (e, btn) => {
+    const u = currentUser();
+    if (!u) return;
+    const id = btn?.dataset?.checkinId;
+    if (!id) return;
+    const existing = getCheckIn(u, id);
+    if (!existing) { toast('ไม่พบ check-in', true); return; }
+    // If a draft already exists, force resolution first (avoid silent overwrite)
+    const pending = getCheckinDraft(u.id);
+    if (pending) {
+      const isEditSame = pending.mode === 'edit' && pending.editingId === id;
+      if (!isEditSame) {
+        toast('มี draft ค้างอยู่ · ทำต่อหรือทิ้งก่อน', true);
+        return;
+      }
+    }
+    // Build edit draft — snapshot originalPhotoIds so cancel/replace handles cleanup correctly
+    const originalPhotoIds = { ...(existing.photoIds || {}) };
+    const draft = pending && pending.mode === 'edit' ? pending : {
+      mode: 'edit',
+      editingId: id,
+      step: 'review',
+      date: existing.date,
+      photoIds: { ...originalPhotoIds },
+      originalPhotoIds,
+      weight_kg: existing.weight_kg != null ? existing.weight_kg : null,
+      waist_cm: existing.waist_cm != null ? existing.waist_cm : null,
+      note: existing.note || '',
+      // Preserve snapshot fields so review can display them without recomputing
+      weight_7day_avg: existing.weight_7day_avg != null ? existing.weight_7day_avg : null,
+      deficit_7day_avg: existing.deficit_7day_avg != null ? existing.deficit_7day_avg : null,
+      protein_pass_rate: existing.protein_pass_rate != null ? existing.protein_pass_rate : null,
+      training_count: existing.training_count || 0,
+      strength_count: existing.strength_count || 0,
+      cardio_count: existing.cardio_count || 0,
+      startedAt: Date.now()
+    };
+    setCheckinDraft(u.id, draft);
+    // Pre-fetch URLs for current photoIds (originals at start)
+    const checkinPhotoUrls = {};
+    for (const angle of ['front', 'side', 'back']) {
+      const pid = draft.photoIds[angle];
+      if (pid) {
+        try {
+          const url = await getPhotoUrl(pid);
+          if (url) checkinPhotoUrls[pid] = url;
+        } catch (err) {}
+      }
+    }
+    go('checkin', { checkin: draft, checkinPhotoUrls });
+  },
+
+  // v1.10.33 — T-013b.1: delete saved check-in (metadata + photo blobs).
+  'delete-checkin': async (e, btn) => {
+    const u = currentUser();
+    if (!u) return;
+    const id = btn?.dataset?.checkinId;
+    if (!id) return;
+    if (!confirm('ลบ check-in นี้?\nรูปทั้งหมดของรายการนี้จะถูกลบจากเครื่อง')) return;
+    await deleteCheckIn(u, id);
+    persist();
+    toast('ลบ check-in แล้ว');
+    render();
+  },
+
+  // v1.10.33 — T-013b.1: edit-mode only · clear Back photo from current edit draft.
+  // The original blob (if any) is preserved until save; cancel still rolls back.
+  'checkin-remove-back': async () => {
+    const u = currentUser();
+    const checkin = state.tmp.checkin;
+    if (!u || !checkin) return;
+    if (checkin.mode !== 'edit') return;
+    if (!checkin.photoIds.back) return;
+    const removedId = checkin.photoIds.back;
+    const isOriginal = checkin.originalPhotoIds && Object.values(checkin.originalPhotoIds).includes(removedId);
+    if (!isOriginal) {
+      // It was a transient upload during this edit session — safe to delete blob now
+      try { await deletePhotoBlob(removedId); } catch (err) {}
+    }
+    // Revoke cached URL
+    const oldUrl = state.tmp.checkinPhotoUrls?.[removedId];
+    if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch (err) {} delete state.tmp.checkinPhotoUrls[removedId]; }
+    checkin.photoIds.back = null;
+    setCheckinDraft(u.id, checkin);
+    render();
   },
 
   // Discard draft from BPC banner — confirm + cleanup photos + clear draft
@@ -7559,22 +7777,69 @@ const actions = {
     render();
   },
 
-  // Final save · validates Front + Side · snapshots derived stats · adds to u.checkIns
-  'checkin-save': () => {
+  // Final save · validates Front + Side · adds (new) or updates (edit) the check-in.
+  // v1.10.33 — T-013b.1: branches on mode. New mode = addCheckIn (T-013b behavior).
+  // Edit mode = updateCheckIn + cleanup blobs that were replaced (in originalPhotoIds
+  // but not in final photoIds). Snapshot fields (weight_7day_avg etc.) are preserved
+  // in edit mode — not recomputed (history should reflect the original window).
+  'checkin-save': async () => {
     const u = currentUser();
     const checkin = state.tmp.checkin;
     if (!u || !checkin) return;
     if (!checkin.photoIds.front || !checkin.photoIds.side) {
       return toast('ต้องมีรูป Front + Side ก่อนบันทึก', true);
     }
-    // Recompute derived stats at save time (snapshot)
+    const isEdit = checkin.mode === 'edit' && checkin.editingId;
+    const finalPhotoIds = {
+      front: checkin.photoIds.front,
+      side: checkin.photoIds.side
+    };
+    if (checkin.photoIds.back) finalPhotoIds.back = checkin.photoIds.back;
+
+    if (isEdit) {
+      // Build patch — only editable fields. Snapshot fields stay as on the existing entry
+      // unless the draft has explicit values (they were copied from existing at edit start).
+      const patch = {
+        date: checkin.date,
+        photoIds: finalPhotoIds,
+        weight_kg: checkin.weight_kg,
+        waist_cm: checkin.waist_cm,
+        note: checkin.note || '',
+        // Snapshot fields — preserve (carried from existing into draft at edit start)
+        weight_7day_avg: checkin.weight_7day_avg != null ? checkin.weight_7day_avg : null,
+        deficit_7day_avg: checkin.deficit_7day_avg != null ? checkin.deficit_7day_avg : null,
+        protein_pass_rate: checkin.protein_pass_rate != null ? checkin.protein_pass_rate : null,
+        training_count: checkin.training_count || 0,
+        strength_count: checkin.strength_count || 0,
+        cardio_count: checkin.cardio_count || 0
+      };
+      const updated = updateCheckIn(u, checkin.editingId, patch);
+      if (!updated) {
+        toast('ไม่พบ check-in · บันทึกไม่สำเร็จ', true);
+        return;
+      }
+      // Clean up replaced blobs — in originalPhotoIds but not in finalPhotoIds
+      const originals = Object.values(checkin.originalPhotoIds || {}).filter(Boolean);
+      const finals = new Set(Object.values(finalPhotoIds).filter(Boolean));
+      for (const oldPid of originals) {
+        if (!finals.has(oldPid)) {
+          try { await deletePhotoBlob(oldPid); } catch (err) {}
+        }
+      }
+      clearCheckinDraft(u.id);
+      state.tmp.checkin = null;
+      revokeCheckinPhotoUrls();
+      persist();
+      toast('✅ บันทึกการแก้ไขแล้ว');
+      go('bpc');
+      return;
+    }
+
+    // New-mode path (T-013b behavior preserved · snapshot derived at save time)
     const derived = compute7DayCheckinStats(u, checkin.date);
     const final = {
       date: checkin.date,
-      photoIds: {
-        front: checkin.photoIds.front,
-        side: checkin.photoIds.side
-      },
+      photoIds: finalPhotoIds,
       weight_kg: checkin.weight_kg != null ? checkin.weight_kg : (derived ? derived.weight_kg : null),
       weight_7day_avg: derived ? derived.weight_7day_avg : null,
       waist_cm: checkin.waist_cm != null ? checkin.waist_cm : (derived ? derived.waist_cm : null),
@@ -7585,7 +7850,6 @@ const actions = {
       cardio_count: derived ? derived.cardio_count : 0,
       note: checkin.note || ''
     };
-    if (checkin.photoIds.back) final.photoIds.back = checkin.photoIds.back;
     addCheckIn(u, final);
     clearCheckinDraft(u.id);
     state.tmp.checkin = null;
@@ -8620,9 +8884,11 @@ document.addEventListener('click', (e) => {
 });
 
 // v1.10.32 — T-013b: file input change listener for check-in photo capture
+// v1.10.33 — T-013b.1: two source variants (camera + gallery) per angle.
+// Pattern: checkin-photo-{front|side|back}-{camera|gallery}
 document.addEventListener('change', (e) => {
   if (!e.target || !e.target.id) return;
-  const m = String(e.target.id).match(/^checkin-photo-(front|side|back)$/);
+  const m = String(e.target.id).match(/^checkin-photo-(front|side|back)(?:-(camera|gallery))?$/);
   if (m) {
     const angle = m[1];
     const file = e.target.files && e.target.files[0];
@@ -8672,13 +8938,18 @@ document.addEventListener('input', (e) => {
     render._t = setTimeout(render, 180);
   }
   // v1.10.32 — T-013b: check-in review inputs (live save to draft, no re-render)
-  if (e.target.id === 'checkin-weight' || e.target.id === 'checkin-waist' || e.target.id === 'checkin-note') {
+  // v1.10.33 — T-013b.1: also handles checkin-date (editable in edit mode mainly)
+  if (e.target.id === 'checkin-weight' || e.target.id === 'checkin-waist' ||
+      e.target.id === 'checkin-note' || e.target.id === 'checkin-date') {
     const checkin = state.tmp.checkin;
     if (!checkin) return;
     const u = currentUser();
     if (!u) return;
     if (e.target.id === 'checkin-note') {
       checkin.note = e.target.value;
+    } else if (e.target.id === 'checkin-date') {
+      // Validate non-empty; ignore empty strings (browser date picker can produce them)
+      if (e.target.value) checkin.date = e.target.value;
     } else {
       const raw = e.target.value;
       const v = raw === '' ? null : parseFloat(raw);
