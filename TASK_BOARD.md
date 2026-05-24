@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013b.1 → `done` ✅ (v1.10.33 shipped) · T-013c HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013c → `done` ✅ (v1.10.34 shipped) · T-013d HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -296,11 +296,73 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
     - **Snapshot preservation on edit** — `weight_7day_avg`, `deficit_7day_avg`, etc. are NOT recomputed when an edit lands. They reflect the original 7-day window from save time. Documented in Review step with a small hint so users understand.
   - **T-013c HOLD per user instruction** ("Do not start T-013c until I approve the next pickup") — mechanical pickup remains suspended.
 
-### T-013c — Timeline + Viewer + Side-by-side Compare *(blocked by T-013b.1 done)*
+### T-013c — Timeline + Viewer + Side-by-side Compare
 
-- **Status:** `todo`
-- **Scope:** grouped timeline · latest pinned · thumbnail stat chips · fullscreen viewer · delete/export · 3 compare modes (Start vs Latest · Previous Week vs Latest · Lowest Waist vs Latest)
-- **Gate:** compare handles missing angles · delete syncs metadata + IndexedDB · no crash on partial data
+- **Status:** `done` ✅ (v1.10.34 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-progress-timeline-viewer-compare.md`](docs/specs/body-progress-timeline-viewer-compare.md)
+- **User-locked scope (this turn):**
+  - Timeline view: all check-ins grouped by month, sorted newest first; each card has View/Edit/Delete
+  - Viewer: single check-in, Front/Side/Back angle tabs, metadata card, neutral missing-states
+  - Side-by-side compare ONLY (no ghost/slider) · 3 modes: Start vs Latest · Previous vs Latest · Custom (เลือกเอง)
+  - Diff card shows **numbers only** with explicit signs · NO color coding · NO good/bad value-judgment language
+  - BPC home: Timeline button + Compare button (only when ≥2 check-ins; disabled card when 1)
+  - Privacy banner on all 3 new views · no photos auto-loaded outside BPC
+  - Object URLs revoked on view exit · missing blobs surface as "รูปนี้ไม่พบในเครื่องนี้"
+- **Forbidden (audited at gate · all verified):**
+  - T-013d insight card / status labels / interpretation logic — only roadmap text references remain
+  - Ghost overlay · Slider compare · Auto-suggest · Video frame · Timer mode · `getUserMedia` — all 0 (or roadmap-text-only)
+  - Muscle gain / performance improvement claims — 0
+  - Shame/value-judgment language (ดีขึ้น/แย่ลง/ล้มเหลว/อ้วนขึ้น/ผอมลง/กล้ามขึ้น) — all 0
+  - "สำเร็จ" only appears in pre-existing error-toast strings ("ไม่สำเร็จ"), not in progress-evaluation copy
+  - Color coding on weight/waist deltas — none added
+- **Definition of Done (all met):**
+  - [x] `groupCheckInsByMonth(checkIns)` helper
+  - [x] `formatThaiMonthYear(dateKey)` helper (Buddhist year, matches `formatDateTH` convention)
+  - [x] `fetchCheckinPhotoUrls(checkIn)` async helper — silent failure for missing blobs
+  - [x] `revokeUrlMap(urlMap)` helper — idempotent, clears map
+  - [x] `computeCheckinDelta(left, right)` helper — null-safe deltas
+  - [x] `pickCompareDefaults(checkIns, mode)` helper
+  - [x] `renderBpcTimeline` view rendered at `state.view = 'bpc-timeline'`
+  - [x] `renderBpcViewer` view rendered at `state.view = 'bpc-viewer'`
+  - [x] `renderBpcCompare` view rendered at `state.view = 'bpc-compare'`
+  - [x] BPC home: Timeline button when ≥1 check-ins; Compare button when ≥2; disabled-card when 1
+  - [x] `renderBpcCheckinCards` updated: each card now has View + Edit + Delete (3 buttons)
+  - [x] 6 new handlers wired into actions map (`nav-bpc-timeline`, `nav-bpc-viewer`, `nav-bpc-compare`, `viewer-set-angle`, `compare-set-mode`, `compare-set-angle`)
+  - [x] Custom-mode select listener (`change` event for `compare-left-select` / `compare-right-select`)
+  - [x] Route dispatch in `render()` for 3 new views
+  - [x] URL revocation called on compare mode switch and on `delete-checkin` exit paths
+  - [x] Viewer with non-existent id → graceful "ไม่พบ check-in" fallback + back to Timeline
+  - [x] Compare with deleted side → re-picks defaults from remaining check-ins (or routes to BPC if <2)
+  - [x] Missing blob → "รูปนี้ไม่พบในเครื่องนี้" message · doesn't crash · other angles/sides render
+  - [x] Missing photoId (angle never captured) → "ยังไม่มีรูปสำหรับมุมนี้"
+  - [x] Privacy banner on all 3 new views
+  - [x] Delete from viewer routes back to Timeline (or BPC if 0 remain)
+  - [x] Edit from any card routes to T-013b.1 edit flow (no regression)
+  - [x] No T-013d insight/status implementation (grep clean — roadmap text only)
+  - [x] No ghost/slider/video/getUserMedia/auto-suggest (grep clean — roadmap text only)
+  - [x] No muscle-gain / performance-improvement claims (grep = 0)
+  - [x] No shame language (Thai grep clean: ดีขึ้น/แย่ลง/ล้มเหลว/อ้วนขึ้น/ผอมลง/กล้ามขึ้น all 0)
+  - [x] VERSION v1.10.33 → v1.10.34 (sw + index, both verified)
+  - [x] PROJECT_STATE updated (Current Version · Active Task · run history · Latest Completed Work)
+  - [x] Data file hashes unchanged (meals.json, branded_products.json, audit-meals.js byte-identical to v1.10.33 baseline)
+- **Audit evidence (scope-lock verified at gate):**
+  - `getUserMedia` = 0 · `slider compare` = 0 · `sliderCompare` = 0 · `ghostOverlay` = 0 · `muscle gain` = 0 · `performance improvement` = 0
+  - `กล้ามขึ้น` = 0 · `อ้วนขึ้น` = 0 · `ผอมลง` = 0 · `แย่กว่า` = 0 · `ดีขึ้น` = 0 · `ล้มเหลว` = 0
+  - `ghost overlay` = 1 · `auto-suggest` = 1 · `insight card` = 1 · `status label` = 1 · `video frame` = 1 — all roadmap text (lines 6096, 6097, 6281) · informational placeholders unchanged from prior versions
+  - `สำเร็จ` = 6 — all in pre-existing error messages ("ไม่สำเร็จ" = "didn't succeed") at lines 2027, 6792, 6798, 7435, 8348, 8956. None in T-013c compare/progress copy.
+  - Wiring (all verified by grep ≥ 2 matches): groupCheckInsByMonth=2, formatThaiMonthYear=3, fetchCheckinPhotoUrls=10, revokeUrlMap=5, computeCheckinDelta=2, pickCompareDefaults=4, renderBpc{Timeline,Viewer,Compare,renderTimelineCard}=2 each, nav-bpc-timeline=5, nav-bpc-viewer=4, nav-bpc-compare=3, viewer-set-angle=2, compare-set-mode=2, compare-set-angle=2, compare-left-select=4, compare-right-select=3
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013b.1 ship + user approval to start
+  - `in_progress → review` — implementation complete · 3 views + 6 helpers + 6 handlers + listener wired · scope-lock audit clean · VERSION synced · state files updated · held at review per user instruction (no commit, no push)
+  - `review → done` — user approved with instruction "stage the untracked spec before commit". Spec staged, final gates re-run (forbidden features all 0 or roadmap-text-only · data hashes unchanged · 5 files staged exactly · VERSION sync v1.10.34), then committed + pushed
+- **Notes:**
+  - Third BPC sub-task to formally include `docs/specs/*.md` in the same commit as its implementation (pattern continues from T-013b and T-013b.1).
+  - **Tone discipline noted as the hardest design constraint** of this task. Compare diff card displays raw numbers with explicit signs only — NO color coding, NO good/bad emoji, NO interpretive language. Two explicit text guards in the diff card prevent future drift:
+    - "ตัวเลขเปรียบเทียบเฉยๆ · ไม่ใช่การประเมินผล"
+    - "การประเมิน progress แบบครบจะมาใน T-013d"
+  - **Object URL lifecycle** is now an established pattern across BPC views: `fetchCheckinPhotoUrls` builds the map on entry, `revokeUrlMap` clears it on view exit / compare mode switch / `delete-checkin` cleanup. T-013d should follow this convention for any new media views.
+  - **T-013d HOLD per user instruction** ("Do not start T-013d until I approve the next pickup") — mechanical pickup remains suspended.
 
 ### T-013d — Recomp Insight Card + Status Logic *(blocked by T-013c done)*
 

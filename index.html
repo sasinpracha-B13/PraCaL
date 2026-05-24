@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.33';
+const VERSION = 'v1.10.34';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -2186,6 +2186,86 @@ async function discardCheckinDraftWithCleanup(user) {
     }
   }
   clearCheckinDraft(user.id);
+}
+
+// v1.10.34 — T-013c: helpers for Timeline + Viewer + Compare views.
+// formatThaiMonthYear('2026-05-15') -> 'พฤษภาคม 2569' (Buddhist year, consistent with formatDateTH)
+function formatThaiMonthYear(dateKey) {
+  if (!dateKey) return '';
+  const [y, m] = dateKey.split('-').map(Number);
+  const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  return `${months[m - 1]} ${y + 543}`;
+}
+// Group check-ins by Thai month-year label. Returns [{ label, monthKey, items }, ...]
+// sorted newest-month first; items within each group also newest-first.
+function groupCheckInsByMonth(checkIns) {
+  if (!checkIns || checkIns.length === 0) return [];
+  const byMonth = new Map();
+  for (const c of checkIns) {
+    const monthKey = (c.date || '').slice(0, 7); // 'YYYY-MM'
+    if (!byMonth.has(monthKey)) byMonth.set(monthKey, []);
+    byMonth.get(monthKey).push(c);
+  }
+  const groups = Array.from(byMonth.entries()).map(([monthKey, items]) => ({
+    monthKey,
+    label: formatThaiMonthYear(monthKey + '-01'),
+    items: items.slice().sort((a, b) => b.date.localeCompare(a.date))
+  }));
+  groups.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  return groups;
+}
+// Pre-fetch object URLs for all available angles of a check-in. Returns { [pid]: url }.
+// Failures yield no entry for that pid (UI then shows "รูปนี้ไม่พบ").
+async function fetchCheckinPhotoUrls(checkIn) {
+  const urls = {};
+  if (!checkIn || !checkIn.photoIds) return urls;
+  for (const angle of ['front', 'side', 'back']) {
+    const pid = checkIn.photoIds[angle];
+    if (pid) {
+      try {
+        const url = await getPhotoUrl(pid);
+        if (url) urls[pid] = url;
+      } catch (e) {}
+    }
+  }
+  return urls;
+}
+// Revoke all object URLs in a map. Idempotent. Mutates the map (clears entries).
+function revokeUrlMap(urlMap) {
+  if (!urlMap) return;
+  for (const k of Object.keys(urlMap)) {
+    if (urlMap[k]) {
+      try { URL.revokeObjectURL(urlMap[k]); } catch (e) {}
+    }
+    delete urlMap[k];
+  }
+}
+// Compute simple deltas between two check-ins. Null-safe.
+// Returns { days, weight_delta, waist_delta } — any field may be null if missing.
+function computeCheckinDelta(left, right) {
+  if (!left || !right) return null;
+  const days = daysBetween(left.date, right.date);
+  const weight_delta = (left.weight_kg != null && right.weight_kg != null)
+    ? right.weight_kg - left.weight_kg : null;
+  const waist_delta = (left.waist_cm != null && right.waist_cm != null)
+    ? right.waist_cm - left.waist_cm : null;
+  return { days, weight_delta, waist_delta };
+}
+// Pick default { leftId, rightId } for a compare mode. Returns null if insufficient.
+// Input: checkIns sorted oldest-first (we sort internally to be safe).
+function pickCompareDefaults(checkIns, mode) {
+  if (!checkIns || checkIns.length < 2) return null;
+  const sorted = checkIns.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const latest = sorted[sorted.length - 1];
+  if (mode === 'start-latest') {
+    return { leftId: sorted[0].id, rightId: latest.id };
+  }
+  if (mode === 'prev-latest') {
+    return { leftId: sorted[sorted.length - 2].id, rightId: latest.id };
+  }
+  // custom: default both to latest; user picks
+  return { leftId: latest.id, rightId: latest.id };
 }
 
 // v1.10.30 — T-012: waist circumference tracking. Mirrors weight helpers.
@@ -6010,8 +6090,9 @@ function renderBodyProgressCenter() {
           <div style="font-weight:600;font-size:13.5px;margin-bottom:6px">📋 Roadmap</div>
           <div class="hint" style="font-size:12px;line-height:1.7">
             <b>T-013a</b> — foundation · schema · IndexedDB ✓<br>
-            <b>T-013b (✓ ตอนนี้)</b> — Weekly check-in capture flow<br>
-            <b>T-013c</b> — Timeline · viewer · side-by-side compare<br>
+            <b>T-013b</b> — Weekly check-in capture flow ✓<br>
+            <b>T-013b.1</b> — Capture source + edit ✓<br>
+            <b>T-013c (✓ ตอนนี้)</b> — Timeline · viewer · side-by-side compare<br>
             <b>T-013d</b> — Recomp Insight Card · status labels<br>
             <b>Phase 2 (T-014)</b> — ghost overlay · slider · auto-suggest · timer/video for Back<br>
             <b>Phase 3 (T-015)</b> — PIN lock · face crop · pose-match
@@ -6021,7 +6102,6 @@ function renderBodyProgressCenter() {
         <div class="card tight" style="background:var(--bg-2);margin-bottom:8px">
           <div class="row" style="align-items:center;gap:8px">
             <div style="flex:1;font-weight:600;font-size:14px">มี check-in ${checkIns.length} รายการ</div>
-            <div class="muted" style="font-size:11.5px">timeline viewer มาใน T-013c</div>
           </div>
         </div>
         ${!draft ? `
@@ -6029,7 +6109,21 @@ function renderBodyProgressCenter() {
             📸 เริ่ม Check-in ใหม่
           </button>
         ` : ''}
-        ${renderBpcCheckinCards(checkIns)}
+        ${renderBpcCheckinCards(checkIns.slice(0, 2))}
+        <div class="row mt" style="gap:8px">
+          <button class="btn secondary block" data-act="nav-bpc-timeline" style="flex:1;min-height:50px;font-size:14px">
+            📅 ดู Timeline ทั้งหมด (${checkIns.length})
+          </button>
+        </div>
+        ${checkIns.length >= 2 ? `
+          <button class="btn block mt" data-act="nav-bpc-compare" style="min-height:50px;font-size:14px;background:#818cf8;color:#fff">
+            🆚 เปรียบเทียบ progress
+          </button>
+        ` : `
+          <div class="card tight mt" style="background:var(--bg-2);text-align:center">
+            <div class="muted" style="font-size:12.5px;line-height:1.6">🆚 เปรียบเทียบ progress<br>ต้องมีอย่างน้อย 2 check-in</div>
+          </div>
+        `}
       `}
 
       <div style="height:30px"></div>
@@ -6067,7 +6161,8 @@ function renderBpcCheckinCards(checkIns) {
         </div>
         <div class="mt" style="font-size:11.5px">${chips}</div>
         ${note}
-        <div class="row mt" style="gap:8px">
+        <div class="row mt" style="gap:6px">
+          <button class="btn block" data-act="nav-bpc-viewer" data-checkin-id="${h(c.id)}" style="flex:1;font-size:13px;min-height:42px">👁️ ดู</button>
           <button class="btn secondary block" data-act="edit-checkin" data-checkin-id="${h(c.id)}" style="flex:1;font-size:13px;min-height:42px">✏️ แก้ไข</button>
           <button class="btn ghost" data-act="delete-checkin" data-checkin-id="${h(c.id)}" style="color:var(--red);font-size:13px;min-height:42px;padding:0 12px">🗑️</button>
         </div>
@@ -6329,6 +6424,331 @@ function renderCheckinReview(u, checkin) {
       <button class="btn secondary" data-act="checkin-prev" style="flex:1">← ย้อนกลับ</button>
       <button class="btn ghost" data-act="checkin-cancel" style="flex:1;color:var(--red)">✗ ${isEdit ? 'ยกเลิกการแก้ไข' : 'ยกเลิก'}</button>
     </div>
+  `;
+}
+
+// ====================================================================
+// v1.10.34 — T-013c: Timeline + Viewer + Side-by-side Compare
+// ====================================================================
+
+// Common: render one check-in card for Timeline rows.
+function renderTimelineCard(c, isLatest) {
+  const w = c.weight_kg != null ? Number(c.weight_kg).toFixed(1) + ' กก.' : '—';
+  const waist = c.waist_cm != null ? Number(c.waist_cm).toFixed(1) + ' ซม.' : '—';
+  const photoIds = c.photoIds || {};
+  const chips = ['front', 'side', 'back'].map(angle => {
+    const has = !!photoIds[angle];
+    const label = angle === 'front' ? 'Front' : angle === 'side' ? 'Side' : 'Back';
+    return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:${has ? '#dcfce7' : 'var(--bg-2)'};color:${has ? '#166534' : 'var(--muted)'};margin-right:4px">${has ? '✓' : '—'} ${label}</span>`;
+  }).join('');
+  const fullNote = c.note || '';
+  const notePreview = fullNote.length > 80 ? fullNote.slice(0, 80) + '…' : fullNote;
+  const noteHtml = notePreview ? `<div class="hint mt" style="font-size:11.5px;color:var(--ink-2);line-height:1.5">📝 ${h(notePreview)}</div>` : '';
+  return `
+    <div class="card" style="${isLatest ? 'border:1.5px solid #818cf8' : ''}">
+      <div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+        <div style="font-weight:600;font-size:${isLatest ? '15px' : '13.5px'}">${isLatest ? '⭐ ล่าสุด · ' : ''}${h(formatDateTH(c.date))}</div>
+        ${c.updatedAt ? `<span class="muted" style="font-size:10.5px">· แก้ไขแล้ว</span>` : ''}
+      </div>
+      <div class="row" style="gap:14px;font-size:13px">
+        <div><span class="muted">⚖️</span> <b>${w}</b></div>
+        <div><span class="muted">📐</span> <b>${waist}</b></div>
+      </div>
+      <div class="mt" style="font-size:11.5px">${chips}</div>
+      ${noteHtml}
+      <div class="row mt" style="gap:6px">
+        <button class="btn block" data-act="nav-bpc-viewer" data-checkin-id="${h(c.id)}" style="flex:1;font-size:13px;min-height:42px">👁️ ดู</button>
+        <button class="btn secondary block" data-act="edit-checkin" data-checkin-id="${h(c.id)}" style="flex:1;font-size:13px;min-height:42px">✏️ แก้ไข</button>
+        <button class="btn ghost" data-act="delete-checkin" data-checkin-id="${h(c.id)}" style="color:var(--red);font-size:13px;min-height:42px;padding:0 12px">🗑️</button>
+      </div>
+    </div>
+  `;
+}
+
+// View: Timeline of all check-ins, grouped by month.
+function renderBpcTimeline() {
+  const u = currentUser();
+  if (!u) return '';
+  const checkIns = (u.checkIns || []).slice();
+  if (checkIns.length === 0) {
+    return `
+      <div class="screen">
+        <div class="header">
+          <button class="icon-btn" data-act="back">←</button>
+          <h1 style="flex:1">📅 Timeline</h1>
+        </div>
+        <div class="card empty">
+          <div class="big">📸</div>
+          <div class="muted" style="margin-top:8px">ยังไม่มี check-in</div>
+          <button class="btn green block lg mt2" data-act="nav-checkin" style="min-height:54px">📸 เริ่ม check-in แรก</button>
+        </div>
+        ${bottomNavHtml('')}
+      </div>
+    `;
+  }
+  const sortedNewestFirst = checkIns.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const latestId = sortedNewestFirst[0].id;
+  const groups = groupCheckInsByMonth(checkIns);
+  const groupsHtml = groups.map(g => `
+    <div class="muted" style="font-size:12px;font-weight:600;margin:14px 4px 6px;letter-spacing:0.3px">${h(g.label)}</div>
+    ${g.items.map(c => renderTimelineCard(c, c.id === latestId)).join('')}
+  `).join('');
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1;font-size:18px">📅 Timeline · ${checkIns.length} รายการ</h1>
+      </div>
+      <div class="callout info" style="font-size:12.5px;border-left:3px solid #818cf8;background:#e0e7ff;color:#3730a3;margin-bottom:8px">
+        🔒 รูปเก็บบนเครื่องนี้เท่านั้น
+      </div>
+      ${checkIns.length >= 2 ? `
+        <button class="btn block" data-act="nav-bpc-compare" style="margin-bottom:8px;min-height:48px;background:#818cf8;color:#fff;font-size:14px">
+          🆚 เปรียบเทียบ progress
+        </button>
+      ` : ''}
+      ${groupsHtml}
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
+  `;
+}
+
+// View: Single check-in detail with Front/Side/Back angle tabs.
+// Photos pre-fetched on entry via nav-bpc-viewer; URLs cached in state.tmp.viewerPhotoUrls.
+function renderBpcViewer() {
+  const u = currentUser();
+  if (!u) return '';
+  const t = state.tmp;
+  const c = getCheckIn(u, t.checkInId);
+  if (!c) {
+    return `
+      <div class="screen">
+        <div class="header"><button class="icon-btn" data-act="back">←</button><h1>Check-in</h1></div>
+        <div class="card empty">
+          <div class="muted">ไม่พบ check-in</div>
+          <button class="btn block mt" data-act="nav-bpc-timeline">← กลับ Timeline</button>
+        </div>
+      </div>
+    `;
+  }
+  const angle = t.angle || 'front';
+  const angles = [
+    { key: 'front', label: 'Front', emoji: '👤' },
+    { key: 'side',  label: 'Side',  emoji: '🚶' },
+    { key: 'back',  label: 'Back',  emoji: '🔙' }
+  ];
+  const photoIds = c.photoIds || {};
+  const tabsHtml = angles.map(a => {
+    const has = !!photoIds[a.key];
+    const isActive = a.key === angle;
+    return `
+      <button class="btn ${isActive ? 'block' : 'secondary'}" data-act="viewer-set-angle" data-angle="${a.key}" style="flex:1;font-size:13px;min-height:42px;${isActive ? 'background:#818cf8;color:#fff' : ''}">
+        ${a.emoji} ${a.label} ${has ? '✓' : '—'}
+      </button>
+    `;
+  }).join('');
+
+  const currentPid = photoIds[angle];
+  const currentUrl = currentPid && t.viewerPhotoUrls ? t.viewerPhotoUrls[currentPid] : null;
+  let photoBlock = '';
+  if (!currentPid) {
+    photoBlock = `
+      <div class="card empty">
+        <div class="big">📷</div>
+        <div class="muted" style="margin-top:8px">ยังไม่มีรูปสำหรับมุมนี้</div>
+        <div class="hint mt" style="font-size:11.5px">เพิ่มได้โดยกดปุ่ม "✏️ แก้ไข" ด้านล่าง</div>
+      </div>
+    `;
+  } else if (!currentUrl) {
+    photoBlock = `
+      <div class="card empty">
+        <div class="big">⚠️</div>
+        <div class="muted" style="margin-top:8px">รูปนี้ไม่พบในเครื่องนี้</div>
+        <div class="hint mt" style="font-size:11.5px;line-height:1.5">รูปอาจถูกลบจาก browser storage<br>(metadata ยังอยู่)</div>
+      </div>
+    `;
+  } else {
+    photoBlock = `
+      <div class="card tight" style="text-align:center;padding:8px">
+        <img src="${currentUrl}" alt="${angle}" style="max-width:100%;max-height:60vh;border-radius:8px;display:block;margin:0 auto">
+      </div>
+    `;
+  }
+
+  const w = c.weight_kg != null ? Number(c.weight_kg).toFixed(1) + ' กก.' : '—';
+  const waist = c.waist_cm != null ? Number(c.waist_cm).toFixed(1) + ' ซม.' : '—';
+  const noteHtml = c.note ? `<div class="stat-row" style="flex-direction:column;align-items:flex-start;gap:4px"><span>📝 หมายเหตุ</span><span style="font-size:13px;line-height:1.6">${h(c.note)}</span></div>` : '';
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1;font-size:17px">${h(formatDateTH(c.date))}</h1>
+      </div>
+      <div class="callout info" style="font-size:12.5px;border-left:3px solid #818cf8;background:#e0e7ff;color:#3730a3;margin-bottom:8px">
+        🔒 รูปเก็บบนเครื่องนี้เท่านั้น
+      </div>
+
+      <div class="row" style="gap:6px;margin-bottom:8px">${tabsHtml}</div>
+
+      ${photoBlock}
+
+      <div class="card">
+        <div style="font-weight:600;font-size:13.5px;margin-bottom:8px">📊 ข้อมูลตอนบันทึก</div>
+        <div class="stat-row"><span>📅 วันที่</span><b>${h(formatDateTH(c.date))}</b></div>
+        <div class="stat-row"><span>⚖️ น้ำหนัก</span><b>${w}</b></div>
+        <div class="stat-row"><span>📐 รอบเอว</span><b>${waist}</b></div>
+        ${noteHtml}
+        ${c.updatedAt ? `<div class="hint mt" style="font-size:11px;color:var(--muted)">· รายการนี้ถูกแก้ไขแล้ว</div>` : ''}
+      </div>
+
+      <div class="row mt" style="gap:8px">
+        <button class="btn secondary block" data-act="edit-checkin" data-checkin-id="${h(c.id)}" style="flex:1;min-height:46px">✏️ แก้ไข</button>
+        <button class="btn ghost" data-act="delete-checkin" data-checkin-id="${h(c.id)}" style="color:var(--red);min-height:46px;padding:0 14px">🗑️ ลบ</button>
+      </div>
+
+      <button class="btn block mt" data-act="nav-bpc-timeline" style="min-height:46px">← กลับ Timeline</button>
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
+  `;
+}
+
+// View: side-by-side compare of two check-ins. 3 modes · 3 angles.
+// Numbers-only diff card · no color · no value-judgment language.
+function renderBpcCompare() {
+  const u = currentUser();
+  if (!u) return '';
+  const t = state.tmp;
+  const all = (u.checkIns || []).slice();
+  if (all.length < 2) {
+    return `
+      <div class="screen">
+        <div class="header"><button class="icon-btn" data-act="back">←</button><h1>เปรียบเทียบ</h1></div>
+        <div class="card empty">
+          <div class="muted">ต้องมี check-in อย่างน้อย 2 รายการ</div>
+          <button class="btn block mt" data-act="nav-bpc">← กลับ BPC</button>
+        </div>
+      </div>
+    `;
+  }
+  const sorted = all.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const left = sorted.find(c => c.id === t.leftId) || sorted[0];
+  const right = sorted.find(c => c.id === t.rightId) || sorted[sorted.length - 1];
+  const mode = t.compareMode || 'start-latest';
+  const angle = t.angle || 'front';
+
+  const modeBtn = (key, label) => {
+    const active = mode === key;
+    return `<button class="btn ${active ? 'block' : 'secondary'}" data-act="compare-set-mode" data-mode="${key}" style="flex:1;font-size:12.5px;min-height:42px;${active ? 'background:#818cf8;color:#fff' : ''}">${label}</button>`;
+  };
+  const angleBtn = (key, label, emoji) => {
+    const active = angle === key;
+    return `<button class="btn ${active ? 'block' : 'secondary'}" data-act="compare-set-angle" data-angle="${key}" style="flex:1;font-size:13px;min-height:40px;${active ? 'background:#818cf8;color:#fff' : ''}">${emoji} ${label}</button>`;
+  };
+
+  const sideBlock = (c, label) => {
+    if (!c) {
+      return `<div style="flex:1;text-align:center;padding:20px 6px;color:var(--muted);font-size:12px">${label}: ไม่พบ check-in</div>`;
+    }
+    const pid = (c.photoIds || {})[angle];
+    const url = pid && t.comparePhotoUrls ? t.comparePhotoUrls[pid] : null;
+    let imgHtml;
+    if (!pid) {
+      imgHtml = `<div style="background:var(--bg-2);border-radius:6px;padding:30px 6px;color:var(--muted);font-size:11.5px;text-align:center;min-height:140px;display:flex;align-items:center;justify-content:center">ยังไม่มีรูปมุมนี้</div>`;
+    } else if (!url) {
+      imgHtml = `<div style="background:var(--bg-2);border-radius:6px;padding:20px 6px;color:var(--muted);font-size:11.5px;text-align:center;min-height:140px;display:flex;align-items:center;justify-content:center;line-height:1.5">⚠️ รูปนี้ไม่พบ<br>ในเครื่องนี้</div>`;
+    } else {
+      imgHtml = `<img src="${url}" alt="${angle}" style="width:100%;border-radius:6px;display:block;max-height:38vh;object-fit:contain;background:#000">`;
+    }
+    const w = c.weight_kg != null ? Number(c.weight_kg).toFixed(1) : '—';
+    const wt = c.waist_cm != null ? Number(c.waist_cm).toFixed(1) : '—';
+    return `
+      <div style="flex:1;min-width:0">
+        <div style="text-align:center;font-size:11.5px;color:var(--muted);margin-bottom:4px">${label}</div>
+        <div style="text-align:center;font-weight:600;font-size:12.5px;margin-bottom:6px">${h(formatDateTH(c.date))}</div>
+        ${imgHtml}
+        <div style="text-align:center;font-size:12px;margin-top:6px;line-height:1.5">
+          <div><span class="muted">⚖️</span> <b>${w}</b> ${c.weight_kg != null ? 'กก.' : ''}</div>
+          <div><span class="muted">📐</span> <b>${wt}</b> ${c.waist_cm != null ? 'ซม.' : ''}</div>
+        </div>
+      </div>
+    `;
+  };
+
+  const delta = computeCheckinDelta(left, right);
+  const signed = (n, suffix) => {
+    if (n == null) return '<span class="muted" style="font-weight:400;font-size:12px">ไม่พอข้อมูล</span>';
+    const sign = n >= 0 ? '+' : '';
+    return `<b>${sign}${n.toFixed(1)}${suffix}</b>`;
+  };
+  const customPickers = mode === 'custom' ? `
+    <div class="card tight" style="margin-bottom:6px">
+      <div class="row" style="gap:6px;align-items:center">
+        <div style="flex:1">
+          <label for="compare-left-select" class="hint" style="font-size:11.5px;display:block;margin-bottom:2px">ซ้าย (Left)</label>
+          <select id="compare-left-select" class="input" style="font-size:13px">
+            ${sorted.map(c => `<option value="${h(c.id)}" ${c.id === left.id ? 'selected' : ''}>${h(formatDateTH(c.date))}</option>`).join('')}
+          </select>
+        </div>
+        <div style="flex:1">
+          <label for="compare-right-select" class="hint" style="font-size:11.5px;display:block;margin-bottom:2px">ขวา (Right)</label>
+          <select id="compare-right-select" class="input" style="font-size:13px">
+            ${sorted.map(c => `<option value="${h(c.id)}" ${c.id === right.id ? 'selected' : ''}>${h(formatDateTH(c.date))}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1 style="flex:1;font-size:17px">🆚 เปรียบเทียบ</h1>
+      </div>
+      <div class="callout info" style="font-size:12.5px;border-left:3px solid #818cf8;background:#e0e7ff;color:#3730a3;margin-bottom:8px">
+        🔒 รูปเก็บบนเครื่องนี้เท่านั้น
+      </div>
+
+      <div class="row" style="gap:6px;margin-bottom:6px">
+        ${modeBtn('start-latest', '🥇 Start vs Latest')}
+        ${modeBtn('prev-latest', '⏮ Prev vs Latest')}
+        ${modeBtn('custom', '🎯 เลือกเอง')}
+      </div>
+
+      ${customPickers}
+
+      <div class="row" style="gap:6px;margin-bottom:8px">
+        ${angleBtn('front', 'Front', '👤')}
+        ${angleBtn('side', 'Side', '🚶')}
+        ${angleBtn('back', 'Back', '🔙')}
+      </div>
+
+      <div class="card tight">
+        <div class="row" style="gap:8px;align-items:flex-start">
+          ${sideBlock(left, 'ซ้าย (เก่ากว่า)')}
+          ${sideBlock(right, 'ขวา (ใหม่กว่า)')}
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600;font-size:13.5px;margin-bottom:8px">Δ ส่วนต่าง</div>
+        <div class="stat-row"><span>⏱️ ช่วงเวลา</span><b>${delta ? Math.abs(delta.days) + ' วัน' : '—'}</b></div>
+        <div class="stat-row"><span>⚖️ น้ำหนัก</span>${signed(delta?.weight_delta, ' กก.')}</div>
+        <div class="stat-row"><span>📐 รอบเอว</span>${signed(delta?.waist_delta, ' ซม.')}</div>
+        <div class="hint mt" style="font-size:11.5px;line-height:1.6;color:var(--ink-2)">
+          💬 ตัวเลขเปรียบเทียบเฉยๆ · ไม่ใช่การประเมินผล<br>
+          📌 การประเมิน progress แบบครบจะมาใน T-013d
+        </div>
+      </div>
+
+      <button class="btn secondary block mt" data-act="nav-bpc-timeline" style="min-height:46px">📅 ดู Timeline</button>
+      <button class="btn ghost block mt" data-act="nav-bpc" style="min-height:42px">← กลับ BPC</button>
+      <div style="height:30px"></div>
+    </div>
+    ${bottomNavHtml('')}
   `;
 }
 
@@ -6875,6 +7295,9 @@ function render() {
       case 'weight-log': html = renderWeightLog(); break;
       case 'bpc': html = renderBodyProgressCenter(); break;   // v1.10.31 — T-013a
       case 'checkin': html = renderCheckinFlow(); break;       // v1.10.32 — T-013b
+      case 'bpc-timeline': html = renderBpcTimeline(); break;  // v1.10.34 — T-013c
+      case 'bpc-viewer': html = renderBpcViewer(); break;      // v1.10.34 — T-013c
+      case 'bpc-compare': html = renderBpcCompare(); break;    // v1.10.34 — T-013c
       case 'scan': html = renderScan(); break;
       case 'scan-not-found': html = renderScanNotFound(); break;
       case 'ocr': html = renderOcr(); break;
@@ -7682,6 +8105,8 @@ const actions = {
   },
 
   // v1.10.33 — T-013b.1: delete saved check-in (metadata + photo blobs).
+  // v1.10.34 — T-013c: if user is viewing/comparing the deleted check-in,
+  // route back to a safe view (Timeline or BPC) after delete.
   'delete-checkin': async (e, btn) => {
     const u = currentUser();
     if (!u) return;
@@ -7691,6 +8116,111 @@ const actions = {
     await deleteCheckIn(u, id);
     persist();
     toast('ลบ check-in แล้ว');
+    // T-013c: handle viewer/compare context
+    if (state.view === 'bpc-viewer' && state.tmp?.checkInId === id) {
+      revokeUrlMap(state.tmp.viewerPhotoUrls);
+      state.tmp.viewerPhotoUrls = {};
+      const remaining = u.checkIns || [];
+      go(remaining.length > 0 ? 'bpc-timeline' : 'bpc');
+      return;
+    }
+    if (state.view === 'bpc-compare' && (state.tmp?.leftId === id || state.tmp?.rightId === id)) {
+      revokeUrlMap(state.tmp.comparePhotoUrls);
+      state.tmp.comparePhotoUrls = {};
+      const remaining = u.checkIns || [];
+      if (remaining.length < 2) { go('bpc'); return; }
+      const defaults = pickCompareDefaults(remaining, state.tmp.compareMode || 'start-latest');
+      if (!defaults) { go('bpc'); return; }
+      state.tmp.leftId = defaults.leftId;
+      state.tmp.rightId = defaults.rightId;
+      const leftCi = remaining.find(c => c.id === defaults.leftId);
+      const rightCi = remaining.find(c => c.id === defaults.rightId);
+      state.tmp.comparePhotoUrls = {};
+      Object.assign(state.tmp.comparePhotoUrls, await fetchCheckinPhotoUrls(leftCi));
+      Object.assign(state.tmp.comparePhotoUrls, await fetchCheckinPhotoUrls(rightCi));
+      render();
+      return;
+    }
+    render();
+  },
+
+  // v1.10.34 — T-013c: open Timeline (read-only list of all check-ins).
+  'nav-bpc-timeline': () => {
+    go('bpc-timeline');
+  },
+
+  // v1.10.34 — T-013c: open Viewer for a specific check-in. Pre-fetch URLs.
+  'nav-bpc-viewer': async (e, btn) => {
+    const u = currentUser();
+    if (!u) return;
+    const id = btn?.dataset?.checkinId;
+    if (!id) return;
+    const ci = getCheckIn(u, id);
+    if (!ci) { toast('ไม่พบ check-in', true); return; }
+    const angle = (btn?.dataset?.angle && ['front','side','back'].includes(btn.dataset.angle))
+      ? btn.dataset.angle
+      : 'front';
+    const viewerPhotoUrls = await fetchCheckinPhotoUrls(ci);
+    go('bpc-viewer', { checkInId: id, angle, viewerPhotoUrls });
+  },
+
+  // v1.10.34 — T-013c: switch the viewer's active angle (no re-fetch — URLs cached).
+  'viewer-set-angle': (e, btn) => {
+    const a = btn?.dataset?.angle;
+    if (!['front','side','back'].includes(a)) return;
+    state.tmp.angle = a;
+    render();
+  },
+
+  // v1.10.34 — T-013c: open Compare with default mode 'start-latest'.
+  'nav-bpc-compare': async () => {
+    const u = currentUser();
+    if (!u) return;
+    const all = u.checkIns || [];
+    if (all.length < 2) { toast('ต้องมี check-in อย่างน้อย 2 รายการ', true); return; }
+    const mode = 'start-latest';
+    const defaults = pickCompareDefaults(all, mode);
+    if (!defaults) { toast('เปรียบเทียบไม่ได้', true); return; }
+    const leftCi = all.find(c => c.id === defaults.leftId);
+    const rightCi = all.find(c => c.id === defaults.rightId);
+    const comparePhotoUrls = {};
+    Object.assign(comparePhotoUrls, await fetchCheckinPhotoUrls(leftCi));
+    Object.assign(comparePhotoUrls, await fetchCheckinPhotoUrls(rightCi));
+    go('bpc-compare', {
+      compareMode: mode,
+      leftId: defaults.leftId,
+      rightId: defaults.rightId,
+      angle: 'front',
+      comparePhotoUrls
+    });
+  },
+
+  // v1.10.34 — T-013c: switch compare mode · re-fetch URLs for new defaults.
+  'compare-set-mode': async (e, btn) => {
+    const mode = btn?.dataset?.mode;
+    if (!['start-latest','prev-latest','custom'].includes(mode)) return;
+    const u = currentUser();
+    if (!u) return;
+    const all = u.checkIns || [];
+    const defaults = pickCompareDefaults(all, mode);
+    if (!defaults) return;
+    revokeUrlMap(state.tmp.comparePhotoUrls);
+    state.tmp.compareMode = mode;
+    state.tmp.leftId = defaults.leftId;
+    state.tmp.rightId = defaults.rightId;
+    const leftCi = all.find(c => c.id === defaults.leftId);
+    const rightCi = all.find(c => c.id === defaults.rightId);
+    state.tmp.comparePhotoUrls = {};
+    Object.assign(state.tmp.comparePhotoUrls, await fetchCheckinPhotoUrls(leftCi));
+    Object.assign(state.tmp.comparePhotoUrls, await fetchCheckinPhotoUrls(rightCi));
+    render();
+  },
+
+  // v1.10.34 — T-013c: switch compare angle (no re-fetch — URLs cached).
+  'compare-set-angle': (e, btn) => {
+    const a = btn?.dataset?.angle;
+    if (!['front','side','back'].includes(a)) return;
+    state.tmp.angle = a;
     render();
   },
 
@@ -8895,6 +9425,28 @@ document.addEventListener('change', (e) => {
     if (file) handleCheckinPhotoUpload(angle, file);
     // Reset input value so picking the same file twice still fires change
     try { e.target.value = ''; } catch (err) {}
+  }
+  // v1.10.34 — T-013c: compare custom-mode side selectors
+  if (e.target.id === 'compare-left-select' || e.target.id === 'compare-right-select') {
+    const u = currentUser();
+    if (!u) return;
+    const all = u.checkIns || [];
+    const newId = e.target.value;
+    if (!all.find(c => c.id === newId)) return;
+    const side = e.target.id === 'compare-left-select' ? 'leftId' : 'rightId';
+    // Revoke + re-fetch URLs for the changed side
+    revokeUrlMap(state.tmp.comparePhotoUrls);
+    state.tmp[side] = newId;
+    state.tmp.comparePhotoUrls = {};
+    const leftCi = all.find(c => c.id === state.tmp.leftId);
+    const rightCi = all.find(c => c.id === state.tmp.rightId);
+    Promise.all([
+      fetchCheckinPhotoUrls(leftCi),
+      fetchCheckinPhotoUrls(rightCi)
+    ]).then(([leftUrls, rightUrls]) => {
+      Object.assign(state.tmp.comparePhotoUrls, leftUrls, rightUrls);
+      render();
+    });
   }
 });
 
