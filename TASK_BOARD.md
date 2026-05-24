@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013d.1 → `done` ✅ (v1.10.36 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013d.2 → `done` ✅ (v1.10.37 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
 
 ---
 
@@ -485,6 +485,51 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **Lesson captured:** scope-lock grep must extend to comments. The initial draft had a guardrail comment containing the literal phrase "strength progress" (warning future maintainers not to use that phrase). The grep flagged it as 1 match. Rewrote the comment to avoid the literal substring even in guardrail context. Future spec authors: when banning a phrase, write the comment in a way that doesn't include the banned phrase verbatim, or grep with semantic context.
   - **Pattern reinforced**: spec-with-implementation in same commit (5th time now: T-013b, T-013b.1, T-013c, T-013d, T-013d.1). This is the established release pattern for this project.
   - **T-014 / T-015 still HOLD per user instruction** — Phase 2 (ghost overlay · slider · auto-suggest · video frame · timer for Back) and Phase 3 (PIN lock · face crop · pose-match) both blocked from auto-pickup. Mechanical pickup remains suspended.
+
+### T-013d.2 — Body Recomp Insight: full detail card in Reports *(refinement on T-013d.1)*
+
+- **Status:** `done` ✅ (v1.10.37 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/body-recomp-insight-reports-full-detail.md`](docs/specs/body-recomp-insight-reports-full-detail.md)
+- **User-locked scope (this turn):**
+  - Replace Reports' compact summary (`renderReportsInsightSummary`) with the full expandable card (`renderInsightCard` from T-013d) so Reports surfaces the same depth as BPC
+  - Delete `renderReportsInsightSummary` function definition (consolidation, not retention)
+  - Reports adds a small CTA row below the card: "→ ดู Body Progress Center" (always) + "📸 เริ่ม Body Check-in" (only when 0 check-ins)
+  - Single source of truth preserved: 1 classifier · 1 confidence helper · 1 bundle helper · 1 card renderer
+  - T-013d.1's `ยังไม่ยืนยันว่ากล้ามเพิ่ม` literal is intentionally removed (was only in the now-deleted compact summary); BPC's existing `ไม่ได้แปลว่ากล้ามเพิ่ม` becomes the canonical caveat on both surfaces
+  - Expand state is per-view scoped (state.tmp resets on navigation) — consistent with BPC
+- **Forbidden (audited at gate):**
+  - Duplicate classifier / confidence / bundle / card definitions
+  - New schema · new localStorage · IndexedDB writes
+  - New status labels, ghost overlay, slider, video frame, getUserMedia
+  - Muscle gain / performance improvement / strength progress / shame language
+- **Gate criteria:** see spec DoD + test plan (expand toggle works on Reports, BPC caveat present on Reports possible-recomp, CTAs route correctly, no regression on existing Reports cards, all forbidden phrases = 0, single source of truth preserved)
+- **Definition of Done (all met):**
+  - [x] Reports calls `renderInsightCard(computeBodyProgressInsight(u), !!t.bpcInsightExpanded)` at the insertion point (between waist card and calorie card · L6099)
+  - [x] CTA row below card: "📸 เริ่ม Body Check-in" (when checkin_count === 0) + "→ ดู Body Progress Center (Timeline / Compare)" (always)
+  - [x] `renderReportsInsightSummary` function definition deleted from index.html (def count = 0, call count = 0)
+  - [x] T-013d's `ไม่ได้แปลว่ากล้ามเพิ่ม` caveat still at exactly 1 occurrence (in `renderInsightCard`'s possible-recomp branch — now shared across BPC and Reports)
+  - [x] T-013d.1's `ยังไม่ยืนยันว่ากล้ามเพิ่ม` literal removed (= 0 occurrences · documented as intentional consolidation)
+  - [x] Single-source-of-truth strengthened: `classifyBodyProgressStatus` def = 1 · `getInsightConfidence` def = 1 · `computeBodyProgressInsight` def = 1 · `renderInsightCard` def = 1
+  - [x] `renderInsightCard` called from 2 sites (BPC at L6422 · Reports at L6099) + 1 def at L7080
+  - [x] No new handlers · no new event listeners · no new schema · no new localStorage · no IndexedDB writes
+  - [x] Tone audit clean (all forbidden phrases = 0)
+  - [x] VERSION v1.10.36 → v1.10.37 (sw + index, both verified)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (meals.json / branded_products.json / audit-meals.js all match v1.10.36 baseline)
+- **Audit evidence:**
+  - Single-source-of-truth: 4 helpers × 1 def each = 4 unique definitions, no duplicates
+  - `renderReportsInsightSummary`: def = 0, calls = 0 (cleanly removed)
+  - Caveats: `ไม่ได้แปลว่ากล้ามเพิ่ม` = 1 (shared) · `ยังไม่ยืนยันว่ากล้ามเพิ่ม` = 0 (consolidated)
+  - Forbidden phrases all 0 except `ghost overlay` = 1 (unchanged roadmap text L6016)
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013d.1 ship + user request "ทำให้ดู Body Progress Center รายละเอียดเต็มๆได้ใน Tab รายงานด้วยเลย"
+  - `in_progress → review` — implementation complete · 1 call site swap + 1 function deletion + 1 CTA row · scope-lock audit clean · single-source-of-truth strengthened · VERSION synced · state files updated · held at review per established gate pattern
+  - `review → done` — user approved with "ลุยเลย". Final gates re-run (forbidden phrases all 0 · single source of truth: each helper 1 def · `renderReportsInsightSummary` cleanly removed = 0 · caveat consolidation verified · data hashes unchanged · 5 files staged · VERSION sync v1.10.37), then committed + pushed
+- **Notes:**
+  - **First net-negative diff in BPC series** (+71/-129 in tracked files). Consolidation removed ~115 lines of compact-summary renderer while adding ~24 lines of call site + CTAs. Demonstrates the operating-model can collapse complexity, not just add.
+  - **Pattern reinforced**: "supersede" relationship between T-013d.1 and T-013d.2 — T-013d.1 stays `done` in registry but is annotated as "(superseded by T-013d.2)" in PROJECT_STATE run history. Task IDs remain immutable per Conventions.
+  - **T-014/T-015 still HOLD per prior user instruction** — Phase 2 (ghost · slider · auto-suggest · video · timer for Back) and Phase 3 (PIN · face crop · pose-match) blocked from auto-pickup.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
