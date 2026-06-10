@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013d.3 → `done` ✅ (v1.10.38 shipped) · T-014/T-015 HOLD per user instruction · awaiting next pickup approval
+Last updated: T-013e → `done` ✅ (v1.10.39 shipped · 4 ก๋วยจั๊บ family entries · meals.json 1.10.13 → 1.10.14) · T-014/T-015 still HOLD
 
 ---
 
@@ -596,6 +596,53 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **Pattern reinforced**: when a function gains new optional inputs, prefer rest-args + type-detection over breaking signature changes. Keeps internal call sites flexible while honoring back-compat audit gates.
   - **ID-immutability rule applied**: user-supplied task title said "T-013d.2"; that ID was already taken by the Reports consolidation. Renumbered to T-013d.3. Documented in spec + state files. This is the second time the rule was invoked (T-013b → T-013b.1 was the first sub-letter use). Convention holds.
   - **T-014 / T-015 still HOLD per prior user instruction** — Phase 2/3 features remain blocked from auto-pickup.
+
+### T-013e — Add ก๋วยจั๊บ + ก๋วยจั๊บญวน menu entries (4 entries)
+
+- **Status:** `done` ✅ (v1.10.39 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-kuay-jab.md`](docs/specs/add-meals-kuay-jab.md)
+- **Protocol:** follows [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md) (AGENTS.md Rule 17)
+- **User-locked scope (this turn):**
+  - 4 entries: n37 ก๋วยจั๊บน้ำใส · n38 ก๋วยจั๊บน้ำข้น (นายแอ๋ว style) · n39 ก๋วยจั๊บญวน · n40 ก๋วยจั๊บญวนรวมพิเศษ
+  - Each entry's macros verified against existing anchors (n01/n02/n03/n04/n06/n13)
+  - Sanity ranges documented per entry
+  - Per-entry diff% predicted and must match audit within rounding
+  - Real-user-fit pass for each (cafe / street-food portion convention)
+  - Each entry gets 2-3 customizations
+  - `meals.json` data version 1.10.13 → 1.10.14
+  - VERSION sync v1.10.38 → v1.10.39 (sw + index)
+- **Forbidden in this turn:**
+  - Edits to existing n01-n36 entries
+  - Schema changes · UI changes
+  - Edits to branded_products.json or tools/audit-meals.js
+  - Adding entries outside the established sanity range
+- **Gate criteria:** see spec DoD + protocol §7 + audit must report total 388 → 392 · pass +4 · warn/fail unchanged · git diff exactly 2 hunks · sibling data files byte-identical
+- **Definition of Done (all met):**
+  - [x] 4 entries inserted: n37 ก๋วยจั๊บน้ำใส (340/400g) · n38 ก๋วยจั๊บน้ำข้น (620/450g) · n39 ก๋วยจั๊บญวน (400/420g) · n40 ก๋วยจั๊บญวนรวมพิเศษ (500/480g)
+  - [x] All 4 in audit PASS band; per-entry diff% **matches §3d prediction exactly to 2 decimal places**: n37 +3.24% · n38 +3.87% · n39 +1.50% · n40 +3.40%
+  - [x] Real-user fit check passed for every entry (cafe / street-food portion convention; macros match dish-style signature; customizations match how users actually order)
+  - [x] `meals.json` data version 1.10.13 → 1.10.14
+  - [x] `service-worker.js` VERSION v1.10.38 → v1.10.39
+  - [x] `index.html` VERSION v1.10.38 → v1.10.39
+  - [x] Total entry count: 388 → 392 (+4)
+  - [x] Aggregate audit: pass 312 → 316 (+4) · warn 70 unchanged · fail 3 unchanged · skipped 3 unchanged
+  - [x] `branded_products.json` byte-identical (MD5 `50DA32FECC693685B1CF7238C13621F3` matches v1.10.38 baseline)
+  - [x] `tools/audit-meals.js` byte-identical (MD5 `6FE42BB990ECC932AE4193C76E71E0D9` matches v1.10.38 baseline)
+  - [x] PROJECT_STATE Current Version + Latest Completed Work + Active Task updated
+  - [x] Spec cites menu-addition-protocol explicitly
+- **Audit evidence:**
+  - PowerShell parallel-impl audit (per DEC-002): per-entry diff% all PASS band with exact prediction match
+  - Aggregate: 388 → 392 ✓ · pass 312 → 316 ✓ · warn 70 unchanged ✓ · fail 3 unchanged ✓ · skipped 3 unchanged ✓
+  - Sibling data files byte-identical (hashes preserved from v1.10.38)
+  - VERSION sync verified in both files
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013d.3 ship + user request to add ก๋วยจั๊บ + ก๋วยจั๊บญวน
+  - `in_progress → review` — 4 entries inserted · all PASS with exact prediction match · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+  - `review → done` — user approved with "เพิ่มเลย". Final gates re-run (audit pass=316 ✓, sibling hashes preserved ✓, hunks=2 ✓, VERSION sync ✓), then committed + pushed
+- **Notes:**
+  - First menu-addition task since T-008 (v1.10.26); confirms the menu-addition-protocol still works cleanly after 12+ task gap
+  - Used anchor-derivation per established protocol (T-005 through T-008 pattern); external citation research available as follow-up if review requires
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

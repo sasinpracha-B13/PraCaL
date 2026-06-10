@@ -1,5 +1,5 @@
 {
-  "version": "1.10.13",
+  "version": "1.10.14",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -705,6 +705,25 @@
       { "id": "extra_pasta", "label": "ใส่เส้นเพิ่ม", "calChange": 120, "carbChange": 25, "fatChange": 1 },
       { "id": "extra_cheese", "label": "ใส่ชีสเพิ่ม (ปาเมซาน)", "calChange": 60, "proteinChange": 4, "fatChange": 5 },
       { "id": "less_oil_cream", "label": "น้ำมัน/ครีมน้อย", "calChange": -80, "fatChange": -8 }
+    ] },
+    { "id": "n37", "name": "ก๋วยจั๊บน้ำใส", "emoji": "🍜", "category": "noodles", "baseCalories": 340, "baseWeight_g": 400, "protein_g": 18, "carbs_g": 44, "fat_g": 9, "sugar_g": 3, "calorie_range": { "min": 280, "max": 480 }, "portion_basis": ["เส้นก๋วยจั๊บ 80g cooked", "หมูบด 40g", "เครื่องในหมู 30g", "น้ำซุปใส 200g", "ผัก/กระเทียมเจียว 20g"], "customizations": [
+      { "id": "no_offal", "label": "ไม่ใส่เครื่องใน", "calChange": -50, "proteinChange": -5 },
+      { "id": "extra_noodles", "label": "ใส่เส้นเพิ่ม (+1 ก้อน)", "calChange": 80, "carbChange": 18 },
+      { "id": "no_chili", "label": "ไม่เผ็ด", "calChange": 0 }
+    ] },
+    { "id": "n38", "name": "ก๋วยจั๊บน้ำข้น", "emoji": "🍜", "category": "noodles", "baseCalories": 620, "baseWeight_g": 450, "protein_g": 26, "carbs_g": 60, "fat_g": 28, "sugar_g": 3, "calorie_range": { "min": 450, "max": 900 }, "portion_basis": ["เส้นก๋วยจั๊บ 85g cooked", "หมูกรอบ 60g", "เครื่องในหมู 30g", "ไข่ต้ม 1 ฟอง 50g", "น้ำซุปข้น 210g", "พริกไทย/กระเทียมเจียว 15g"], "customizations": [
+      { "id": "no_crispy_pork", "label": "ไม่ใส่หมูกรอบ", "calChange": -280, "proteinChange": -9, "fatChange": -19, "gramsChange": -60 },
+      { "id": "no_offal", "label": "ไม่ใส่เครื่องใน", "calChange": -50, "proteinChange": -4 },
+      { "id": "no_egg", "label": "ไม่ใส่ไข่ต้ม", "calChange": -75, "proteinChange": -6, "fatChange": -5 }
+    ] },
+    { "id": "n39", "name": "ก๋วยจั๊บญวน", "emoji": "🍜", "category": "noodles", "baseCalories": 400, "baseWeight_g": 420, "protein_g": 24, "carbs_g": 52, "fat_g": 10, "sugar_g": 4, "calorie_range": { "min": 280, "max": 600 }, "portion_basis": ["เส้นก๋วยจั๊บญวน 80g cooked", "หมูสับ 40g", "ลูกชิ้นหมู 40g", "หมูยอ 30g", "น้ำซุปใส 210g", "ผัก/กระเทียมเจียว/ถั่วงอก 20g"], "customizations": [
+      { "id": "no_vietnamese_sausage", "label": "ไม่ใส่หมูยอ", "calChange": -60, "proteinChange": -4, "fatChange": -3 },
+      { "id": "add_soft_egg", "label": "ใส่ไข่ลวก", "calChange": 70, "proteinChange": 6, "fatChange": 5 },
+      { "id": "no_fried_garlic", "label": "ไม่ใส่กระเทียมเจียว", "calChange": -25, "fatChange": -3 }
+    ] },
+    { "id": "n40", "name": "ก๋วยจั๊บญวนรวมพิเศษ", "emoji": "🍜", "category": "noodles", "baseCalories": 500, "baseWeight_g": 480, "protein_g": 32, "carbs_g": 55, "fat_g": 15, "sugar_g": 4, "calorie_range": { "min": 380, "max": 700 }, "portion_basis": ["เส้นก๋วยจั๊บญวน 85g cooked", "หมูสับ 50g", "ลูกชิ้นหมู 50g", "หมูยอ 40g", "ไข่ลวก 1 ฟอง 50g", "น้ำซุปใส 220g", "ผัก/กระเทียมเจียว 25g"], "customizations": [
+      { "id": "no_egg", "label": "ไม่ใส่ไข่ลวก", "calChange": -70, "proteinChange": -6, "fatChange": -5 },
+      { "id": "no_meatball", "label": "ไม่ใส่ลูกชิ้น", "calChange": -75, "proteinChange": -6, "fatChange": -4 }
     ] },
 
     { "id": "s14", "name": "สลัดทูน่ายำ", "emoji": "🐟", "category": "salads", "baseCalories": 240, "baseWeight_g": 280, "protein_g": 28, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },
