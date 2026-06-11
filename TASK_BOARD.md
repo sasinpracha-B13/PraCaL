@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013f.1 → `done` ✅ (v1.10.41 shipped · 8 Chester solo entries + 8 documented exclusions) · T-013g (เบอร์เกอร์กุ้ง) queued · T-014/T-015 still HOLD
+Last updated: T-013g → `done` ✅ (v1.10.42 shipped · m131 เบอร์เกอร์กุ้งเชสเตอร์) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -752,6 +752,59 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **First menu-add task with research-driven exclusions** — refused to fabricate values for items not on the actual menu
   - Research found Chester's TH publishes NO public data (confirmed across 2 workflows · 212 agents) — pattern documented for future Thai chain tasks
   - **r28/s19 correction option**: verified values exist (MoPH 230 sticky rice · INMU 105 ส้มตำ); shipped values defensible within research uncertainty bands; T-013f.2 correction task available if user requests
+
+### T-013g — Chester's shrimp burger menu items (user correction)
+
+- **Status:** `done` ✅ (v1.10.42 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-chesters-shrimp-burger.md`](docs/specs/add-meals-chesters-shrimp-burger.md)
+- **Protocol:** follows [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md)
+- **User-locked scope (this turn):**
+  - User correction at T-013f.1 ship: "เบอร์เกอร์กุ้งมีใน CHESTER หาดีๆ" — initial 2 deep-research workflows missed burger items (B1-B16 candidate list did not include burger class)
+  - **3rd deep-research workflow** focused specifically on Chester's burger items: เบอร์เกอร์กุ้ง (PRIORITY) + เบอร์เกอร์ไก่ทอด + เบอร์เกอร์ไก่ย่าง + signature burger variants
+  - Cross-references: Burger King / MOS Burger shrimp burger published nutrition for fallback anchoring
+  - Target: identify EVERY Chester's burger item (not just shrimp), with defensible nutrition
+- **Forbidden in this turn:**
+  - Edits to existing entries (r25-r36 / s19 / others)
+  - Schema changes
+  - Adding burger items not actually on Chester's menu
+- **Gate criteria:** see menu-addition-protocol §3 + audit must report total 405 → 405+N · pass +N · warn/fail unchanged · sibling data files byte-identical · burger items cited or USDA-component-derived with explicit flag · menuinthai.com Chester's page verified as primary menu existence check
+- **Definition of Done (all met):**
+  - [x] 1 entry inserted: m131 เบอร์เกอร์กุ้งเชสเตอร์ (300 cal / 112g · P=14 · C=30 · F=13 · sugar=4)
+  - [x] m131 in audit PASS band; diff% matches §3d prediction **exactly to 2 decimal places: +2.33%**
+  - [x] **User correction validated**: เบอร์เกอร์กุ้ง CONFIRMED on Chester's via 3 primary sources (FB April 2025 + IG 2022 + chesters.co.th/products/437) · prior research workflows had gap in candidate list
+  - [x] **CP Brand parent-company anchor used**: 112g composition (same CPF parent operates Chester's) — strongest defensible anchor available
+  - [x] **REFUTED claims documented**: snapcalorie.com nutrition (149 kcal/100g · 200g=350kcal · 235.3g=411.8kcal) and homemade ebi-katsu recipe values (549 kcal) **NOT used** (0-3 vote in adversarial verification)
+  - [x] `meals.json` data version 1.10.16 → 1.10.17
+  - [x] `service-worker.js` + `index.html` VERSION v1.10.41 → v1.10.42
+  - [x] Total entry count: 405 → 406 (+1)
+  - [x] Aggregate audit: pass 329 → 330 (+1) · warn 70 unchanged · fail 3 unchanged · skipped 3 unchanged
+  - [x] `git diff meals.json` shows exactly 2 hunks: version field + m131 insertion after m130
+  - [x] `branded_products.json` byte-identical (MD5 `50DA32FECC693685B1CF7238C13621F3` matches v1.10.41)
+  - [x] `tools/audit-meals.js` byte-identical (MD5 `6FE42BB990ECC932AE4193C76E71E0D9` matches v1.10.41)
+  - [x] PROJECT_STATE Current Version + Active Task + Latest Completed Work updated
+  - [x] Spec cites menu-addition-protocol + 3rd deep-research workflow with primary source URLs
+  - [x] **เบอร์เกอร์ปลาสไปซี่ deferral documented** (2017 FB source · current availability unverified)
+  - [x] **First burger in DB**: m131 uses m-prefix · mains category · 🍔 emoji (new convention for future burger additions)
+- **Audit evidence:**
+  - PowerShell parallel-impl audit (per DEC-002): m131 PASS with exact prediction match
+  - Aggregate: 405 → 406 ✓ · pass 329 → 330 ✓ · warn 70 unchanged ✓ · fail 3 unchanged ✓ · skipped 3 unchanged ✓
+  - Sibling data files byte-identical (hashes preserved from v1.10.41)
+  - VERSION sync verified in both files
+  - git diff meals.json: 2 hunks at @@-1,5 (version) + @@-681 (m131 insertion)
+  - 3rd deep-research workflow: 104 agents · 22 sources · 25 verified · 15 confirmed · 10 killed
+- **Transitions (so far):**
+  - `todo → in_progress` — picked up after T-013f.1 ship + user correction "เบอร์เกอร์กุ้งมีใน CHESTER หาดีๆ"
+  - `in_progress → review` — 3rd deep-research workflow + m131 inserted with CP Brand anchor · PASS with exact prediction · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013f.1 ship + user correction "เบอร์เกอร์กุ้งมีใน CHESTER หาดีๆ"
+  - `in_progress → review` — 3rd deep-research workflow + m131 inserted with CP Brand anchor · PASS with exact prediction · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ลุย". Final gates re-run, committed + pushed
+- **Notes:**
+  - **User correction was valuable** — found gap in earlier research methodology (B1-B16 candidate list missed entire "burger" item class). For future Thai chain menu research, **search Thai-language brand FB/IG/website FIRST** before falling back to aggregator lists.
+  - **CP Brand parent-company anchor** is a new pattern: when researching items from Thai chains owned by CP Foods (Chester's, Five Star, Sausage Family), the CP Brand retail line frequently sells frozen versions of the in-store items with published composition — useful as defensible anchor.
+  - **Cumulative research across T-013f + T-013f.1 + T-013g**: 316 agents · ~72 sources · ~55 confirmed claims · 20 killed
+  - **T-013g.1 deferred** (Fish Spicy Burger) pending user request + current-menu confirmation
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

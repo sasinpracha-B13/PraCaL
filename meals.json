@@ -1,5 +1,5 @@
 {
-  "version": "1.10.16",
+  "version": "1.10.17",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -681,6 +681,12 @@
     { "id": "m128", "name": "สเต็กเนื้อสันใน 200g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1140, "baseWeight_g": 480, "protein_g": 58, "carbs_g": 70, "fat_g": 70, "sugar_g": 5 },
     { "id": "m129", "name": "สเต็กเนื้อ Rib Eye 250g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1365, "baseWeight_g": 530, "protein_g": 64, "carbs_g": 70, "fat_g": 90, "sugar_g": 5 },
     { "id": "m130", "name": "สเต็กเนื้อ Strip Loin 250g (อเมริกัน)", "emoji": "🥩", "category": "mains", "baseCalories": 1290, "baseWeight_g": 530, "protein_g": 65, "carbs_g": 70, "fat_g": 80, "sugar_g": 5 },
+    { "id": "m131", "name": "เบอร์เกอร์กุ้งเชสเตอร์", "emoji": "🍔", "category": "mains", "baseCalories": 300, "baseWeight_g": 112, "protein_g": 14, "carbs_g": 30, "fat_g": 13, "sugar_g": 4, "calorie_range": { "min": 220, "max": 420 }, "portion_basis": ["ขนมปังเบอร์เกอร์ ~50g (45%)", "ไส้กุ้งบดทอด (กุ้ง+ปลา+breading) ~42g (38%)", "ซอสมาโย ~9g (8%)", "น้ำมัน/seasoning ~10g (9%)"], "customizations": [
+      { "id": "no_bun", "label": "ไม่ใส่ขนมปัง (กินแต่ไส้)", "calChange": -126, "proteinChange": -5, "carbChange": -25, "fatChange": -3, "gramsChange": -50 },
+      { "id": "no_mayo", "label": "ไม่ใส่ซอสมาโย", "calChange": -61, "fatChange": -7, "gramsChange": -9 },
+      { "id": "extra_mayo", "label": "เพิ่มซอสมาโย", "calChange": 30, "fatChange": 3, "gramsChange": 5 },
+      { "id": "extra_lettuce", "label": "เพิ่มผัก/แตงกวา", "calChange": 10, "carbChange": 2 }
+    ] },
 
     { "id": "n19", "name": "สปาเก็ตตี้เบคอนผัดขี้เมา", "emoji": "🍝", "category": "noodles", "baseCalories": 660, "baseWeight_g": 350, "protein_g": 28, "carbs_g": 50, "fat_g": 38, "sugar_g": 3 },
     { "id": "n20", "name": "สปาเก็ตตี้ขี้เมาทะเล", "emoji": "🍝", "category": "noodles", "baseCalories": 470, "baseWeight_g": 380, "protein_g": 28, "carbs_g": 50, "fat_g": 18, "sugar_g": 3 },
