@@ -1,5 +1,5 @@
 {
-  "version": "1.10.14",
+  "version": "1.10.15",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -81,6 +81,26 @@
       { "id": "lean_meat_replace", "label": "ขอเนื้อแทนชัดเจน (advanced)", "groupId": "pork_belly_skin_fat", "note": "uncommon", "calChange": -180, "proteinChange": 8, "carbChange": 0, "fatChange": -28, "sugarChange": 0 }
     ] },
     { "id": "r24", "name": "โจ๊กหมู", "emoji": "🥣", "category": "rice_dishes", "baseCalories": 315, "baseWeight_g": 400, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 1 },
+    { "id": "r25", "name": "ข้าวไก่ย่างเชสเตอร์", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 397, "baseWeight_g": 380, "protein_g": 28, "carbs_g": 44, "fat_g": 12, "sugar_g": 0, "calorie_range": { "min": 320, "max": 550 }, "portion_basis": ["ไก่ย่างเชสเตอร์ 1/4 ตัว ~110g (cooked w/ skin)", "ข้าวสวย ~180g", "น้ำจิ้มเชสเตอร์ ~25g", "ผักเคียง"], "customizations": [
+      { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -75, "fatChange": -7, "gramsChange": -22 },
+      { "id": "extra_sauce", "label": "เพิ่มซอสกระเทียมพริกไทย", "calChange": 45, "carbChange": 11, "sugarChange": 11 },
+      { "id": "extra_quarter_chicken", "label": "เพิ่มไก่ 1/4 ตัว (รวมเป็น 1/2)", "calChange": 250, "proteinChange": 27, "fatChange": 17, "gramsChange": 110 }
+    ] },
+    { "id": "r26", "name": "ไก่ย่างเชสเตอร์ 1/4 ตัว", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 290, "baseWeight_g": 150, "protein_g": 27, "carbs_g": 4, "fat_g": 17, "sugar_g": 3, "calorie_range": { "min": 180, "max": 380 }, "portion_basis": ["ไก่ย่างเชสเตอร์ 1/4 ตัว ~110g (cooked w/ skin)", "น้ำจิ้มเชสเตอร์ ~15g", "ผักเคียง/แตงกวา ~25g"], "customizations": [
+      { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -75, "fatChange": -7, "gramsChange": -22 },
+      { "id": "extra_quarter_chicken", "label": "เพิ่มไก่ 1/4 ตัว (รวมเป็น 1/2 ตัว)", "calChange": 250, "proteinChange": 27, "fatChange": 17, "gramsChange": 110 },
+      { "id": "extra_sauce", "label": "เพิ่มซอสกระเทียมพริกไทย", "calChange": 45, "carbChange": 11, "sugarChange": 11 }
+    ] },
+    { "id": "r27", "name": "ข้าวไก่กระเทียมพริกไทยเชสเตอร์", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 600, "baseWeight_g": 380, "protein_g": 32, "carbs_g": 60, "fat_g": 23, "sugar_g": 3, "calorie_range": { "min": 450, "max": 800 }, "portion_basis": ["ข้าวสวย ~180g", "ไก่ผัดกระเทียมพริกไทย ~120g", "น้ำมัน/เครื่องปรุง ~10g", "ผัก/แตงกวา ~30g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -205, "proteinChange": -4, "carbChange": -45 },
+      { "id": "less_oil", "label": "ลดน้ำมัน", "calChange": -72, "fatChange": -8 },
+      { "id": "extra_fried_egg", "label": "เพิ่มไข่ดาว", "calChange": 90, "proteinChange": 6, "fatChange": 7 }
+    ] },
+    { "id": "r28", "name": "ข้าวเหนียวไก่ย่างเชสเตอร์", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 540, "baseWeight_g": 320, "protein_g": 32, "carbs_g": 60, "fat_g": 17, "sugar_g": 5, "calorie_range": { "min": 380, "max": 680 }, "portion_basis": ["ข้าวเหนียว ~150g", "ไก่ย่างเชสเตอร์ 1/4 ตัว ~110g", "น้ำจิ้มเชสเตอร์ ~15g", "ผักเคียง ~25g", "ใบตอง/wrap weight ~20g"], "customizations": [
+      { "id": "no_sticky_rice", "label": "ไม่ใส่ข้าวเหนียว", "calChange": -255, "proteinChange": -5, "carbChange": -53 },
+      { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -75, "fatChange": -7 },
+      { "id": "extra_sauce", "label": "เพิ่มซอสกระเทียมพริกไทย", "calChange": 45, "carbChange": 11, "sugarChange": 11 }
+    ] },
 
     { "id": "n01", "name": "ก๋วยเตี๋ยวเรือ", "emoji": "🍜", "category": "noodles", "baseCalories": 300, "baseWeight_g": 380, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 4, "calorie_range": { "min": 240, "max": 400 }, "portion_basis": ["เส้นเล็ก 80g cooked", "หมู/ลูกชิ้น/เลือด", "น้ำซุป", "ผัก"], "customizations": [
       { "id": "clear_broth", "label": "น้ำใส", "calChange": -50, "carbChange": -2, "fatChange": -4 },
@@ -731,6 +751,12 @@
     { "id": "s16", "name": "สลัดแอปเปิ้ลครีม", "emoji": "🍎", "category": "salads", "baseCalories": 280, "baseWeight_g": 250, "protein_g": 4, "carbs_g": 30, "fat_g": 18, "sugar_g": 18 },
     { "id": "s17", "name": "สลัดผักสด (ดรสซิ่งใส)", "emoji": "🥗", "category": "salads", "baseCalories": 150, "baseWeight_g": 260, "protein_g": 4, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },
     { "id": "s18", "name": "สลัด Caesar", "emoji": "🥗", "category": "salads", "baseCalories": 360, "baseWeight_g": 250, "protein_g": 12, "carbs_g": 20, "fat_g": 25, "sugar_g": 4 },
+    { "id": "s19", "name": "ส้มตำไก่ย่างเชสเตอร์คอมโบ", "emoji": "🥗", "category": "salads", "baseCalories": 420, "baseWeight_g": 280, "protein_g": 30, "carbs_g": 30, "fat_g": 18, "sugar_g": 15, "calorie_range": { "min": 320, "max": 580 }, "portion_basis": ["ส้มตำไทย ~150g", "ไก่ย่างเชสเตอร์ 1/4 ตัว ~110g", "ถั่วลิสง/มะเขือเทศ ~20g"], "customizations": [
+      { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -75, "fatChange": -7 },
+      { "id": "no_peanuts", "label": "ไม่ใส่ถั่วลิสง", "calChange": -30, "fatChange": -3 },
+      { "id": "less_palm_sugar", "label": "ส้มตำใส่น้ำตาลน้อย", "calChange": -25, "sugarChange": -6 },
+      { "id": "add_sticky_rice", "label": "เพิ่มข้าวเหนียว 1 ห่อ", "calChange": 210, "proteinChange": 4, "carbChange": 45 }
+    ] },
 
     { "id": "g22", "name": "ซุปเห็ดครีม", "emoji": "🍲", "category": "soups", "baseCalories": 270, "baseWeight_g": 250, "protein_g": 5, "carbs_g": 18, "fat_g": 22, "sugar_g": 4 },
     { "id": "g23", "name": "ซุปข้าวโพดครีม", "emoji": "🍲", "category": "soups", "baseCalories": 310, "baseWeight_g": 250, "protein_g": 6, "carbs_g": 28, "fat_g": 18, "sugar_g": 10 },

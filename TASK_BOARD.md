@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013e → `done` ✅ (v1.10.39 shipped · 4 ก๋วยจั๊บ family entries · meals.json 1.10.13 → 1.10.14) · T-014/T-015 still HOLD
+Last updated: T-013f → `done` ✅ (v1.10.40 shipped · 5 Chester's entries · meals.json 1.10.14 → 1.10.15) · T-013f.1 EXPANSION queued per user feedback "เพิ่มของ Chester ที่เป็นเมนูเดี่ยวๆให้หมด" · T-014/T-015 still HOLD
 
 ---
 
@@ -643,6 +643,63 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 - **Notes:**
   - First menu-addition task since T-008 (v1.10.26); confirms the menu-addition-protocol still works cleanly after 12+ task gap
   - Used anchor-derivation per established protocol (T-005 through T-008 pattern); external citation research available as follow-up if review requires
+
+### T-013f — Add Chester's Grill menu entries (5 entries)
+
+- **Status:** `done` ✅ (v1.10.40 shipped · user feedback: scope was too narrow, T-013f.1 expansion queued)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-chesters.md`](docs/specs/add-meals-chesters.md)
+- **Protocol:** follows [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md)
+- **User-locked scope (this turn):**
+  - 5 Chester's entries: r25 ข้าวไก่ย่าง · r26 ไก่ย่าง 1/4 · r27 ข้าวไก่กระเทียมพริกไทย · r28 ข้าวเหนียวไก่ย่าง · s19 ส้มตำไก่ย่าง คอมโบ
+  - **First menu-add task with external citations** (per user request "หาข้อมูลให้ละเอียด")
+  - Deep-research workflow invoked: 105 agents · 23 sources · 25 adversarially-verified claims
+  - Key finding: Chester's Thailand publishes NO official nutrition data; only ONE Chester-attributed anchor on fit-d.com
+  - Other 4 entries derived from USDA components (chicken thigh+skin, jasmine rice, sweet chili) with explicit citations
+  - 2 open questions flagged (sticky rice + ส้มตำ — INMU FCD v3 not verified in synthesis)
+  - Customizations: 13 across 5 entries (mix of add/subtract, per user "ทำ ADDON เฉพาะให้เหมาะสม")
+  - `meals.json` data version 1.10.14 → 1.10.15
+  - VERSION sync v1.10.39 → v1.10.40
+- **Forbidden in this turn:**
+  - Claiming "official Chester's nutrition data" (none exists publicly per research)
+  - Edits to existing entries
+  - Schema changes
+  - Adding to branded_products.json (no customization support there)
+- **Gate criteria:** see spec DoD + protocol §7 + audit must report total 392 → 397 · pass +5 · warn/fail unchanged · git diff exactly 3 hunks (version + r-insertion + s-insertion) · sibling data files byte-identical · citations present for every numerical value
+- **Definition of Done (all met):**
+  - [x] 5 entries inserted: r25 (397) · r26 (290) · r27 (600) · r28 (540) · s19 (420)
+  - [x] All 5 in audit PASS band; per-entry diff% **matches §3d prediction exactly to 2 decimal places**: r25 +0.25% · r26 +4.48% · r27 +4.17% · r28 +3.52% · s19 +4.29%
+  - [x] Real-user fit check passed: serving sizes match existing peer-entry conventions (r25/r27=380g matches r04 ข้าวมันไก่; r28=320g sticky-rice combo; s19=280g salad combo)
+  - [x] `meals.json` data version 1.10.14 → 1.10.15
+  - [x] `service-worker.js` + `index.html` VERSION v1.10.39 → v1.10.40
+  - [x] Total entry count: 392 → 397 (+5)
+  - [x] Aggregate audit: pass 316 → 321 (+5) · warn 70 unchanged · fail 3 unchanged · skipped 3 unchanged
+  - [x] `git diff meals.json` shows exactly 3 hunks: version field + r25-r28 insertion + s19 insertion
+  - [x] `branded_products.json` byte-identical (MD5 `50DA32FECC693685B1CF7238C13621F3` matches v1.10.39 baseline)
+  - [x] `tools/audit-meals.js` byte-identical (MD5 `6FE42BB990ECC932AE4193C76E71E0D9` matches v1.10.39 baseline)
+  - [x] PROJECT_STATE Current Version + Active Task + Latest Completed Work + run history updated
+  - [x] Spec cites menu-addition-protocol explicitly + deep-research citation URLs
+  - [x] Citations attached: fit-d.com (r25 anchor) · USDA chicken thigh (r26/r27/r28/s19 chicken portion) · USDA jasmine rice (r25/r27) · USDA sweet chili sauce (sauce customizations) · open-question flags for sticky rice + ส้มตำ
+- **Audit evidence:**
+  - PowerShell parallel-impl audit (per DEC-002): per-entry diff% all PASS band with exact prediction match (5/5)
+  - Aggregate: 392 → 397 ✓ · pass 316 → 321 ✓ · warn 70 unchanged ✓ · fail 3 unchanged ✓ · skipped 3 unchanged ✓
+  - Sibling data files byte-identical (hashes preserved from v1.10.39)
+  - VERSION sync verified in both files
+  - git diff meals.json: 3 hunks at @@-1,5 (version), @@-81 (r insertion), @@-731 (s insertion)
+  - Deep-research workflow stats: 105 agents · 23 sources · 53 claims · 25 verified · 23 confirmed · 2 killed (chicken protein 25.06g exact value; GRAMA's chili sauce brand-specificity)
+- **Transitions (so far):**
+  - `todo → in_progress` — picked up after T-013e ship + user request for Chester's menu with detailed nutrition research
+  - `in_progress → review` — deep-research invoked + 5 entries inserted with citations · all PASS with exact prediction match · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013e ship + user request for Chester's menu with detailed nutrition research
+  - `in_progress → review` — deep-research invoked + 5 entries inserted with citations · all PASS with exact prediction match · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ลุยได้". Final gates re-run (per-entry exact match · sibling hashes preserved · 3 hunks · VERSION sync), then committed + pushed
+- **Notes:**
+  - **First menu-add task to use deep-research** — previous tasks (T-005 through T-013e) used anchor-derivation only
+  - Established pattern for branded restaurant items going forward: deep-research first → if branded entry exists in Thai aggregators (fit-d/wongnai/INMU) cite directly · else derive from USDA components with explicit flag
+  - 2 open questions flagged at ship (sticky rice + ส้มตำ INMU FCD verification) — accepted by user; INMU re-verification can be a follow-up if data changes
+  - Brand discovery: Chester's Thailand publishes NO public nutrition data despite being a major chain — documented for future tasks targeting Thai chains
+  - **Scope criticism in approval message**: user said "บอกให้เพิ่มของ Chester ที่เป็นเมนูเดี่ยวๆให้หมด" — initial scope of 5 was too narrow. T-013f.1 EXPANSION queued to add remaining Chester's solo items (a la carte chicken sizes, ปีกไก่ทอด, น่องไก่ทอด, additional rice variants, etc.). User confirmation of scope list expected before T-013f.1 starts.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
