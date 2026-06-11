@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013f → `done` ✅ (v1.10.40 shipped · 5 Chester's entries · meals.json 1.10.14 → 1.10.15) · T-013f.1 EXPANSION queued per user feedback "เพิ่มของ Chester ที่เป็นเมนูเดี่ยวๆให้หมด" · T-014/T-015 still HOLD
+Last updated: T-013f.1 → `done` ✅ (v1.10.41 shipped · 8 Chester solo entries + 8 documented exclusions) · T-013g (เบอร์เกอร์กุ้ง) queued · T-014/T-015 still HOLD
 
 ---
 
@@ -700,6 +700,58 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - 2 open questions flagged at ship (sticky rice + ส้มตำ INMU FCD verification) — accepted by user; INMU re-verification can be a follow-up if data changes
   - Brand discovery: Chester's Thailand publishes NO public nutrition data despite being a major chain — documented for future tasks targeting Thai chains
   - **Scope criticism in approval message**: user said "บอกให้เพิ่มของ Chester ที่เป็นเมนูเดี่ยวๆให้หมด" — initial scope of 5 was too narrow. T-013f.1 EXPANSION queued to add remaining Chester's solo items (a la carte chicken sizes, ปีกไก่ทอด, น่องไก่ทอด, additional rice variants, etc.). User confirmation of scope list expected before T-013f.1 starts.
+
+### T-013f.1 — Chester's non-combo solo expansion + INMU verify
+
+- **Status:** `done` ✅ (v1.10.41 shipped)
+- **Owner:** Execution Agent
+- **Spec:** (will be written after deep-research returns)
+- **Protocol:** follows [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md)
+- **User-locked scope (this turn):**
+  - **Scope option (c)**: ALL Chester's menu items that are NOT combo/family sets
+  - **Exclude**: drinks/sides (ข้าวเปล่า, น้ำซุป, beverages)
+  - **Target**: comprehensive coverage ("ครบ") — estimated 12-20 new entries
+  - **Research**: deep-research workflow again + INMU FCD verification for sticky rice + ส้มตำ (upgrades T-013f open questions from derived estimate to primary cited)
+- **Forbidden in this turn:**
+  - Adding combo/family sets (covered by T-013f)
+  - Adding drinks or pure sides
+  - Re-shipping the 5 entries already in T-013f (r25-r28, s19) — they stay as-is
+  - Edits to existing entries
+  - Schema changes
+- **Gate criteria:** see menu-addition-protocol §3 + audit must report total 397 → 397+N · pass +N · warn/fail unchanged · sibling data files byte-identical · INMU sticky rice + ส้มตำ values cited or flagged
+- **Definition of Done (all met):**
+  - [x] **8 entries inserted** (research-driven reduction from target 12-20 — 8 candidates excluded with reasons): r29 ไก่ย่าง 1/2 ตัว (580) · r30 ไก่ย่าง ทั้งตัว (1160) · r31 ปีกไก่ทอด (200) · r32 น่องไก่ทอด (400) · r33 ไก่ทอด 3 ชิ้น (580) · r34 ข้าวไก่เทอริยากิ (555) · r35 ข้าวหน้าไก่ (455) · r36 ข้าวไก่ซอสพริก (520)
+  - [x] All 8 in audit PASS band; per-entry diff% matches §3d prediction exact to 2 decimal: r29 +4.48% · r30 +4.48% · r31 -1.00% · r32 +3.50% · r33 +4.14% · r34 +3.60% · r35 -1.76% · r36 +4.62%
+  - [x] **8 candidates excluded** with documented research rationale (B9-B11 noodles: 1-2 anchor vote · B12-B16 steaks/salad/porridge/congee: menu existence NOT verified)
+  - [x] **Part A research goals completed**: sticky rice MoPH Code 01039 = 230 kcal/100g (3-0 vote) · ส้มตำ INMU-attributed = 105 kcal/100g (2-1 vote) — both verified with primary citations
+  - [x] **r28/s19 decisions documented**: kept at shipped values (both 169 and 230 sticky-rice defensible per research caveat; ส้มตำ verified value within band)
+  - [x] `meals.json` data version 1.10.15 → 1.10.16
+  - [x] `service-worker.js` + `index.html` VERSION v1.10.40 → v1.10.41
+  - [x] Total entry count: 397 → 405 (+8)
+  - [x] Aggregate audit: pass 321 → 329 (+8) · warn 70 unchanged · fail 3 unchanged · skipped 3 unchanged
+  - [x] `git diff meals.json` shows exactly 2 hunks: version field + r29-r36 insertion after r28
+  - [x] `branded_products.json` byte-identical (MD5 `50DA32FECC693685B1CF7238C13621F3` matches v1.10.40)
+  - [x] `tools/audit-meals.js` byte-identical (MD5 `6FE42BB990ECC932AE4193C76E71E0D9` matches v1.10.40)
+  - [x] PROJECT_STATE updated
+  - [x] Spec cites menu-addition-protocol + both deep-research workflows
+- **Audit evidence:**
+  - PowerShell parallel-impl audit (per DEC-002): per-entry diff% all PASS with exact prediction match
+  - Aggregate: 397 → 405 ✓ · pass 321 → 329 ✓ · warn 70 unchanged ✓ · fail 3 unchanged ✓ · skipped 3 unchanged ✓
+  - Sibling data files byte-identical (hashes preserved from v1.10.40)
+  - VERSION sync verified in both files
+  - git diff meals.json: 2 hunks at @@-1,5 (version) + @@-101 (r29-r36 insertion)
+  - **Cumulative deep-research stats (T-013f + T-013f.1)**: 212 agents · ~50 sources · ~40 confirmed claims · 10 killed
+- **Transitions (so far):**
+  - `todo → in_progress` — picked up after T-013f ship + user-confirmed scope option (c) + "ครบ" target
+  - `in_progress → review` — 2nd deep-research workflow + 8 entries inserted + 8 exclusions documented · all PASS with exact prediction · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013f ship + user-confirmed scope option (c) + "ครบ" target
+  - `in_progress → review` — 2nd deep-research workflow + 8 entries inserted + 8 exclusions documented · all PASS with exact prediction · sibling files preserved · VERSION sync · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ทำเลย เพิ่มเบอร์เกอร์กุ้งให้ด้วย" (split into 2 parts: ship T-013f.1 now, T-013g for shrimp burger as separate task)
+- **Notes:**
+  - **First menu-add task with research-driven exclusions** — refused to fabricate values for items not on the actual menu
+  - Research found Chester's TH publishes NO public data (confirmed across 2 workflows · 212 agents) — pattern documented for future Thai chain tasks
+  - **r28/s19 correction option**: verified values exist (MoPH 230 sticky rice · INMU 105 ส้มตำ); shipped values defensible within research uncertainty bands; T-013f.2 correction task available if user requests
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
