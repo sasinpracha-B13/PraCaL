@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-017 → `done` ✅ (v1.10.43 shipped · Weight + Waist charts now tappable) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-018 → `done` ✅ (v1.10.44 shipped · SW update detection fix) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -849,6 +849,45 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 - **Notes:**
   - First task in a while that is pure UI/UX enhancement (last non-data tasks were T-013 series BPC work). Confirms operating model handles small surface tasks cleanly.
   - Pattern reinforced: when extending an existing helper (svgLineChart), use **optional opts + backward-compat detection** rather than breaking the signature. Same approach as T-013d.3's `computeBodyProgressInsight(user, ...args)` refactor.
+
+### T-018 — Force SW update check on page load + visibilitychange (bug fix)
+
+- **Status:** `done` ✅ (v1.10.44 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/sw-update-detection-fix.md`](docs/specs/sw-update-detection-fix.md)
+- **User-locked scope (this turn):**
+  - Bug report: "ทำไมปิดแอปเข้าใหม่ไม่มีขึ้นให้อัปเดต" (no update banner on close-reopen)
+  - Root cause: 3 missing pieces in current SW registration — no `updateViaCache: 'none'`, no explicit `reg.update()`, no visibilitychange listener
+  - Browser auto-checks SW updates every 24h only; users opening within that window get no banner
+  - Fix: add 3 small lines (~5 LoC) to force update check on page load + every foreground transition
+- **Forbidden:**
+  - Schema changes
+  - service-worker.js changes (already correct)
+  - Banner UI changes
+  - Auto-applying updates (user still taps "อัปเดต")
+- **Gate criteria:** see spec DoD · existing updatefound chain unchanged · first-time install banner suppression preserved · backward-compat verified
+- **Definition of Done (all met):**
+  - [x] `navigator.serviceWorker.register(...)` called with `{ updateViaCache: 'none' }` — grep verified: 1 occurrence
+  - [x] `reg.update().catch(() => {})` called immediately after registration · grep verified: 2 occurrences (post-register + visibilitychange handler)
+  - [x] `document.addEventListener('visibilitychange', ...)` calls `reg.update()` when state becomes visible · grep verified: 1 functional listener
+  - [x] Existing `updatefound` event chain unchanged · `showUpdateBanner` count = 3 (def + 2 fire sites — both preserved)
+  - [x] First-time install correctly suppresses banner (`navigator.serviceWorker.controller` truthy check preserved on both fire paths)
+  - [x] VERSION v1.10.43 → v1.10.44 (sw + index, both verified)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (meals.json MD5 `A96AB59247B091D6B3E68DD6434B9A43` · branded_products `50DA32FECC693685B1CF7238C13621F3` · audit-meals.js `6FE42BB990ECC932AE4193C76E71E0D9` — all match v1.10.43 baseline)
+- **Audit evidence:**
+  - VERSION sync verified in both files
+  - Aggregate meals audit unchanged (406 entries · pass=330 / warn=70 / fail=3 / skip=3 — identical to v1.10.43)
+  - Sibling data files byte-identical
+  - 3 fix additions wired (updateViaCache opt · reg.update post-register · visibilitychange listener)
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-017 ship + user bug report
+  - `in_progress → review` — 3-line fix · audit clean · VERSION synced · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ลุย". Committed + pushed.
+- **Notes:**
+  - **Chicken-and-egg deployment**: users on ≤v1.10.43 won't see this fix until their browser's next 24h auto-check OR they hard-refresh. After v1.10.44+, all future updates trigger banner reliably. Unavoidable for any SW update-flow fix.
+  - **Belt-and-suspenders**: netlify.toml already has `Cache-Control: no-cache, no-store, must-revalidate` on service-worker.js, which is the server-side guarantee. Adding `updateViaCache: 'none'` is the client-side guarantee — defense in depth for browsers that occasionally ignore the header.
+  - **First-time install behavior preserved**: the `&& navigator.serviceWorker.controller` check in both banner fire paths ensures no banner shows on initial install (correct — nothing to "update" yet).
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

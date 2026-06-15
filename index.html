@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.43';
+const VERSION = 'v1.10.44';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -10466,9 +10466,16 @@ async function main() {
   }
 
   // Service worker
+  // v1.10.44 — T-018: force update check on registration + visibilitychange.
+  // Browser default auto-check is once per 24h; without explicit reg.update(),
+  // users opening the app within that window see no update banner even when
+  // a new SW is deployed. updateViaCache:'none' bypasses HTTP cache for the
+  // SW file itself (belt-and-suspenders alongside netlify.toml no-cache header).
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.register('./service-worker.js');
+      const reg = await navigator.serviceWorker.register('./service-worker.js', {
+        updateViaCache: 'none'
+      });
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         if (!nw) return;
@@ -10481,6 +10488,14 @@ async function main() {
       if (reg.waiting && navigator.serviceWorker.controller) {
         showUpdateBanner();
       }
+      // Force check on this load (don't wait for browser's 24h cycle)
+      reg.update().catch(() => {});
+      // Re-check whenever the app comes back to foreground
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          reg.update().catch(() => {});
+        }
+      });
     } catch (err) {
       console.warn('SW registration failed', err);
     }
