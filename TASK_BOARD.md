@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-013g → `done` ✅ (v1.10.42 shipped · m131 เบอร์เกอร์กุ้งเชสเตอร์) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-017 → `done` ✅ (v1.10.43 shipped · Weight + Waist charts now tappable) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -805,6 +805,50 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **CP Brand parent-company anchor** is a new pattern: when researching items from Thai chains owned by CP Foods (Chester's, Five Star, Sausage Family), the CP Brand retail line frequently sells frozen versions of the in-store items with published composition — useful as defensible anchor.
   - **Cumulative research across T-013f + T-013f.1 + T-013g**: 316 agents · ~72 sources · ~55 confirmed claims · 20 killed
   - **T-013g.1 deferred** (Fish Spicy Burger) pending user request + current-menu confirmation
+
+### T-017 — Extend chart tap-to-read to Weight + Waist charts in Reports
+
+- **Status:** `done` ✅ (v1.10.43 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/reports-weight-waist-chart-interactivity.md`](docs/specs/reports-weight-waist-chart-interactivity.md)
+- **User-locked scope (this turn):**
+  - Extend T-010's tap-to-read pattern to the 2 remaining Reports charts (Weight + Waist) which still use `svgLineChart`
+  - `svgLineChart` gets backward-compatible `chartId` + `selectedIdx` opts
+  - 2 new detail-box helpers: `chartDetailWeight`, `chartDetailWaist`
+  - Reuses existing `show-chart-point` handler · existing `state.tmp.chartSelection` shape
+  - No data file changes · no new handlers · no new listeners
+- **Forbidden:**
+  - Schema changes
+  - Edits to existing 3 chart tap-to-read flows (regression-free)
+  - BPC chart changes (out of scope)
+- **Gate criteria:** see spec DoD + test plan · existing 3 charts unchanged · selection clears on range change · backward-compat verified
+- **Definition of Done (all met):**
+  - [x] `svgLineChart` opts gain `chartId` + `selectedIdx` (backward-compatible · function def count still = 1)
+  - [x] Hit-area `<rect>` emitted per series point when `chartId` provided (24px tap target × full chart height)
+  - [x] Selected point renders with ring (6.5px radius outer, 1.5px stroke) + larger fill radius (4.8px vs 2.8px default) — matches T-010 visual
+  - [x] `chartDetailWeight(idx)` helper added inside `renderReports` — shows date + weight + 7-day moving average
+  - [x] `chartDetailWaist(idx)` helper added inside `renderReports` — shows date + waist + 7-day moving average
+  - [x] Weight chart call site updated: `chartId: 'weight'` · `selectedIdx: selPointIdx('weight')` · detail box rendered below chart
+  - [x] Waist chart call site updated: `chartId: 'waist'` · `selectedIdx: selPointIdx('waist')` · detail box rendered below chart
+  - [x] Hint text added "แตะจุดเพื่อดูค่า" to both chart cards
+  - [x] No regression: existing 3 daily charts (calorie/balance/protein) unchanged · same `show-chart-point` handler · same `state.tmp.chartSelection` shape
+  - [x] No new handlers · no new event listeners · no schema changes
+  - [x] VERSION v1.10.42 → v1.10.43 (sw + index, both verified)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (`meals.json` MD5 `A96AB59247B091D6B3E68DD6434B9A43` · `branded_products.json` MD5 `50DA32FECC693685B1CF7238C13621F3` · `audit-meals.js` MD5 `6FE42BB990ECC932AE4193C76E71E0D9` — all match v1.10.42)
+- **Audit evidence:**
+  - Function definitions: `svgLineChart`=1 · `svgDailyLineChart`=1 · `svgDailyBarChart`=1 (no duplication from extension)
+  - 5 chart detail helpers in `renderReports`: chartDetailCal (L6129), chartDetailBal (L6137), chartDetailProt (L6146), chartDetailWeight (L6157 NEW), chartDetailWaist (L6166 NEW)
+  - Aggregate meals audit unchanged (406 entries · pass=330 warn=70 fail=3 skip=3 — identical to v1.10.42 since no data change)
+  - VERSION sync verified in both files
+  - Sibling data files byte-identical
+- **Transitions:**
+  - `todo → in_progress` — picked up after T-013g ship + user feedback "ในหน้ารายงานกราฟแต่ละอัน ทำให้กดจิ้มดู"
+  - `in_progress → review` — svgLineChart extended backward-compat · 2 new detail helpers · 2 call sites updated · audit clean · VERSION synced · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ลุย". Committed + pushed.
+- **Notes:**
+  - First task in a while that is pure UI/UX enhancement (last non-data tasks were T-013 series BPC work). Confirms operating model handles small surface tasks cleanly.
+  - Pattern reinforced: when extending an existing helper (svgLineChart), use **optional opts + backward-compat detection** rather than breaking the signature. Same approach as T-013d.3's `computeBodyProgressInsight(user, ...args)` refactor.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
