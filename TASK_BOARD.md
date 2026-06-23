@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-018 → `done` ✅ (v1.10.44 shipped · SW update detection fix) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-019 → `done` ✅ (v1.10.45 shipped · dynamic BMR from weight log + age auto-increment) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -888,6 +888,57 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **Chicken-and-egg deployment**: users on ≤v1.10.43 won't see this fix until their browser's next 24h auto-check OR they hard-refresh. After v1.10.44+, all future updates trigger banner reliably. Unavoidable for any SW update-flow fix.
   - **Belt-and-suspenders**: netlify.toml already has `Cache-Control: no-cache, no-store, must-revalidate` on service-worker.js, which is the server-side guarantee. Adding `updateViaCache: 'none'` is the client-side guarantee — defense in depth for browsers that occasionally ignore the header.
   - **First-time install behavior preserved**: the `&& navigator.serviceWorker.controller` check in both banner fire paths ensures no banner shows on initial install (correct — nothing to "update" yet).
+
+### T-019 — Dynamic BMR from weight log + age auto-increment (Tier 1 + Tier 2)
+
+- **Status:** `done` ✅ (v1.10.45 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/dynamic-bmr-weight-age.md`](docs/specs/dynamic-bmr-weight-age.md)
+- **⚠️ Hard-guardrail change:** touches `calcBMR` / `proteinTarget` / inputs to `calcTDEE`. Numerical justification: **Mifflin–St Jeor formula + coefficients byte-identical**; only inputs (weight, age) change from stale onboarding snapshot to current-derived (7-day weight-log average + birthYear-derived age). `calorieFloor` + elderly −300 cap unchanged downstream.
+- **User-locked scope (this turn):**
+  - Advisory question → user chose "Tier 1+2" (dynamic BMR from weight + age auto-increment)
+  - Tier 1: `effectiveBodyWeight(p)` = 7-day avg of weight log, fallback `p.weight`; feeds calcBMR + proteinTarget
+  - Tier 2: `effectiveAge(p)` from `birthYear` (migration-seeded), fallback `p.age`
+  - Coherence: exercise-burn (4 sites) + meal-plan (1 site) body-weight reads use effective weight
+  - Transparency: profile age + protein-weight + breakdown note show derived values (no silent target shifts)
+  - Snapshot+derived pattern (don't mutate `u.weight`/`u.age`); `birthYear` additive migration
+- **Forbidden:**
+  - Changing Mifflin formula / coefficients / calorieFloor / elderly cap / activityMultiplier / goalZoneEval
+  - Tier 3 (empirical TDEE) — deferred to separate task
+  - Tier 4 (Katch–McArdle) — deferred
+  - Consent modal gating target changes — decided against (transparency hint instead)
+  - Data file changes
+- **Gate criteria:** see spec DoD + test plan · formula byte-identical · existing-user upgrade = zero immediate target jump · floor + elderly cap preserved · onboarding preview unaffected · VERSION sync · data hashes unchanged
+- **Definition of Done (all met):**
+  - [x] `effectiveBodyWeight(p)` — 7-day window ending at latest log entry · snapshot fallback (def count = 1)
+  - [x] `effectiveAge(p)` — birthYear-derived · snapshot fallback · 0–120 clamp (def count = 1)
+  - [x] `birthYearFromAge(age)` helper (def count = 1)
+  - [x] `calcBMR` uses `effectiveBodyWeight` + `effectiveAge` — **Mifflin formula/coeffs byte-identical** (grep verified: `10 * w + 6.25 * hcm - 5 * a + 5` male / `- 161` female intact)
+  - [x] `proteinTarget` uses `effectiveBodyWeight` + `effectiveAge` (multipliers unchanged)
+  - [x] `isElderly` uses `effectiveAge`
+  - [x] Exercise-burn weight reads (4 sites: act preview, MET calc inline, MET detail display, addActivity) + meal-plan weight read (1 site) use `effectiveBodyWeight(u)`
+  - [x] `migrateData` seeds `birthYear` for existing users (grep: 1 seed; effectiveAge returns old age at migration → zero immediate change)
+  - [x] 4 persist sites set `birthYear` via `birthYearFromAge` (redo Object.assign · new-user const · save-profile new-nu · save-profile Object.assign) — grep: 5 calls total (1 def + 4 sites)
+  - [x] Display transparency: profile header age + elderly note + onboarding hint use `effectiveAge`; protein-calc detail uses `effectiveBodyWeight`; `breakdownText` shows "⚖️ คำนวณจากน้ำหนักล่าสุด X kg (เฉลี่ย 7 วัน)" only when effective ≠ snapshot ≥0.5 kg
+  - [x] Onboarding preview pseudo-users (no `weights`/`birthYear`) fall back to form inputs — verified: 4 preview sites (7970/7986/9906/10015) intentionally left to fall back
+  - [x] No stale `Number(p.weight)` / `Number(p.age)` left (grep = 0 each)
+  - [x] VERSION v1.10.44 → v1.10.45 (sw + index, both verified)
+  - [x] PROJECT_STATE updated incl. guardrail-section annotation
+  - [x] Data file hashes unchanged (meals `A96AB59247B091D6B3E68DD6434B9A43` · branded `50DA32FECC693685B1CF7238C13621F3` · audit-meals `6FE42BB990ECC932AE4193C76E71E0D9` — match v1.10.44)
+- **Audit evidence:**
+  - **GUARDRAIL — formula byte-identical**: `10 * w + 6.25 * hcm - 5 * a + 5` (L1233 male) / `- 161` (L1234 female) — only `w`/`a` variable sources changed
+  - Helper defs: effectiveBodyWeight=1 · effectiveAge=1 · birthYearFromAge=1
+  - Stale reads: `Number(p.weight)`=0 · `Number(p.age)`=0
+  - birthYear: migrateSeed=1 · birthYearFromAge calls=5 (def + 4 persist sites)
+  - VERSION sync verified · data files byte-identical · aggregate meals audit unchanged
+- **Transitions:**
+  - `todo → in_progress` — picked up after advisory discussion; user chose "Tier 1+2"
+  - `in_progress → review` — 3 helpers + calcBMR/proteinTarget/isElderly + 5 coherence swaps + migration + 4 persist sites + transparency · formula byte-identical · audit clean · VERSION synced · state files + guardrail annotation updated · held per established gate pattern
+  - `review → done` — user approved with "ลุย" (after the first-guardrail-change scrutiny note). Final gates re-verified (formula 2 lines · stale reads 0 · hashes unchanged · VERSION sync), committed + pushed
+- **Notes:**
+  - **First hard-guardrail change in the operating model.** Demonstrated the guardrail process: spec with numerical justification → formula byte-identity verified by grep → PROJECT_STATE guardrail section annotated. The justification ("formula unchanged, only inputs current-derived") is the key that made this safe to touch.
+  - **Snapshot+derived pattern** reused from T-013d.3: don't mutate the stored snapshot (`u.weight`/`u.age`), compute a derived "effective" value. Keeps fallback + onboarding-preview behavior intact.
+  - **Tier 3 (empirical TDEE)** is the natural next step — the app already has intake + weight-trend data to back-calculate true TDEE (auto-covers metabolic adaptation). Deferred; needs conservative tone like T-013d.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

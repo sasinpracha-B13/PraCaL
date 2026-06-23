@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.44';
+const VERSION = 'v1.10.45';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -855,7 +855,7 @@ function updateActivityPreview() {
   const intensity = t.actIntensity || 'moderate';
   const duration = Number(t.actDuration) || 0;
   const manualCal = Number(t.actCalInput) || 0;
-  const weightKg = u?.weight || 70;
+  const weightKg = effectiveBodyWeight(u) || 70;   // v1.10.45 — T-019: current weight
   const calcCal = mode === 'met' ? calculateBurn(type, intensity, duration, weightKg) : Math.max(0, manualCal);
   const calPerMin = duration > 0 ? calcCal / duration : 0;
   const calEl = document.getElementById('act-calc-cal');
@@ -1195,10 +1195,41 @@ function clearCacheEntry(name) {
 }
 
 /* ========== CALCULATIONS ========== */
+// v1.10.45 — T-019: current body weight for physiological calc. Uses a 7-day
+// average of the weight log (window ending at the most-recent logged entry) so
+// BMR/TDEE/protein track the user's real current weight instead of a stale
+// onboarding snapshot. Falls back to the profile snapshot when no log exists
+// (e.g., onboarding preview pseudo-user). Does NOT mutate p.weight.
+function effectiveBodyWeight(p) {
+  const log = (p && p.weights) || [];
+  if (!log.length) return Number(p?.weight) || 0;
+  const sorted = log.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const latest = sorted[sorted.length - 1];
+  const cutoff = dateToKey(addDays(keyToDate(latest.date), -6));   // 7-day window
+  const win = sorted.filter(w => w.date >= cutoff);
+  if (!win.length) return Number(p?.weight) || 0;
+  return win.reduce((s, w) => s + w.weight_kg, 0) / win.length;
+}
+// v1.10.45 — T-019: current age from birthYear (auto-increments yearly).
+// Falls back to the snapshot age when birthYear is absent (pseudo-user / pre-migration).
+function effectiveAge(p) {
+  if (p && typeof p.birthYear === 'number' && p.birthYear > 1900) {
+    const curYear = Number(todayKey().slice(0, 4));
+    const a = curYear - p.birthYear;
+    if (a >= 0 && a <= 120) return a;
+  }
+  return Number(p?.age) || 0;
+}
+// v1.10.45 — T-019: seed/refresh birthYear from an entered age at profile-write sites.
+function birthYearFromAge(age) {
+  return Number(todayKey().slice(0, 4)) - (Number(age) || 0);
+}
 function calcBMR(p) {
-  const w = Number(p.weight) || 0;
+  // v1.10.45 — T-019: Mifflin–St Jeor formula + coefficients UNCHANGED; only the
+  // weight + age inputs are now current-derived (see effectiveBodyWeight/effectiveAge).
+  const w = effectiveBodyWeight(p);
   const hcm = Number(p.height) || 0;
-  const a = Number(p.age) || 0;
+  const a = effectiveAge(p);
   if (p.gender === 'male') return 10 * w + 6.25 * hcm - 5 * a + 5;
   return 10 * w + 6.25 * hcm - 5 * a - 161;
 }
@@ -1213,8 +1244,9 @@ function goalCategory(p) {
   return 'maintain';
 }
 function proteinTarget(p) {
-  const w = Number(p.weight) || 0;
-  const age = Number(p.age) || 30;
+  // v1.10.45 — T-019: protein target tracks current weight + age (same helpers as calcBMR)
+  const w = effectiveBodyWeight(p);
+  const age = effectiveAge(p) || 30;
   if (age >= 60) {
     return Math.round(w * 1.3); // 1.2-1.5g/kg sweet spot for elderly
   }
@@ -1244,7 +1276,8 @@ function goalAdjust(p) {
   return effectiveGoalAdjust(p);
 }
 function isElderly(p) {
-  return (Number(p?.age) || 0) >= 60;
+  // v1.10.45 — T-019: elderly protections activate as the user ages into 60
+  return effectiveAge(p) >= 60;
 }
 
 /* ========== ACTIVITY TRACKING ========== */
@@ -1303,6 +1336,13 @@ function breakdownText(u) {
   let txt = `💡 BMR ${fmt(br.bmr)} × ${br.multiplier} (${h(actName)}) = TDEE ${fmt(br.tdee)}`;
   if (br.goal !== 0) txt += ` · เป้าหมาย ${br.goal > 0 ? '+' : ''}${br.goal}`;
   if (br.flooredAt) txt += ` <b style="color:var(--amber)">(ปรับขึ้นเป็น ${fmt(br.flooredAt)} เพื่อสุขภาพ)</b>`;
+  // v1.10.45 — T-019: transparency — surface the current weight feeding BMR when it
+  // differs from the onboarding snapshot, so the target shift is explainable.
+  const effW = effectiveBodyWeight(u);
+  const snapW = Number(u.weight) || 0;
+  if (effW > 0 && Math.abs(effW - snapW) >= 0.5) {
+    txt += `<br><span class="muted" style="font-size:12px">⚖️ คำนวณจากน้ำหนักล่าสุด ${effW.toFixed(1)} kg (เฉลี่ย 7 วัน)</span>`;
+  }
   return txt;
 }
 function effectiveCalorieTarget(userId) {
@@ -1623,7 +1663,7 @@ function computePlanProjection(u, cfg) {
   const days = Math.max(1, Number(cfg.days) || 7);
   const floor = calorieFloor(u);
   const goal = goalCategory(u);
-  const wKg = Number(u.weight) || 0;
+  const wKg = effectiveBodyWeight(u) || 0;   // v1.10.45 — T-019: current weight
 
   // Daily delta vs TDEE: negative = deficit (lose), positive = surplus (gain)
   const dailyDelta = planTarget - tdee;
@@ -3904,7 +3944,7 @@ function goalSliderHtml(currentAdjust, actName, profile) {
   let category, hintCls, hintText;
   const elderly = profile && isElderly(profile);
   if (elderly && adj < -300) {
-    category = '👵 ลดน้ำหนัก (โหมดสูงวัย)'; hintCls = 'warn'; hintText = `⚠️ จำกัด deficit ที่ -300 (อายุ ${profile.age}+)`;
+    category = '👵 ลดน้ำหนัก (โหมดสูงวัย)'; hintCls = 'warn'; hintText = `⚠️ จำกัด deficit ที่ -300 (อายุ ${effectiveAge(profile)}+)`;
   } else if (adj <= -500) {
     category = '📉 ลดน้ำหนักเร็ว'; hintCls = 'danger'; hintText = '⚠️ ลดเร็วเกินไป — เสี่ยงเสียกล้ามเนื้อ';
   } else if (adj <= -300) {
@@ -5277,7 +5317,7 @@ function renderAddActivity() {
   const manualCal = t.actCalInput != null ? t.actCalInput : 0;
   const sourceNote = t.actSourceNote || '';
   const typeDef = ACTIVITY_TYPES.find(x => x.id === type) || ACTIVITY_TYPES[0];
-  const calcCal = mode === 'met' ? calculateBurn(type, intensity, duration, u?.weight || 70) : Math.max(0, manualCal);
+  const calcCal = mode === 'met' ? calculateBurn(type, intensity, duration, effectiveBodyWeight(u) || 70) : Math.max(0, manualCal);
   const calPerMin = duration > 0 ? calcCal / duration : 0;
   const tooHigh = calPerMin > 20;
 
@@ -5321,7 +5361,7 @@ function renderAddActivity() {
           <div class="card tight" style="background:var(--primary-soft);text-align:center;margin-top:10px">
             <div style="font-size:13px;color:var(--ink-2)">📊 คำนวณ</div>
             <div id="act-calc-cal" style="font-size:28px;font-weight:700;color:var(--primary-dark)">${fmt(calcCal)} kcal</div>
-            <div id="act-calc-detail" class="hint">MET ${MET_VALUES[type][intensity]} × ${u?.weight || 70}kg × ${duration} นาที × 0.85</div>
+            <div id="act-calc-detail" class="hint">MET ${MET_VALUES[type][intensity]} × ${Math.round(effectiveBodyWeight(u) || 70)}kg × ${duration} นาที × 0.85</div>
           </div>
           <div class="hint mt" style="font-size:12px">💡 MET = หน่วยมาตรฐาน WHO · ลด 15% เพื่อความปลอดภัย (สมาร์ทวอทช์มักเกินจริง)</div>
         ` : `
@@ -7710,7 +7750,7 @@ function renderSettings() {
           <div>${avatarHtml(u, 44)}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:17px">${h(u.name)}</div>
-            <div class="muted" style="font-size:14px">${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]} · ${u.gender === 'male' ? 'ชาย' : 'หญิง'} อายุ ${u.age}</div>
+            <div class="muted" style="font-size:14px">${GOAL_EMOJI[u.goal]} ${GOAL_LABELS[u.goal]} · ${u.gender === 'male' ? 'ชาย' : 'หญิง'} อายุ ${effectiveAge(u)}</div>
           </div>
         </div>
         <div class="facts mt">
@@ -7744,7 +7784,7 @@ function renderSettings() {
             <h3 style="margin-top:0">🥩 เป้าโปรตีน/วัน ${helpHtml('protein')}</h3>
             <div style="background:var(--bg-2);border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.9">
               <div class="row between"><span class="muted">คำนวณอัตโนมัติ</span><b>${fmt(protDefault)} ก.</b></div>
-              <div class="row between"><span class="muted">น้ำหนัก × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}</span><span style="color:var(--muted);font-size:13px">${u.weight}kg × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}g</span></div>
+              <div class="row between"><span class="muted">น้ำหนัก × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}</span><span style="color:var(--muted);font-size:13px">${Math.round(effectiveBodyWeight(u))}kg × ${u.goal === 'lose' ? '1.6' : u.goal === 'gain' ? '1.8' : '1.2'}g</span></div>
               <div class="row between" style="font-size:17px;font-weight:600;color:var(--primary-dark);border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><span>ใช้งาน</span><b>${fmt(protCurrent)} ก.${protOverride ? ' (ตั้งเอง)' : ''}</b></div>
             </div>
             <div class="field mt2">
@@ -7920,7 +7960,7 @@ function renderProfileEdit() {
           </div>
           ${isElderly(u) ? `
             <div class="callout info" style="background:#fef3c7;border:1px solid #fbbf24;color:#92400e">
-              <b>👵 อายุ ${u.age}+ — โหมดผู้สูงวัย</b><br>
+              <b>👵 อายุ ${effectiveAge(u)}+ — โหมดผู้สูงวัย</b><br>
               <span style="font-size:13px">เน้นรักษากล้ามเนื้อ · จำกัด deficit ไม่เกิน -300 · เน้นโปรตีน 1.3g/kg</span>
             </div>
           ` : ''}
@@ -8282,7 +8322,7 @@ const actions = {
     let sourceNote = '';
     if (mode === 'met') {
       intensity = t.actIntensity || 'moderate';
-      cal = calculateBurn(type, intensity, duration, u.weight || 70);
+      cal = calculateBurn(type, intensity, duration, effectiveBodyWeight(u) || 70);   // v1.10.45 — T-019: current weight
     } else {
       cal = Math.max(0, Number(t.actCalInput) || 0);
       sourceNote = (document.getElementById('act-source-note')?.value || '').trim();
@@ -9935,7 +9975,7 @@ const actions = {
       Object.assign(u, {
         name: t.name, gender: t.gender, goal: t.goal,
         goalAdjust: typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[t.goal] ?? 0),
-        age: t.age, height: t.height, weight: t.weight,
+        age: t.age, birthYear: birthYearFromAge(t.age), height: t.height, weight: t.weight,
         avatar: t.avatar || u.avatar || '🧑',
         photo: t.photo || '',
         defaultActivity: t.defaultActivity || 'moderate',
@@ -9954,7 +9994,7 @@ const actions = {
       id: uid('u'),
       name: t.name, gender: t.gender, goal: t.goal,
       goalAdjust: typeof t.goalAdjust === 'number' ? t.goalAdjust : (GOAL_ADJUST[t.goal] ?? 0),
-      age: t.age, height: t.height, weight: t.weight,
+      age: t.age, birthYear: birthYearFromAge(t.age), height: t.height, weight: t.weight,
       avatar: t.avatar || '🧑',
       photo: t.photo || '',
       defaultActivity: t.defaultActivity || 'sedentary',
@@ -10065,11 +10105,11 @@ const actions = {
     if (!height || height < 80 || height > 230) return toast('ส่วนสูงไม่ถูกต้อง', true);
     if (!weight || weight < 20 || weight > 250) return toast('น้ำหนักไม่ถูกต้อง', true);
     if (isNew) {
-      const nu = { id: uid('u'), name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity, activities: {}, createdAt: Date.now() };
+      const nu = { id: uid('u'), name, gender, goal, goalAdjust: goalAdj, age, birthYear: birthYearFromAge(age), height, weight, avatar, photo, defaultActivity, activities: {}, createdAt: Date.now() };
       state.users.push(nu);
       state.currentUserId = nu.id;
     } else {
-      Object.assign(u, { name, gender, goal, goalAdjust: goalAdj, age, height, weight, avatar, photo, defaultActivity });
+      Object.assign(u, { name, gender, goal, goalAdjust: goalAdj, age, birthYear: birthYearFromAge(age), height, weight, avatar, photo, defaultActivity });
     }
     persist();
     toast('บันทึกแล้ว ✅');
@@ -10407,6 +10447,14 @@ function migrateData() {
     }
     if (!u.streakState) { u.streakState = defaultStreakState(); changed = true; }
     else { ensureStreakState(u); replenishTokensIfNeeded(u); }
+    // v1.10.45 — T-019: seed birthYear so age auto-increments. We can't recover the
+    // true birthday; assume the snapshot age was accurate as of now → at migration
+    // effectiveAge() returns exactly the old age (zero immediate change), then
+    // increments on future calendar-year rollovers.
+    if (typeof u.birthYear !== 'number' && typeof u.age === 'number' && u.age > 0) {
+      u.birthYear = Number(todayKey().slice(0, 4)) - u.age;
+      changed = true;
+    }
   });
   for (const userId in state.logs) {
     for (const date in state.logs[userId]) {
