@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.45';
+const VERSION = 'v1.10.46';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -7774,6 +7774,44 @@ function renderSettings() {
         <button class="btn secondary block sm mt" data-act="edit-profile">✏️ แก้ไขกิจกรรมในโปรไฟล์</button>
 
       </div>
+
+      ${(() => {
+        // v1.10.46 — T-020: before/after card surfacing T-019's dynamic BMR.
+        // Read-only; reuses calcBMR/calcTDEE/defaultCalorieTarget/proteinTarget.
+        // Shown only when the logged weight differs from the onboarding snapshot.
+        const snapW = Number(u.weight) || 0;
+        const effW = effectiveBodyWeight(u);
+        if (!(snapW > 0 && Math.abs(effW - snapW) >= 0.5)) return '';
+        const snapU = { ...u, weights: [], birthYear: undefined };
+        const bmrSnap = Math.round(calcBMR(snapU)), bmrNow = Math.round(calcBMR(u));
+        const tdeeSnap = calcTDEE(snapU), tdeeNow = calcTDEE(u);
+        const tgtSnap = defaultCalorieTarget(snapU), tgtNow = defaultCalorieTarget(u);
+        const protSnap = proteinTarget(snapU), protNow = proteinTarget(u);
+        const wDelta = effW - snapW;
+        const arrow = wDelta < 0 ? '⬇️' : wDelta > 0 ? '⬆️' : '';
+        // Neutral delta string (no good/bad coloring — direction only)
+        const dlt = (n) => {
+          if (n === 0) return '<span class="muted" style="font-size:12px">(0)</span>';
+          return `<span class="muted" style="font-size:12px">(${n > 0 ? '+' : ''}${n})</span>`;
+        };
+        const row = (label, oldV, newV, suffix = '') =>
+          `<div class="row between" style="line-height:1.9"><span class="muted">${label}</span><span><b>${fmt(oldV)}</b> → <b style="color:var(--primary-dark)">${fmt(newV)}${suffix}</b> ${dlt(newV - oldV)}</span></div>`;
+        return `
+          <div class="card" style="border:1.5px solid #818cf8">
+            <h3 style="margin-top:0">📊 BMR ปรับตามน้ำหนักจริง</h3>
+            <div style="background:var(--bg-2);border-radius:12px;padding:12px 14px;font-size:15px">
+              <div class="row between" style="line-height:1.9"><span class="muted">น้ำหนักโปรไฟล์</span><b>${snapW.toFixed(1)} kg</b></div>
+              <div class="row between" style="line-height:1.9"><span class="muted">น้ำหนักล่าสุด <span style="font-size:12px">(เฉลี่ย 7 วัน)</span></span><span><b>${effW.toFixed(1)} kg</b> ${arrow} <span class="muted" style="font-size:12px">${wDelta > 0 ? '+' : ''}${wDelta.toFixed(1)}</span></span></div>
+              <hr style="border:0;border-top:1px solid var(--line);margin:8px 0">
+              ${row('BMR', bmrSnap, bmrNow)}
+              ${row('TDEE', tdeeSnap, tdeeNow)}
+              ${row('เป้าแคล/วัน', tgtSnap, tgtNow)}
+              ${row('โปรตีน/วัน', protSnap, protNow, ' ก.')}
+            </div>
+            <div class="hint mt" style="font-size:12.5px;line-height:1.6">💡 เป้าปรับอัตโนมัติตามน้ำหนักล่าสุด · log น้ำหนักสม่ำเสมอ = เป้าแม่นขึ้น</div>
+          </div>
+        `;
+      })()}
 
       ${(() => {
         const protDefault = proteinTarget(u);

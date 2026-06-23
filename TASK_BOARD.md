@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-019 → `done` ✅ (v1.10.45 shipped · dynamic BMR from weight log + age auto-increment) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-020 → `done` ✅ (v1.10.46 shipped · BMR before/after card in Settings) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -939,6 +939,46 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - **First hard-guardrail change in the operating model.** Demonstrated the guardrail process: spec with numerical justification → formula byte-identity verified by grep → PROJECT_STATE guardrail section annotated. The justification ("formula unchanged, only inputs current-derived") is the key that made this safe to touch.
   - **Snapshot+derived pattern** reused from T-013d.3: don't mutate the stored snapshot (`u.weight`/`u.age`), compute a derived "effective" value. Keeps fallback + onboarding-preview behavior intact.
   - **Tier 3 (empirical TDEE)** is the natural next step — the app already has intake + weight-trend data to back-calculate true TDEE (auto-covers metabolic adaptation). Deferred; needs conservative tone like T-013d.
+
+### T-020 — "BMR ปรับตามน้ำหนักจริง" before/after card in Settings
+
+- **Status:** `done` ✅ (v1.10.46 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/bmr-before-after-card.md`](docs/specs/bmr-before-after-card.md)
+- **User-locked scope (this turn):**
+  - User couldn't tell if T-019 took effect → add visible before/after card
+  - Settings screen, after "เป้าแคลอรี่/วัน" card
+  - Shows น้ำหนักโปรไฟล์ vs ล่าสุด + BMR/TDEE/เป้าแคล/โปรตีน old→new with deltas
+  - Read-only: reuses calcBMR/calcTDEE/defaultCalorieTarget/proteinTarget (NO guardrail change)
+  - Card absent when weight matches snapshot (no false "changed")
+  - Neutral tone (no good/bad coloring)
+- **Forbidden:**
+  - Editing calcBMR/calcTDEE/proteinTarget/defaultCalorieTarget/calorieFloor
+  - Schema / data file changes · new handlers/listeners
+  - Color-coding deltas good/bad
+- **Gate criteria:** see spec DoD + test plan · card only when |effW−snapW|≥0.5 · snapshot pseudo-user drives "before" · other Settings cards unchanged · VERSION sync · data hashes unchanged
+- **Definition of Done (all met):**
+  - [x] IIFE card block added in `renderSettings` after the "เป้าแคลอรี่/วัน" card (grep: card title = 1)
+  - [x] Shows only when `|effW − snapW| ≥ 0.5 kg` (early `return ''` otherwise)
+  - [x] Snapshot pseudo-user `{ ...u, weights: [], birthYear: undefined }` drives the "before" column (grep = 1)
+  - [x] Rows: weight (profile vs latest + Δ), BMR, TDEE, calorie target, protein target — each old → new (Δ)
+  - [x] Deltas neutral (⬇️/⬆️/→ + muted numbers, no green=good/red=bad)
+  - [x] Bottom hint "💡 เป้าปรับอัตโนมัติตามน้ำหนักล่าสุด · log น้ำหนักสม่ำเสมอ = เป้าแม่นขึ้น"
+  - [x] **Guardrail untouched**: `calcBMR`/`calcTDEE`/`proteinTarget` reused read-only — verified Mifflin formula still byte-identical (2 lines), each function def count = 1
+  - [x] Target column reuses `defaultCalorieTarget` → floor/elderly protections carry through
+  - [x] VERSION v1.10.45 → v1.10.46 (sw + index)
+  - [x] PROJECT_STATE updated
+  - [x] Data file hashes unchanged (meals `A96AB59247B091D6B3E68DD6434B9A43` · branded `50DA32FECC693685B1CF7238C13621F3` · audit `6FE42BB990ECC932AE4193C76E71E0D9` — match v1.10.45)
+- **Audit evidence:**
+  - Guardrail: Mifflin lines=2 · calcBMR def=1 · calcTDEE def=1 · proteinTarget def=1 (no edits to guardrail functions)
+  - T-020 card title=1 · snapshot pseudo-user=1
+  - VERSION sync verified · data files byte-identical · aggregate meals audit unchanged
+- **Transitions:**
+  - `todo → in_progress` — picked up after user asked to make T-019's change visible in-app
+  - `in_progress → review` — 1 IIFE card · read-only reuse · guardrail untouched (verified) · audit clean · VERSION synced · state files updated · held per established gate pattern
+  - `review → done` — user approved with "ลุย". Committed + pushed.
+- **Notes:**
+  - Clean example of "surface an existing computation" without touching the guardrail — the before/after is built entirely from existing functions via a snapshot pseudo-user, so it can never drift from the real targets.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
