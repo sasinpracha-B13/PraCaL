@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-020 → `done` ✅ (v1.10.46 shipped · BMR before/after card in Settings) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-021 → `done` ✅ (v1.10.47 shipped · ข้าวหน้าไก่ย่าง + หมี่ไก่ฉีก · DEC-003 codified) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -979,6 +979,41 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - `review → done` — user approved with "ลุย". Committed + pushed.
 - **Notes:**
   - Clean example of "surface an existing computation" without touching the guardrail — the before/after is built entirely from existing functions via a snapshot pseudo-user, so it can never drift from the real targets.
+
+### T-021 — Add ข้าวหน้าไก่ย่าง + หมี่ไก่ฉีก (2 entries) + codify DEC-003
+
+- **Status:** `done` ✅ (v1.10.47 shipped)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/add-meals-khao-na-kai-mee-kai-chik.md`](docs/specs/add-meals-khao-na-kai-mee-kai-chik.md)
+- **Protocol:** [`docs/specs/menu-addition-protocol.md`](docs/specs/menu-addition-protocol.md) — **first add under new §3d-2** ([DEC-003](docs/decisions/DEC-003-calorie-safety-direction.md))
+- **User-locked scope (this turn):**
+  - User directive: "ปริมาณ 1 เสิร์ฟต้องแม่น · แคลต้องแม่น · **ไปเกินได้แต่ห้ามขาด** · ท่องเป็นบทจดจำไว้ทุกครั้ง" → codified as DEC-003
+  - Add 2 menus: ข้าวหน้าไก่ย่าง (r37) · หมี่ไก่ฉีก (n41)
+  - New rule: per-entry macro diff must be **non-negative** (calories may over- but never under-estimate); subtractive customizations conservative
+- **Forbidden:**
+  - Negative-diff entries (DEC-003) · edits to existing entries · schema/data-sibling changes
+- **Definition of Done (all met):**
+  - [x] DEC-003 decision record created · `menu-addition-protocol.md` §3d-2 + DoD item added · memory `menu-calorie-safety-direction` saved
+  - [x] 2 entries inserted: r37 ข้าวหน้าไก่ย่าง (580/400g) · n41 หมี่ไก่ฉีก (430/400g)
+  - [x] Both PASS band; **both diff% NON-NEGATIVE** (DEC-003): r37 +3.79% (558 vs 580) · n41 +1.16% (425 vs 430) — verified by audit
+  - [x] Per-entry diff matches §3d prediction exactly
+  - [x] Subtractive customizations conservative (no_rice -240 vs ~260; less_oil -50 vs ~88)
+  - [x] `meals.json` version 1.10.17 → 1.10.18 · VERSION v1.10.46 → v1.10.47 (sw + index)
+  - [x] Total 406 → 408 (+2) · pass 330 → 332 (+2) · warn/fail/skip unchanged
+  - [x] `git diff meals.json` exactly 3 hunks (version + r insertion + n insertion)
+  - [x] `branded_products.json` `50DA32FECC693685B1CF7238C13621F3` + `tools/audit-meals.js` `6FE42BB990ECC932AE4193C76E71E0D9` byte-identical
+  - [x] PROJECT_STATE updated (Current Version + menu-add policy + Active Task + run history)
+- **Audit evidence:**
+  - r37 +3.79% PASS non-negative · n41 +1.16% PASS non-negative — DEC-003 satisfied
+  - Aggregate 408 · pass 332 · warn 70 · fail 3 · skip 3
+  - VERSION sync · sibling hashes preserved · 3 hunks
+- **Transitions:**
+  - `todo → in_progress` — user directive to codify calorie-safety + add 2 menus
+  - `in_progress → review` — DEC-003 + protocol §3d-2 + memory + 2 entries · both non-negative diff · audit clean · held per established gate pattern
+  - `review → done` — user approved with "ลุย". DEC-003 all-OK re-verified, committed + pushed.
+- **Notes:**
+  - **First protocol amendment via DEC** (DEC-003) — honors the protocol's own "amendments require a decision record" rule. Rule 17 was codified inline in T-007 without a DEC; this time the formal path was used.
+  - The mantra is now persistent across sessions via the memory file — recalled before every future menu add.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

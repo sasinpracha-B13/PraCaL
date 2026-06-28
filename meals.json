@@ -1,5 +1,5 @@
 {
-  "version": "1.10.17",
+  "version": "1.10.18",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -135,6 +135,11 @@
       { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -205, "proteinChange": -4, "carbChange": -45 },
       { "id": "less_chili_sauce", "label": "ลดซอสพริก", "calChange": -25, "sugarChange": -3 },
       { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -75, "fatChange": -7 }
+    ] },
+    { "id": "r37", "name": "ข้าวหน้าไก่ย่าง", "emoji": "🍗", "category": "rice_dishes", "baseCalories": 580, "baseWeight_g": 400, "protein_g": 33, "carbs_g": 66, "fat_g": 18, "sugar_g": 6, "calorie_range": { "min": 460, "max": 750 }, "portion_basis": ["ข้าวสวย ~200g", "ไก่ย่างติดหนัง ~110g", "ซอส/น้ำราด ~40g", "ผัก/แตงกวา ~30g", "น้ำมันย่าง ~20g"], "customizations": [
+      { "id": "no_rice", "label": "ไม่ใส่ข้าว", "calChange": -240, "proteinChange": -4, "carbChange": -52 },
+      { "id": "no_skin", "label": "ไม่ใส่หนัง", "calChange": -70, "fatChange": -7 },
+      { "id": "extra_sauce", "label": "เพิ่มซอส/น้ำราด", "calChange": 40, "carbChange": 9, "sugarChange": 5 }
     ] },
 
     { "id": "n01", "name": "ก๋วยเตี๋ยวเรือ", "emoji": "🍜", "category": "noodles", "baseCalories": 300, "baseWeight_g": 380, "protein_g": 18, "carbs_g": 38, "fat_g": 8, "sugar_g": 4, "calorie_range": { "min": 240, "max": 400 }, "portion_basis": ["เส้นเล็ก 80g cooked", "หมู/ลูกชิ้น/เลือด", "น้ำซุป", "ผัก"], "customizations": [
@@ -785,6 +790,11 @@
     { "id": "n40", "name": "ก๋วยจั๊บญวนรวมพิเศษ", "emoji": "🍜", "category": "noodles", "baseCalories": 500, "baseWeight_g": 480, "protein_g": 32, "carbs_g": 55, "fat_g": 15, "sugar_g": 4, "calorie_range": { "min": 380, "max": 700 }, "portion_basis": ["เส้นก๋วยจั๊บญวน 85g cooked", "หมูสับ 50g", "ลูกชิ้นหมู 50g", "หมูยอ 40g", "ไข่ลวก 1 ฟอง 50g", "น้ำซุปใส 220g", "ผัก/กระเทียมเจียว 25g"], "customizations": [
       { "id": "no_egg", "label": "ไม่ใส่ไข่ลวก", "calChange": -70, "proteinChange": -6, "fatChange": -5 },
       { "id": "no_meatball", "label": "ไม่ใส่ลูกชิ้น", "calChange": -75, "proteinChange": -6, "fatChange": -4 }
+    ] },
+    { "id": "n41", "name": "หมี่ไก่ฉีก", "emoji": "🍜", "category": "noodles", "baseCalories": 430, "baseWeight_g": 400, "protein_g": 27, "carbs_g": 50, "fat_g": 13, "sugar_g": 4, "calorie_range": { "min": 320, "max": 560 }, "portion_basis": ["บะหมี่/เส้นหมี่ลวก 90g cooked", "ไก่ฉีก 70g", "กระเทียมเจียว/น้ำมัน 10g", "น้ำซุป/ผัก/ต้นหอม ~230g"], "customizations": [
+      { "id": "extra_chicken", "label": "เพิ่มไก่ฉีก", "calChange": 90, "proteinChange": 18, "fatChange": 2 },
+      { "id": "less_oil", "label": "ลดน้ำมัน/กระเทียมเจียว", "calChange": -50, "fatChange": -5 },
+      { "id": "extra_noodles", "label": "เพิ่มเส้น (พิเศษ)", "calChange": 110, "carbChange": 24, "fatChange": 1 }
     ] },
 
     { "id": "s14", "name": "สลัดทูน่ายำ", "emoji": "🐟", "category": "salads", "baseCalories": 240, "baseWeight_g": 280, "protein_g": 28, "carbs_g": 18, "fat_g": 8, "sugar_g": 6 },

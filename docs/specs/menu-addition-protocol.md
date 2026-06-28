@@ -73,6 +73,17 @@ The prediction must fall in the **pass band (≤5%)**. If a prediction lands in 
 
 A prediction in the **fail band (>15%)** means the entry is wrong — revise before flipping to `in_progress`.
 
+#### 3d-2. Calorie safety direction — ไปเกินได้แต่ห้ามขาด *(per user instruction 2026-06-28; see [DEC-003](../decisions/DEC-003-calorie-safety-direction.md))*
+
+**Mantra to recite before every menu addition:** *"ปริมาณต่อ 1 เสิร์ฟต้องแม่น และแคลต้องแม่น — ไปเกินได้แต่ห้ามขาด"* (portion-per-serving accurate, calories accurate — may go over, never under).
+
+The app serves dieters. Under-counting calories is the dangerous failure (user eats more than the app says → silently loses the deficit). Over-counting is safe. So:
+
+- **`baseCalories` leans to the upper part of the realistic range** (§3b) — not the midpoint, never the lower end. When torn between two plausible values, pick the higher.
+- **Per-entry macro diff must be NON-NEGATIVE**: `baseCalories ≥ P×4 + C×4 + F×9`, i.e. the predicted diff% sits in the **[0, +5%]** band (still inside the ±5% PASS band, but only its upper half). A stated calorie *below* the macro sum is now a fail for new entries, not a pass.
+- **Subtractive customizations** (`no_rice`, `no_skin`, …) subtract **conservatively** — a touch less than the full component estimate — so a customized total never undercounts.
+- Existing entries with negative diff are **grandfathered** (forward rule from v1.10.47 / T-021 onward).
+
 #### 3e. Real-user fit *(per user instruction T-007 review-2: "ทำให้เหมาะกับการใช้งานจริงของผู้ใช้ทุกครั้ง")*
 
 After the math passes, *step back* and ask whether each entry is realistic for how Thai users actually log this dish in real life:
@@ -106,6 +117,7 @@ Every menu-addition task's DoD must include all of these:
 
 - [ ] All N entries inserted with exactly the values shown in the spec table
 - [ ] Each entry's macro-consistency falls in audit `pass` band (≤5%) — verified by post-edit run
+- [ ] **Calorie safety direction (DEC-003 / §3d-2):** each new entry's diff% is **non-negative** (`baseCalories ≥ macro-cal`, i.e. in the [0, +5%] band) — calories may over- but never under-estimate
 - [ ] Per-entry post-edit diff% **matches the spec's prediction** (exact match within rounding)
 - [ ] **Real-user fit check passed for every entry (per §3e)** — serving size, calorie level, macro profile, customizations, name spelling all realistic for Thai user context
 - [ ] `meals.json` data version bumped (`"version"` field at top)
