@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-021 → `done` ✅ (v1.10.47 shipped · ข้าวหน้าไก่ย่าง + หมี่ไก่ฉีก · DEC-003 codified) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-022 → `done` ✅ (doc-only · AI consultant handoff brief · no version bump) · T-014/T-015 still HOLD · awaiting next pickup approval
 
 ---
 
@@ -1014,6 +1014,14 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 - **Notes:**
   - **First protocol amendment via DEC** (DEC-003) — honors the protocol's own "amendments require a decision record" rule. Rule 17 was codified inline in T-007 without a DEC; this time the formal path was used.
   - The mantra is now persistent across sessions via the memory file — recalled before every future menu add.
+
+### T-022 — AI consultant handoff brief *(doc-only)*
+
+- **Status:** `done` ✅ (no version bump — pure doc; user greenlit "เอาเลย")
+- **Owner:** Execution Agent
+- **Deliverable:** [`docs/AI-HANDOFF-BRIEF.md`](docs/AI-HANDOFF-BRIEF.md) — context primer for a parallel **advisor** AI (read-only consultant; does NOT touch the repo). Covers: what the app is, stack/architecture, version/deploy rules, calc guardrails, menu-addition protocol + DEC-003, feature map, the gated operating model, commit conventions, prompt-writing guidance, current snapshot.
+- **Scope note:** doc-only (`docs/**`); does not touch index.html / service-worker.js / data files → no VERSION bump. Owner confirmed only the implementing agent edits the repo; the second AI is advisory.
+- **Transitions:** `todo → in_progress → done` (doc-only, owner-greenlit in the same turn).
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
