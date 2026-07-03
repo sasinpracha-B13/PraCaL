@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-022 → `done` ✅ (doc-only · AI consultant handoff brief · no version bump) · T-014/T-015 still HOLD · awaiting next pickup approval
+Last updated: T-022a → `done` ✅ (Body-composition logging: data model + input fields · optional muscleMass_kg/bodyFat_pct · v1.10.48 · empty=leave-unchanged confirmed) · T-014/T-015 still HOLD
 
 ---
 
@@ -1022,6 +1022,24 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 - **Deliverable:** [`docs/AI-HANDOFF-BRIEF.md`](docs/AI-HANDOFF-BRIEF.md) — context primer for a parallel **advisor** AI (read-only consultant; does NOT touch the repo). Covers: what the app is, stack/architecture, version/deploy rules, calc guardrails, menu-addition protocol + DEC-003, feature map, the gated operating model, commit conventions, prompt-writing guidance, current snapshot.
 - **Scope note:** doc-only (`docs/**`); does not touch index.html / service-worker.js / data files → no VERSION bump. Owner confirmed only the implementing agent edits the repo; the second AI is advisory.
 - **Transitions:** `todo → in_progress → done` (doc-only, owner-greenlit in the same turn).
+
+### T-022a — Body composition logging: data model + input fields
+
+- **Status:** `done` ✅ (approved · empty=leave-unchanged confirmed · Opus 4.8 co-author)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-022a-body-comp-logging.md`](docs/specs/T-022a-body-comp-logging.md)
+- **User-locked scope (this turn):**
+  - Add optional `muscleMass_kg` + `bodyFat_pct` to `user.weights[]` entries (additive, absent when empty — never null/0)
+  - Two optional inputs on the 📊 บันทึกร่างกาย screen; never blocks weight save
+  - Loose validation: muscle > 0 & < body weight; fat 3–70; out-of-range → warn + reject field, still save weight
+  - Backward compat hard requirement (18 read sites enumerated in spec; all weight_kg-only → unchanged)
+  - Minimal read-back display (latest card + history rows) so the feature is verifiable
+- **DO NOT TOUCH (verified at gate):**
+  - calcBMR / calcTDEE / calorieFloor / proteinTarget / goalZoneEval
+  - effectiveBodyWeight (must stay weight_kg-only)
+  - meals.json / branded_products.json / tools/audit-meals.js
+  - Recomp Insight card (T-022c) · Reports charts (T-022b) · IndexedDB/photo pipeline
+- **Gate criteria:** see spec DoD + test plan · guardrails byte-identical · effectiveBodyWeight weight-only · backward compat · VERSION sync · data hashes unchanged
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

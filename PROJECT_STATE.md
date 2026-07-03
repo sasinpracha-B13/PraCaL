@@ -7,14 +7,15 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.47` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.47';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.47';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.48` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.48';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.48';` (drives cache name `pracal-${VERSION}` and cache invalidation)
 - **`meals.json` data version:** `1.10.18` (T-021 — +2 entries r37/n41 · 406 → 408 · first add under DEC-003 calorie-safety-direction).
 - **Menu-add policy ([DEC-003](docs/decisions/DEC-003-calorie-safety-direction.md), 2026-06-28):** new entries' calories may over- but **never under**-estimate ("ไปเกินได้แต่ห้ามขาด") — per-entry macro diff must be **non-negative** (`baseCalories ≥ P×4+C×4+F×9`). Codified in `menu-addition-protocol.md` §3d-2.
 - **User schema:** added optional `u.birthYear` (T-019) — derives auto-incrementing age; migration-seeded from `age` for existing users. `age`/`weight` snapshots preserved as fallback.
 - **`state.bpcRange`** (T-013d.3): persisted UI preference at root state level. Shape `{ preset: '7d'|'14d'|'30d'|'90d'|'all'|'custom', startDate?, endDate? }`. Defensive default `{ preset: '30d' }`. No schema migration needed (defensive read on first load).
 - **User schema:** `u.waist = []` (T-012), `u.checkIns = []` (T-013a) + optional `updatedAt` (T-013b.1). T-013d added NO new schema fields — pure read-only interpretation over existing data.
+- **Weight-log schema (T-022a):** `u.weights[]` entries gain **two optional** fields — `muscleMass_kg?` and `bodyFat_pct?` (home BIA-scale readings). Both additive & independent; **absent when empty** (never null/0). No migration — existing entries simply lack the keys and read unchanged everywhere. `effectiveBodyWeight` (and every other reader) stays `weight_kg`-only; body-comp is display-only in T-022a (charts = T-022b, insight = T-022c).
 - **IndexedDB:** database `PraCaLBodyProgress` (v1) with `photos` store. Lazy-init on first photo save (T-013a + T-013b + T-013b.1). T-013c + T-013d are read-only over this store.
 - **localStorage draft key:** `pracal_checkin_draft_<userId>` — T-013b/b.1 schema unchanged. T-013c + T-013d added no new localStorage keys.
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
@@ -89,9 +90,9 @@
 
 ## Current Active Task
 
-**No active task** as of v1.10.47 ship. T-021 done — added ข้าวหน้าไก่ย่าง (r37) + หมี่ไก่ฉีก (n41), and codified **DEC-003 "ไปเกินได้แต่ห้ามขาด"** (calories may over- but never under-estimate) into protocol §3d-2 + memory. **T-014/T-015 HOLD** per user instruction.
+**T-022a — Body composition logging: data model + input fields — `done` ✅ (v1.10.48 shipped).** Extends `u.weights[]` with two optional BIA-scale fields (`muscleMass_kg?`, `bodyFat_pct?`), two optional inputs on the 📊 บันทึกร่างกาย screen, loose non-blocking validation, minimal read-back. Empty=leave-unchanged (user-confirmed — no silent wipe). Body-comp requires a today weight entry (blocked otherwise with "ต้องมีน้ำหนักของวันนี้ก่อน…") → no weightless entry can exist. Guardrails + `effectiveBodyWeight` untouched; data files byte-identical; charts (T-022b) + insight (T-022c) deferred. **T-014/T-015 HOLD** per user instruction.
 
-27 tasks through operating model. Total `meals.json` entries: **408**. **T-014/T-015** still blocked (HOLD). **Tier 3 (empirical TDEE)** noted as a future task.
+28 tasks through operating model. Total `meals.json` entries: **408**. **T-014/T-015** still blocked (HOLD). **Tier 3 (empirical TDEE)** noted as a future task.
 
 Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
@@ -123,6 +124,8 @@ Operating-model run history:
 - T-019 (Dynamic BMR from weight log + age auto-increment · Tier 1+2) — `done` ✅ — first hard-guardrail change · Mifflin formula byte-identical, only inputs current-derived · `effectiveBodyWeight`/`effectiveAge` helpers · `u.birthYear` additive migration
 - T-020 (BMR before/after card in Settings) — `done` ✅ — surfaces T-019 visibly · read-only reuse of calc functions (no guardrail change) · neutral-tone before/after · code-only
 - T-021 (Add ข้าวหน้าไก่ย่าง + หมี่ไก่ฉีก · 2 entries) — `done` ✅ — **first menu-add under DEC-003** (calories ไปเกินได้แต่ห้ามขาด) · r37/n41 both non-negative diff · DEC-003 + protocol §3d-2 + memory bundled · meals.json 1.10.17 → 1.10.18 · 406 → 408
+- T-022 (AI consultant handoff brief · docs/AI-HANDOFF-BRIEF.md) — `done` ✅ — read-only advisor briefing for a parallel chat · doc task
+- T-022a (Body composition logging: data model + input fields) — `done` ✅ — optional `muscleMass_kg?`/`bodyFat_pct?` on `u.weights[]` · 2 optional inputs · loose non-blocking validation (muscle >0 & < body wt · fat 3–70) · empty=leave-unchanged (no wipe, user-confirmed) · body-comp requires today weight entry (no weightless entry possible) · minimal read-back · guardrails + effectiveBodyWeight untouched · live smoke test all-pass · v1.10.48
 - T-014 (BPC Phase 2 features) — `todo` placeholder
 - T-015 (BPC Phase 3 features) — `todo` placeholder
 - T-016 (Insight Engine) — `todo` placeholder — 5th deferral

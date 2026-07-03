@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.47';
+const VERSION = 'v1.10.48';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1919,11 +1919,25 @@ function weightOnDate(user, key) {
   const w = user.weights.find(x => x.date === key);
   return w ? w.weight_kg : null;
 }
-function setWeight(user, key, kg) {
+// v1.10.48 — T-022a: optional body-comp fields via `extra`. When `extra` is omitted,
+// body-comp fields are left untouched (existing callers unaffected). Per field:
+//   key present + number → set · key present + null → delete (empty input) · key absent → leave.
+// Absent field = "no data" (never null/0). Existing entries without these keys work unchanged.
+function setWeight(user, key, kg, extra) {
   user.weights = user.weights || [];
-  const existing = user.weights.find(x => x.date === key);
-  if (existing) existing.weight_kg = kg;
-  else user.weights.push({ date: key, weight_kg: kg });
+  let entry = user.weights.find(x => x.date === key);
+  if (!entry) { entry = { date: key, weight_kg: kg }; user.weights.push(entry); }
+  else { entry.weight_kg = kg; }
+  if (extra) {
+    if ('muscleMass_kg' in extra) {
+      if (extra.muscleMass_kg == null) delete entry.muscleMass_kg;
+      else entry.muscleMass_kg = extra.muscleMass_kg;
+    }
+    if ('bodyFat_pct' in extra) {
+      if (extra.bodyFat_pct == null) delete entry.bodyFat_pct;
+      else entry.bodyFat_pct = extra.bodyFat_pct;
+    }
+  }
   user.weights.sort((a, b) => a.date.localeCompare(b.date));
 }
 function removeWeight(user, key) {
@@ -6413,8 +6427,16 @@ function renderWeightLog() {
           <label for="waist-input">📐 รอบเอว (ซม. — ถ้ามี)</label>
           <input id="waist-input" type="number" inputmode="decimal" class="input" placeholder="${latestW ? latestW.waist_cm.toFixed(1) : '80'}" min="40" max="200" step="0.1">
         </div>
+        <div class="field">
+          <label for="mm-input">💪 มวลกล้ามเนื้อ (กก. — ถ้ามี)</label>
+          <input id="mm-input" type="number" inputmode="decimal" class="input" placeholder="${latest && latest.muscleMass_kg != null ? latest.muscleMass_kg.toFixed(1) : 'จากเครื่องชั่ง BIA'}" min="0" step="0.1">
+        </div>
+        <div class="field">
+          <label for="bf-input">🔥 % ไขมัน (ถ้ามี)</label>
+          <input id="bf-input" type="number" inputmode="decimal" class="input" placeholder="${latest && latest.bodyFat_pct != null ? latest.bodyFat_pct.toFixed(1) : 'จากเครื่องชั่ง BIA'}" min="3" max="70" step="0.1">
+        </div>
         <button class="btn block" data-act="save-weight" style="min-height:48px">บันทึก</button>
-        <div class="hint mt">ชั่ง/วัดตอนเช้าหลังตื่น (ก่อนกินอาหาร) ให้ผลแม่นที่สุด · กรอกแค่อันใดอันหนึ่งก็ได้</div>
+        <div class="hint mt">ชั่ง/วัดตอนเช้าหลังตื่น (ก่อนกินอาหาร) ให้ผลแม่นที่สุด · กรอกแค่อันใดอันหนึ่งก็ได้ · มวลกล้าม/ไขมันจากเครื่องชั่ง BIA (ถ้ามี — ไม่บังคับ)</div>
       </div>
 
       <div class="card tight" data-act="nav-bpc" style="cursor:pointer;background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:3px solid #f59e0b;margin-top:10px">
@@ -6443,6 +6465,7 @@ function renderWeightLog() {
 
         <div class="card">
           <div class="stat-row"><span>ล่าสุด</span><b>${latest.weight_kg.toFixed(1)} kg</b></div>
+          ${(latest.muscleMass_kg != null || latest.bodyFat_pct != null) ? `<div class="muted" style="font-size:13px;margin:-2px 0 4px">${latest.muscleMass_kg != null ? `💪 ${latest.muscleMass_kg.toFixed(1)} กก.` : ''}${(latest.muscleMass_kg != null && latest.bodyFat_pct != null) ? ' · ' : ''}${latest.bodyFat_pct != null ? `🔥 ${latest.bodyFat_pct.toFixed(1)}%` : ''}</div>` : ''}
           ${c30 !== null ? `<div class="stat-row"><span>เปลี่ยน 30 วัน</span><b style="color:${c30 < 0 ? 'var(--green)' : c30 > 0 ? 'var(--red)' : ''}">${c30 > 0 ? '+' : ''}${c30.toFixed(1)} kg</b></div>` : ''}
           ${slope != null ? `
             <div class="stat-row"><span>แนวโน้ม ${helpHtml('weight_trend')}</span><b>${slope > 0 ? '⬆️' : slope < 0 ? '⬇️' : '→'} ${slope >= 0 ? '+' : ''}${(slope * 1000).toFixed(0)} ก./วัน</b></div>
@@ -6496,7 +6519,7 @@ function renderWeightLog() {
             <div class="row between">
               <div>
                 <div style="font-weight:500">${formatDateTH(w.date)}</div>
-                <div class="muted" style="font-size:12px">${w.date === todayKey() ? 'วันนี้' : ''}</div>
+                <div class="muted" style="font-size:12px">${w.date === todayKey() ? 'วันนี้' : ''}${(w.muscleMass_kg != null || w.bodyFat_pct != null) ? `${w.date === todayKey() ? ' · ' : ''}${w.muscleMass_kg != null ? `💪 ${w.muscleMass_kg.toFixed(1)} กก.` : ''}${(w.muscleMass_kg != null && w.bodyFat_pct != null) ? ' · ' : ''}${w.bodyFat_pct != null ? `🔥 ${w.bodyFat_pct.toFixed(1)}%` : ''}` : ''}</div>
               </div>
               <div style="display:flex;align-items:center;gap:10px">
                 <b style="font-size:17px">${w.weight_kg.toFixed(1)} kg</b>
@@ -8778,25 +8801,64 @@ const actions = {
     if (!u) return;
     const wRaw = document.getElementById('wt-input')?.value;
     const waistRaw = document.getElementById('waist-input')?.value;
+    const mmRaw = document.getElementById('mm-input')?.value;
+    const bfRaw = document.getElementById('bf-input')?.value;
     const w = wRaw ? parseFloat(wRaw) : null;
     const waist = waistRaw ? parseFloat(waistRaw) : null;
     const hasWeight = w != null && !isNaN(w) && w >= 20 && w <= 300;
     const hasWaist = waist != null && !isNaN(waist) && waist >= 40 && waist <= 200;
-    if (!hasWeight && !hasWaist) return toast('กรอกน้ำหนัก (20-300 kg) หรือรอบเอว (40-200 cm)', true);
+    const today = todayKey();
+    const todayEntry = (u.weights || []).find(x => x.date === today);
+
+    // v1.10.48 — T-022a: optional body-comp (มวลกล้าม kg / % ไขมัน) from a home BIA scale.
+    // Loose + non-blocking: an invalid field is rejected with a warning but the weight still saves.
+    // Empty = leave the field unchanged (same as the weight/waist inputs) — never silently wipes a
+    // previously-saved reading. Body-comp only attaches to TODAY's weight entry.
+    const bcWarnings = [];
+    const extra = {};
+    const refWeight = hasWeight ? Math.round(w * 10) / 10
+                    : (todayEntry ? todayEntry.weight_kg
+                    : (latestWeight(u)?.weight_kg ?? u.weight ?? null));
+    if (mmRaw != null && mmRaw !== '') {
+      const mm = parseFloat(mmRaw);
+      if (isNaN(mm) || mm <= 0) bcWarnings.push('มวลกล้ามต้องมากกว่า 0 — ไม่บันทึกค่านี้');
+      else if (refWeight != null && mm >= refWeight) bcWarnings.push(`มวลกล้ามต้องน้อยกว่าน้ำหนักตัว (${refWeight} กก.) — ไม่บันทึกค่านี้`);
+      else extra.muscleMass_kg = Math.round(mm * 10) / 10;
+    }
+    if (bfRaw != null && bfRaw !== '') {
+      const bf = parseFloat(bfRaw);
+      if (isNaN(bf) || bf < 3 || bf > 70) bcWarnings.push('% ไขมันต้องอยู่ในช่วง 3–70 — ไม่บันทึกค่านี้');
+      else extra.bodyFat_pct = Math.round(bf * 10) / 10;
+    }
+    const hasBC = extra.muscleMass_kg != null || extra.bodyFat_pct != null;
+
+    if (!hasWeight && !hasWaist && !hasBC) {
+      if (bcWarnings.length) return toast(bcWarnings.join(' · '), true);
+      return toast('กรอกน้ำหนัก (20-300 kg) หรือรอบเอว (40-200 cm)', true);
+    }
     if (wRaw && !hasWeight) return toast('น้ำหนักไม่ถูกต้อง (20-300 kg)', true);
     if (waistRaw && !hasWaist) return toast('รอบเอวไม่ถูกต้อง (40-200 cm)', true);
-    const today = todayKey();
+
     const parts = [];
+    let bcSaved = false;
     if (hasWeight) {
-      setWeight(u, today, Math.round(w * 10) / 10);
+      setWeight(u, today, Math.round(w * 10) / 10, extra);
       parts.push('น้ำหนัก');
+      bcSaved = hasBC;
+    } else if (hasBC) {
+      // No new weight this save — attach body-comp to today's existing weight entry if one exists.
+      if (todayEntry) { setWeight(u, today, todayEntry.weight_kg, extra); bcSaved = true; }
+      else bcWarnings.push('ต้องมีน้ำหนักของวันนี้ก่อนเพื่อบันทึกมวลกล้าม/ไขมัน');
     }
     if (hasWaist) {
       setWaist(u, today, Math.round(waist * 10) / 10);
       parts.push('รอบเอว');
     }
+    if (bcSaved) parts.push('องค์ประกอบร่างกาย');
+
     persist();
-    toast(`บันทึก${parts.join(' + ')}แล้ว ✅`);
+    if (parts.length) toast(`บันทึก${parts.join(' + ')}แล้ว ✅`);
+    if (bcWarnings.length) toast(bcWarnings.join(' · '), true);
     render();
   },
   'delete-weight': (e, btn) => {
