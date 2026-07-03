@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.48';
+const VERSION = 'v1.10.49';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1960,6 +1960,20 @@ function movingAverage(series, window = 7, valueKey = 'weight_kg') {
     return { date: pt.date, [valueKey]: avg };
   });
 }
+// v1.10.49 — T-022b: 7-day trailing-DATE-window mean — the same smoothing effectiveBodyWeight
+// uses (cutoff = date − 6d; mean of points in window), generalized per-point + per valueKey.
+// NOT the index-based movingAverage: on sparse fields (muscle/fat, logged days/weeks apart) a
+// 7-POINT mean blends readings weeks apart; a 7-DAY window smooths only same-week readings and
+// degrades to raw points when data is sparse (the honest behavior). `series` MUST be pre-filtered
+// to entries carrying `valueKey`. Returns [{date, [valueKey]: mean}] aligned 1:1 with input.
+function dateWindowMean(series, valueKey, windowDays = 7) {
+  const sorted = series.slice().sort((a, b) => a.date.localeCompare(b.date));
+  return sorted.map(pt => {
+    const cutoff = dateToKey(addDays(keyToDate(pt.date), -(windowDays - 1)));
+    const win = sorted.filter(x => x.date >= cutoff && x.date <= pt.date);
+    return { date: pt.date, [valueKey]: win.reduce((s, x) => s + x[valueKey], 0) / win.length };
+  });
+}
 // v1.10.30 — T-012: generalized linearRegression with optional valueKey.
 function linearRegression(series, valueKey = 'weight_kg') {
   if (series.length < 2) return { slope: 0, intercept: series[0]?.[valueKey] || 0 };
@@ -3109,6 +3123,7 @@ function svgLineChart(series, avgSeries, w = 320, h = 140, opts) {
   const avgColor = (opts && opts.avgColor) || '#b35d00';
   const chartId = (opts && opts.chartId) || '';        // v1.10.43 — T-017
   const selectedIdx = opts && opts.selectedIdx;        // v1.10.43 — T-017
+  const gapDashDays = opts && opts.gapDashDays;         // v1.10.49 — T-022b: opt-in (body-comp only)
   const padL = 32, padR = 8, padT = 10, padB = 22;
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
@@ -3134,10 +3149,31 @@ function svgLineChart(series, avgSeries, w = 320, h = 140, opts) {
     const ring = isSel ? `<circle cx="${xFor(p).toFixed(1)}" cy="${yFor(p[valueKey]).toFixed(1)}" r="6.5" fill="none" stroke="#1f2937" stroke-width="1.5"/>` : '';
     return `${ring}<circle cx="${xFor(p).toFixed(1)}" cy="${yFor(p[valueKey]).toFixed(1)}" r="${r}" fill="${dotColor}"/>`;
   }).join('');
-  const avgPath = (avgSeries && avgSeries.length > 1)
-    ? `<path d="${path(avgSeries)}" fill="none" stroke="${avgColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
-    : '';
-  const dataPath = `<path d="${path(series)}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round"/>`;
+  // v1.10.49 — T-022b: when gapDashDays is set (body-comp charts only), segments longer than that
+  // many days render dashed + faded so a gap doesn't imply continuous data. Default (unset) path is
+  // byte-identical to the original — existing weight/waist/cal/bal/prot charts are unaffected.
+  const segPaths = (arr, color, width) => {
+    if (!arr || arr.length < 2) return '';
+    let solidD = '', dashD = '';
+    for (let i = 1; i < arr.length; i++) {
+      const a = arr[i - 1], b = arr[i];
+      const seg = `M${xFor(a).toFixed(1)},${yFor(a[valueKey]).toFixed(1)} L${xFor(b).toFixed(1)},${yFor(b[valueKey]).toFixed(1)} `;
+      if (daysBetween(a.date, b.date) > gapDashDays) dashD += seg; else solidD += seg;
+    }
+    const s = solidD ? `<path d="${solidD.trim()}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>` : '';
+    const g = dashD ? `<path d="${dashD.trim()}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3,3" opacity="0.5"/>` : '';
+    return s + g;
+  };
+  let avgPath, dataPath;
+  if (gapDashDays) {
+    avgPath = (avgSeries && avgSeries.length > 1) ? segPaths(avgSeries, avgColor, 2) : '';
+    dataPath = segPaths(series, lineColor, 1.5);
+  } else {
+    avgPath = (avgSeries && avgSeries.length > 1)
+      ? `<path d="${path(avgSeries)}" fill="none" stroke="${avgColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+      : '';
+    dataPath = `<path d="${path(series)}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round"/>`;
+  }
   // v1.10.43 — T-017: per-point hit-areas for tap-to-read (only when chartId provided)
   let hitAreas = '';
   if (chartId) {
@@ -6100,6 +6136,13 @@ function renderReports() {
   const waistFlagColor = waistFlagRpt ? (waistFlagRpt.color === 'green' ? 'var(--green)' : waistFlagRpt.color === 'red' ? 'var(--red)' : 'var(--amber)') : '';
   const waistFlagBg = waistFlagRpt ? (waistFlagRpt.color === 'green' ? 'var(--green-soft)' : waistFlagRpt.color === 'red' ? 'var(--red-soft)' : 'var(--amber-soft)') : '';
 
+  // v1.10.49 — T-022b: body-comp series (sparse — filter to entries carrying each optional field).
+  // Read-only over T-022a data. Neutral tone: no deltas / no good-bad color (see spec §5).
+  const rangeMuscle = rangeWeights.filter(w => w.muscleMass_kg != null);
+  const rangeFat = rangeWeights.filter(w => w.bodyFat_pct != null);
+  const everMuscle = (u.weights || []).some(w => w.muscleMass_kg != null);
+  const everFat = (u.weights || []).some(w => w.bodyFat_pct != null);
+
   // Real energy delta (includes exercise per day) — projection from this is accurate
   const avgEnergyDelta = agg.avg.energyDelta;        // − = avg deficit, + = avg surplus
   const avgGoalDelta = agg.avg.goalDelta;            // 0 = average day on goal
@@ -6226,6 +6269,21 @@ function renderReports() {
     const avgStr = avg && avg.waist_cm != null ? ` · เฉลี่ย 7 วัน <b>${avg.waist_cm.toFixed(1)} cm</b>` : '';
     return `<div class="chart-detail">📅 ${date} · รอบเอว <b>${p.waist_cm.toFixed(1)} cm</b>${avgStr}</div>`;
   }
+  // v1.10.49 — T-022b: neutral tap-detail for body-comp (no color, no delta, no judgment).
+  function chartDetailMuscle(idx) {
+    if (idx == null || !rangeMuscle[idx]) return '';
+    const p = rangeMuscle[idx];
+    const avg = dateWindowMean(rangeMuscle, 'muscleMass_kg')[idx];
+    const avgStr = avg && avg.muscleMass_kg != null ? ` · เฉลี่ย 7 วัน <b>${avg.muscleMass_kg.toFixed(1)} กก.</b>` : '';
+    return `<div class="chart-detail">📅 ${formatDateTH(p.date)} · มวลกล้าม <b>${p.muscleMass_kg.toFixed(1)} กก.</b>${avgStr}</div>`;
+  }
+  function chartDetailFat(idx) {
+    if (idx == null || !rangeFat[idx]) return '';
+    const p = rangeFat[idx];
+    const avg = dateWindowMean(rangeFat, 'bodyFat_pct')[idx];
+    const avgStr = avg && avg.bodyFat_pct != null ? ` · เฉลี่ย 7 วัน <b>${avg.bodyFat_pct.toFixed(1)}%</b>` : '';
+    return `<div class="chart-detail">📅 ${formatDateTH(p.date)} · ไขมัน <b>${p.bodyFat_pct.toFixed(1)}%</b>${avgStr}</div>`;
+  }
 
   return `
     <div class="screen">
@@ -6288,6 +6346,34 @@ function renderReports() {
             <div class="stat-row mt"><span>waist:height ratio</span><b style="color:${waistFlagColor}">${waistFlagRpt.ratio.toFixed(2)}</b></div>
             <div style="background:${waistFlagBg};color:${waistFlagColor};font-weight:500;font-size:13px;padding:8px 10px;border-radius:8px;margin-top:6px;line-height:1.5">${waistFlagRpt.text}</div>
           ` : ''}
+        </div>
+      ` : ''}
+
+      ${everMuscle ? `
+        <div class="stat-card">
+          <div class="row between"><h3 style="margin:0">💪 มวลกล้ามเนื้อ (${rangeLabel})</h3><span class="muted" style="font-size:12px">${rangeMuscle.length} จุด</span></div>
+          ${rangeMuscle.length ? `<div class="stat-row"><span>ล่าสุด</span><b>${rangeMuscle[rangeMuscle.length - 1].muscleMass_kg.toFixed(1)} กก.</b></div>` : ''}
+          ${rangeMuscle.length >= 2 ? `
+            <div class="chart-card mt">
+              <div class="hint" style="font-size:11.5px;margin-bottom:4px">📈 เส้นแนวโน้ม (เฉลี่ย 7 วัน) · จุด = ค่าที่วัด · เส้นประ = ช่วงห่าง >7 วัน · แตะจุดเพื่อดูค่า</div>
+              ${svgLineChart(rangeMuscle, dateWindowMean(rangeMuscle, 'muscleMass_kg'), 320, 140, { valueKey: 'muscleMass_kg', ariaLabel: 'กราฟมวลกล้ามเนื้อ', dotColor: '#0891b2', lineColor: '#cffafe', avgColor: '#0e7490', chartId: 'muscle', selectedIdx: selPointIdx('muscle'), gapDashDays: 7 })}
+              ${chartDetailMuscle(selPointIdx('muscle'))}
+            </div>
+          ` : `<div class="hint mt" style="font-size:12px">ยังไม่มีข้อมูลมวลกล้ามในช่วงที่เลือก (ต้องมีอย่างน้อย 2 จุด)</div>`}
+        </div>
+      ` : ''}
+
+      ${everFat ? `
+        <div class="stat-card">
+          <div class="row between"><h3 style="margin:0">🔥 % ไขมัน (${rangeLabel})</h3><span class="muted" style="font-size:12px">${rangeFat.length} จุด</span></div>
+          ${rangeFat.length ? `<div class="stat-row"><span>ล่าสุด</span><b>${rangeFat[rangeFat.length - 1].bodyFat_pct.toFixed(1)}%</b></div>` : ''}
+          ${rangeFat.length >= 2 ? `
+            <div class="chart-card mt">
+              <div class="hint" style="font-size:11.5px;margin-bottom:4px">📈 เส้นแนวโน้ม (เฉลี่ย 7 วัน) · จุด = ค่าที่วัด · เส้นประ = ช่วงห่าง >7 วัน · แตะจุดเพื่อดูค่า</div>
+              ${svgLineChart(rangeFat, dateWindowMean(rangeFat, 'bodyFat_pct'), 320, 140, { valueKey: 'bodyFat_pct', ariaLabel: 'กราฟเปอร์เซ็นต์ไขมัน', dotColor: '#9333ea', lineColor: '#f3e8ff', avgColor: '#7e22ce', chartId: 'fat', selectedIdx: selPointIdx('fat'), gapDashDays: 7 })}
+              ${chartDetailFat(selPointIdx('fat'))}
+            </div>
+          ` : `<div class="hint mt" style="font-size:12px">ยังไม่มีข้อมูลไขมันในช่วงที่เลือก (ต้องมีอย่างน้อย 2 จุด)</div>`}
         </div>
       ` : ''}
 
@@ -6553,6 +6639,54 @@ function renderWeightLog() {
   `;
 }
 
+// v1.10.49 — T-022b: body-comp trend card for BPC (muscle + fat). Shown whenever the user has
+// ≥1 body-comp reading ever — independent of photo check-ins (BIA users need no check-in). Read-only
+// over T-022a · sparse-safe (filter to field-bearing entries · <2 in range → neutral empty) · neutral
+// tone (no delta, no good/bad color) · segments spanning >7 days render dashed. `win` = insight window.
+function renderBpcBodyCompCard(u, win) {
+  const inWin = (w) => w.date >= win.startDate && w.date <= win.endDate;
+  const bpcMuscle = (u.weights || []).filter(w => w.muscleMass_kg != null && inWin(w));
+  const bpcFat = (u.weights || []).filter(w => w.bodyFat_pct != null && inWin(w));
+  const everM = (u.weights || []).some(w => w.muscleMass_kg != null);
+  const everF = (u.weights || []).some(w => w.bodyFat_pct != null);
+  if (!everM && !everF) return '';
+  const sel = state.tmp.chartSelection;
+  const selIdx = (id) => sel && sel.chartId === id ? sel.idx : null;
+  const detail = (arr, idx, key, unit) => {
+    if (idx == null || !arr[idx]) return '';
+    const p = arr[idx];
+    const avg = dateWindowMean(arr, key)[idx];
+    const a = avg && avg[key] != null ? ` · เฉลี่ย 7 วัน <b>${avg[key].toFixed(1)}${unit}</b>` : '';
+    const lbl = key === 'muscleMass_kg' ? 'มวลกล้าม' : 'ไขมัน';
+    return `<div class="chart-detail">📅 ${formatDateTH(p.date)} · ${lbl} <b>${p[key].toFixed(1)}${unit}</b>${a}</div>`;
+  };
+  return `
+    <div class="card">
+      <h3 style="margin:0 0 6px">🧬 องค์ประกอบร่างกาย</h3>
+      ${everM ? `
+        <div class="row between" style="margin-top:4px"><span style="font-size:13px;font-weight:600">💪 มวลกล้ามเนื้อ</span><span class="muted" style="font-size:12px">${bpcMuscle.length} จุด</span></div>
+        ${bpcMuscle.length >= 2 ? `
+          <div class="chart-card" style="margin-top:4px">
+            <div class="hint" style="font-size:11px;margin-bottom:4px">เส้นแนวโน้ม (เฉลี่ย 7 วัน) · เส้นประ = ช่วงห่าง >7 วัน · แตะจุดเพื่อดูค่า</div>
+            ${svgLineChart(bpcMuscle, dateWindowMean(bpcMuscle, 'muscleMass_kg'), 320, 130, { valueKey: 'muscleMass_kg', ariaLabel: 'กราฟมวลกล้ามเนื้อ', dotColor: '#0891b2', lineColor: '#cffafe', avgColor: '#0e7490', chartId: 'bpcMuscle', selectedIdx: selIdx('bpcMuscle'), gapDashDays: 7 })}
+            ${detail(bpcMuscle, selIdx('bpcMuscle'), 'muscleMass_kg', ' กก.')}
+          </div>
+        ` : `<div class="hint" style="font-size:12px;margin:2px 0 6px">ยังไม่มีข้อมูลมวลกล้ามในช่วงนี้ (ต้องมีอย่างน้อย 2 จุด)</div>`}
+      ` : ''}
+      ${everF ? `
+        <div class="row between" style="margin-top:8px"><span style="font-size:13px;font-weight:600">🔥 % ไขมัน</span><span class="muted" style="font-size:12px">${bpcFat.length} จุด</span></div>
+        ${bpcFat.length >= 2 ? `
+          <div class="chart-card" style="margin-top:4px">
+            <div class="hint" style="font-size:11px;margin-bottom:4px">เส้นแนวโน้ม (เฉลี่ย 7 วัน) · เส้นประ = ช่วงห่าง >7 วัน · แตะจุดเพื่อดูค่า</div>
+            ${svgLineChart(bpcFat, dateWindowMean(bpcFat, 'bodyFat_pct'), 320, 130, { valueKey: 'bodyFat_pct', ariaLabel: 'กราฟเปอร์เซ็นต์ไขมัน', dotColor: '#9333ea', lineColor: '#f3e8ff', avgColor: '#7e22ce', chartId: 'bpcFat', selectedIdx: selIdx('bpcFat'), gapDashDays: 7 })}
+            ${detail(bpcFat, selIdx('bpcFat'), 'bodyFat_pct', '%')}
+          </div>
+        ` : `<div class="hint" style="font-size:12px;margin:2px 0 6px">ยังไม่มีข้อมูลไขมันในช่วงนี้ (ต้องมีอย่างน้อย 2 จุด)</div>`}
+      ` : ''}
+      <div class="hint" style="font-size:11px;margin-top:6px;color:var(--ink-2)">จากเครื่องชั่ง BIA (ถ้ามี) · แสดงแนวโน้มเฉยๆ ไม่ตีความว่าดี/แย่</div>
+    </div>
+  `;
+}
 // v1.10.31 — T-013a: Body Progress Center entry view.
 // v1.10.32 — T-013b: enabled "เริ่ม Check-in" button + draft resume banner.
 function renderBodyProgressCenter() {
@@ -6625,6 +6759,8 @@ function renderBodyProgressCenter() {
           ` : ''}
         </div>
 
+        ${renderBpcBodyCompCard(u, window)}
+
         <div class="card tight mt" style="background:var(--bg-2)">
           <div style="font-weight:600;font-size:13.5px;margin-bottom:6px">📋 Roadmap</div>
           <div class="hint" style="font-size:12px;line-height:1.7">
@@ -6640,6 +6776,8 @@ function renderBodyProgressCenter() {
       ` : `
         ${renderBpcRangeControls(bpcRange, window)}
         ${renderInsightCard(computeBodyProgressInsight(u, { startDate: window.startDate, endDate: window.endDate }), !!state.tmp.bpcInsightExpanded)}
+
+        ${renderBpcBodyCompCard(u, window)}
 
         <div class="card tight" style="background:var(--bg-2);margin-bottom:8px">
           <div class="row" style="align-items:center;gap:8px">

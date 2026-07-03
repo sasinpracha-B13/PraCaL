@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-022a → `done` ✅ (Body-composition logging: data model + input fields · optional muscleMass_kg/bodyFat_pct · v1.10.48 · empty=leave-unchanged confirmed) · T-014/T-015 still HOLD
+Last updated: T-022b → `done` ✅ (Body-composition trend charts · muscle+fat in BPC + Reports · 7-day date-window smoothing · sparse-safe · neutral tone · gaps >7d dashed + BPC card always-shown · v1.10.49) · T-022a done · T-014/T-015 still HOLD
 
 ---
 
@@ -1040,6 +1040,25 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - meals.json / branded_products.json / tools/audit-meals.js
   - Recomp Insight card (T-022c) · Reports charts (T-022b) · IndexedDB/photo pipeline
 - **Gate criteria:** see spec DoD + test plan · guardrails byte-identical · effectiveBodyWeight weight-only · backward compat · VERSION sync · data hashes unchanged
+
+### T-022b — Body composition trend charts (BPC + Reports)
+
+- **Status:** `done` ✅ (approved · gaps >7d dashed + BPC always-shown fixes applied · Opus 4.8 co-author)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-022b-body-comp-charts.md`](docs/specs/T-022b-body-comp-charts.md)
+- **User-locked scope:**
+  - Visualize `muscleMass_kg` / `bodyFat_pct` (from T-022a) as **two** trend charts (kg vs % → separate axes)
+  - 7-day **date-window** smoothing mirroring `effectiveBodyWeight` (NOT index-based `movingAverage` — sparse-safe)
+  - Show in **BPC** (window 7d/14d/30d/90d/all/custom) AND as tappable chart(s) in **Reports** (7/14/30/90/custom)
+  - Sparse = norm: filter to field-bearing entries · date-proportional X conveys gaps · connect-the-dots · <2 pts → neutral empty (never broken chart) · independent series (either alone OK)
+  - Tone (HARD): no deltas · no good/bad color · neutral hues (muscle≠green, fat≠red) · neutral tap-detail
+- **DO NOT TOUCH (verified at gate):**
+  - Existing 5 Reports charts' logic (only add new entry points; count 5 → 7)
+  - Recomp Insight card / computeBodyProgressInsight (T-022c)
+  - setWeight / save-weight / T-022a data model (read-only consumer)
+  - calcBMR / calcTDEE / calorieFloor / proteinTarget / goalZoneEval / effectiveBodyWeight / movingAverage
+  - meals.json / branded_products.json / tools/audit-meals.js
+- **Gate criteria:** spec DoD + test plan · guardrails byte-identical · VERSION v1.10.49 sync · data hashes unchanged
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
