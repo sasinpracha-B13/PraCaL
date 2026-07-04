@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-022b → `done` ✅ (Body-composition trend charts · muscle+fat in BPC + Reports · 7-day date-window smoothing · sparse-safe · neutral tone · gaps >7d dashed + BPC card always-shown · v1.10.49) · T-022a done · T-014/T-015 still HOLD
+Last updated: T-022a.1 → `done` ✅ (Backfill body-comp on past weight entries · ✏️ inline edit on history rows · muscle/fat only · explicit ✕ clear · new setBodyComp helper · v1.10.50) · T-022a/T-022b done · T-014/T-015 still HOLD
 
 ---
 
@@ -1040,6 +1040,26 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - meals.json / branded_products.json / tools/audit-meals.js
   - Recomp Insight card (T-022c) · Reports charts (T-022b) · IndexedDB/photo pipeline
 - **Gate criteria:** see spec DoD + test plan · guardrails byte-identical · effectiveBodyWeight weight-only · backward compat · VERSION sync · data hashes unchanged
+
+### T-022a.1 — Backfill body composition on past weight entries
+
+- **Status:** `done` ✅ (approved · setBodyComp helper · ✏️ inline editor · ✕ per-field clear · Opus 4.8 co-author)
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-022a.1-backfill-body-comp.md`](docs/specs/T-022a.1-backfill-body-comp.md)
+- **User-locked scope:**
+  - ✏️ edit affordance on each weight-log history row → inline muscle/fat inputs, prefilled
+  - Body-comp fields ONLY · `weight_kg` + date NOT editable
+  - Validation vs THAT entry's weight (muscle >0 & < entry weight · fat 3–70) · invalid → warn+reject, never corrupt
+  - Blank = leave unchanged (T-022a) · explicit per-field ✕ clear (only place to remove a wrong BIA value w/o deleting entry)
+  - Charts (T-022b) auto-pick-up · code does NOT touch them
+- **DO NOT TOUCH (verified at gate):**
+  - Today's save-weight flow + mm-input/bf-input
+  - setWeight + its call sites (add narrow `setBodyComp` helper instead)
+  - weight_kg values / entry dates / 🗑️ deletion
+  - calcBMR/calcTDEE/calorieFloor/proteinTarget/goalZoneEval/effectiveBodyWeight/movingAverage/dateWindowMean
+  - svgLineChart / renderBpcBodyCompCard / all charts
+  - meals.json / branded_products.json / tools/audit-meals.js
+- **Gate criteria:** spec DoD + test plan · guardrails+charts+setWeight byte-identical · VERSION v1.10.50 sync · data hashes unchanged
 
 ### T-022b — Body composition trend charts (BPC + Reports)
 

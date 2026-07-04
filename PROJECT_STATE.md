@@ -7,15 +7,16 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.49` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.49';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.49';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.50` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.50';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.50';` (drives cache name `pracal-${VERSION}` and cache invalidation)
 - **`meals.json` data version:** `1.10.18` (T-021 — +2 entries r37/n41 · 406 → 408 · first add under DEC-003 calorie-safety-direction).
 - **Menu-add policy ([DEC-003](docs/decisions/DEC-003-calorie-safety-direction.md), 2026-06-28):** new entries' calories may over- but **never under**-estimate ("ไปเกินได้แต่ห้ามขาด") — per-entry macro diff must be **non-negative** (`baseCalories ≥ P×4+C×4+F×9`). Codified in `menu-addition-protocol.md` §3d-2.
 - **User schema:** added optional `u.birthYear` (T-019) — derives auto-incrementing age; migration-seeded from `age` for existing users. `age`/`weight` snapshots preserved as fallback.
 - **`state.bpcRange`** (T-013d.3): persisted UI preference at root state level. Shape `{ preset: '7d'|'14d'|'30d'|'90d'|'all'|'custom', startDate?, endDate? }`. Defensive default `{ preset: '30d' }`. No schema migration needed (defensive read on first load).
 - **User schema:** `u.waist = []` (T-012), `u.checkIns = []` (T-013a) + optional `updatedAt` (T-013b.1). T-013d added NO new schema fields — pure read-only interpretation over existing data.
 - **Weight-log schema (T-022a):** `u.weights[]` entries gain **two optional** fields — `muscleMass_kg?` and `bodyFat_pct?` (home BIA-scale readings). Both additive & independent; **absent when empty** (never null/0). No migration — existing entries simply lack the keys and read unchanged everywhere. `effectiveBodyWeight` (and every other reader) stays `weight_kg`-only; body-comp is display-only in T-022a (charts = T-022b, insight = T-022c).
+- **Body-comp write paths (T-022a / T-022a.1):** today's entry via `setWeight(…, extra)` from the main `#mm-input`/`#bf-input` (T-022a); any **existing** past entry via `setBodyComp(user, date, patch)` from the ✏️ inline editor on weight-log history rows (T-022a.1). `setBodyComp` patches body-comp only — never touches `weight_kg`/date, never creates entries. Explicit per-field ✕ clear (the only clear path; blank = leave unchanged).
 - **IndexedDB:** database `PraCaLBodyProgress` (v1) with `photos` store. Lazy-init on first photo save (T-013a + T-013b + T-013b.1). T-013c + T-013d are read-only over this store.
 - **localStorage draft key:** `pracal_checkin_draft_<userId>` — T-013b/b.1 schema unchanged. T-013c + T-013d added no new localStorage keys.
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
@@ -90,9 +91,11 @@
 
 ## Current Active Task
 
+**T-022a.1 — Backfill body composition on past weight entries — `done` ✅ (v1.10.50 shipped).** ✏️ inline editor on each weight-log history row → add/edit `muscleMass_kg`/`bodyFat_pct` on any existing entry, prefilled; explicit per-field ✕ clear (the one place to remove a wrong BIA value w/o deleting the entry). New narrow `setBodyComp(user, date, patch)` helper — body-comp only, never touches `weight_kg`/date, never creates. Validation vs THAT entry's weight. Charts auto-pick-up (zero chart change). Today's `save-weight` flow + `setWeight` + all charts byte-identical. VERSION v1.10.49 → **v1.10.50** (shipped). **T-014/T-015 HOLD**.
+
 **T-022b — Body composition trend charts (BPC + Reports) — `done` ✅ (v1.10.49 shipped).** Visualizes T-022a's `muscleMass_kg`/`bodyFat_pct` as **two** neutral trend charts (kg vs % → separate axes) in Reports (**5 → 7** tappable charts) and Body Progress Center. New `dateWindowMean` helper = `effectiveBodyWeight`'s 7-day trailing-DATE window generalized per-point (NOT index-based `movingAverage` — sparse-safe). Sparse handled: filter to field-bearing entries, date-proportional X conveys gaps, **segments >7 days render dashed+faded** (opt-in `gapDashDays` on body-comp charts only — existing charts byte-identical), `<2` pts → neutral empty, never-recorded → card omitted. BPC card extracted to `renderBpcBodyCompCard`, **shown whenever ≥1 body-comp reading exists** (independent of photo check-ins). Tone: no deltas / no good-bad color / neutral cyan+purple hues. Read-only over T-022a (no writes). VERSION v1.10.48 → **v1.10.49**. Guardrails + `effectiveBodyWeight` + `movingAverage` + T-022a write path untouched; data files byte-identical. **T-014/T-015 HOLD**.
 
-29 tasks through operating model. Total `meals.json` entries: **408**. **T-014/T-015** still blocked (HOLD). **Tier 3 (empirical TDEE)** noted as a future task.
+30 tasks through operating model. Total `meals.json` entries: **408**. **T-014/T-015** still blocked (HOLD). **Tier 3 (empirical TDEE)** noted as a future task.
 
 Operating-model run history:
 - T-001 (README refresh) — `done` ✅ — doc task
@@ -127,6 +130,7 @@ Operating-model run history:
 - T-022 (AI consultant handoff brief · docs/AI-HANDOFF-BRIEF.md) — `done` ✅ — read-only advisor briefing for a parallel chat · doc task
 - T-022a (Body composition logging: data model + input fields) — `done` ✅ — optional `muscleMass_kg?`/`bodyFat_pct?` on `u.weights[]` · 2 optional inputs · loose non-blocking validation (muscle >0 & < body wt · fat 3–70) · empty=leave-unchanged (no wipe, user-confirmed) · body-comp requires today weight entry (no weightless entry possible) · minimal read-back · guardrails + effectiveBodyWeight untouched · live smoke test all-pass · v1.10.48
 - T-022b (Body composition trend charts · BPC + Reports) — `done` ✅ — 2 neutral trend charts (muscle kg / fat %) · new `dateWindowMean` (effectiveBodyWeight's 7-day date-window, per-point · NOT index-based movingAverage) · sparse-safe (filter + <2→neutral empty + never-recorded→omit) · gaps >7d dashed (opt-in `gapDashDays`, existing charts byte-identical) · BPC card (`renderBpcBodyCompCard`) always-shown when ≥1 reading (no check-in needed) · Reports 5→7 tappable charts · tone: no delta/no good-bad color · read-only over T-022a · guardrails/effectiveBodyWeight/movingAverage/write-path untouched · live test all-pass (sparse=raw, dense smooths, dashed gap, tap neutral, weight chart unchanged) · v1.10.49
+- T-022a.1 (Backfill body-comp on past weight entries) — `done` ✅ — ✏️ inline editor on weight-log history rows · new narrow `setBodyComp(user,date,patch)` (body-comp only · never touches weight_kg/date · never creates) · validation vs THAT entry's weight · blank=leave / explicit ✕ per-field clear · charts auto-pick-up (zero chart change) · today's save-weight + setWeight + charts byte-identical · live test all-pass (backfill, edit, ✕ clear, invalid reject, blank-leave, single-edit, chart pickup) · v1.10.50 · **HOLD for approval**
 - T-014 (BPC Phase 2 features) — `todo` placeholder
 - T-015 (BPC Phase 3 features) — `todo` placeholder
 - T-016 (Insight Engine) — `todo` placeholder — 5th deferral
