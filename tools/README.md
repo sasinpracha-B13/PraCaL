@@ -27,6 +27,8 @@ Small, focused scripts that audit, validate, or analyze the project without modi
 | `audit-meals.js` | Validate macro consistency on `meals.json` (counts top-level meals correctly; flags `protein×4 + carbs×4 + fat×9 + alcohol×7` deviations >15% from `baseCalories`) **plus optional-nutrient sanity** (T-024a / DEC-004): `satFat_g ≤ fat_g`, `fiber_g ≤ carbs_g`, no negatives, `nutrientSource` present and valid. A sanity violation is a hard fail regardless of calorie deviation. Read-only. | `node tools/audit-meals.js` <br> `node tools/audit-meals.js --json` | `0` = all ≤5% and no violation (clean) · `1` = warnings only (5–15%) · `2` = failures (>15% or a sanity violation) or script error |
 | `audit-csv-addon-rows.js` | Verify an exported CSV reconciles: does "sum every item row" equal that day's `สรุปวัน`? Regression guard for [T-023](../docs/specs/T-023-csv-addon-double-count-fix.md) (add-on double-count), and identifies pre-v1.10.51 exports so old files aren't mistaken for corrupt data. Reads the header to handle **both** layouts — 10-column (≤v1.10.51) and 14-column (≥v1.10.52, with `ประเภทแถว` + the three optional nutrients). Read-only. | `node tools/audit-csv-addon-rows.js <exported.csv>` <br> `… --json` | `0` = every day reconciles · `1` = macro drift beyond the per-row `toFixed(1)` tolerance, calories fine · `2` = calorie mismatch (pre-fix export, or the bug is back) or script error |
 
+| `gen-nutrient-derivation.js` | **Generator** (the only one that writes). Derives `satFat_g` (= `fat_g` × ratio, leaning **high**) and `fiber_g` (= `carbs_g` × ratio, leaning **low**) for every entry in `meals.json` + `branded_products.json`, per [DEC-004](../docs/decisions/DEC-004-unknown-nutrient-direction.md) rule 3. Ordered keyword rules → category default; 17 whole foods are hand-set. Writes **surgically** (one line per entry, no reformat) and re-parses the result to assert nothing but the three intended fields changed. Idempotent — a second run rewrites 0 lines. | `node tools/gen-nutrient-derivation.js` (dry run) <br> `… --report` (per-entry table) <br> `… --apply` (write) | `0` = clean · `1` = some entries left absent · `2` = a derived value violated a sanity rule (refuses to write) |
+
 ## Suggested next tools (not yet built)
 
 These are candidates from `PROJECT_STATE.md → Open Questions` and `TASK_BOARD.md → Next Actions`. Build them only when an audit task is approved.
@@ -40,7 +42,7 @@ None of these will be built without an explicit task assignment.
 
 ## Anti-patterns
 
-- **Tools that mutate production data automatically.** Always report → human applies.
+- **Tools that mutate production data automatically.** Always report → human applies. *(One deliberate exception: `gen-nutrient-derivation.js` writes, because 496 values cannot be hand-applied from a report. It earns the exception by being dry-run-by-default, idempotent, refusing to write on any sanity violation, and self-verifying that it changed nothing but the fields it owns.)*
 - **Tools that need npm install.** Until we add `package.json` (decision record required), tools should run with `node` and standard library only.
 - **Tools that hide failures.** Exit codes matter; a tool that returns 0 on warnings is worse than no tool.
 - **Tools without a README row.** If it's worth keeping, document it here.

@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-024a → `review` (optional nutrient schema + `alcohol_g` + coverage-aware totals + CSV v2 with `ประเภทแถว` · closes the standing beer audit defect · v1.10.52 · meals.json 1.10.19) · T-023 → `done` ✅ (pushed) · T-024 gate resolved: `sodium_mg` cut, fiber → all 408 · T-025 registered · DEC-004 accepted · T-014/T-015 still HOLD
+Last updated: T-024b/c → `review` (satFat_g + fiber_g derived across all 408 meals + 88 branded · one committed generator · 496/496 covered · 0 violations · back-test says satFat ~12.6% of energy vs <6% target, fiber ~5.6 g/day vs 25-30 g · v1.10.53 · meals.json 1.10.20) · T-024a → `review` (optional nutrient schema + `alcohol_g` + coverage-aware totals + CSV v2 with `ประเภทแถว` · closes the standing beer audit defect · v1.10.52 · meals.json 1.10.19) · T-023 → `done` ✅ (pushed) · T-024 gate resolved: `sodium_mg` cut, fiber → all 408 · T-025 registered · DEC-004 accepted · T-014/T-015 still HOLD
 
 ---
 
@@ -1138,6 +1138,28 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 - **DO NOT TOUCH (verified at gate):** the four original macros anywhere · goal ring / streaks / planner / suggester / reports (DEC-004 rule 5) · `sumEntries` return shape · the T-023 base-only parent-row invariant · every `SPECIAL_MEAL_PRESETS` `cal` value
 - **Flagged, deliberately not fixed (Rule 3):** the `drinking` preset's calorie gap implies only ~1.5 / ~1.9 / ~3 bottles, which is **less than its own labels describe** — these presets likely under-model alcohol. Correcting `cal` would retroactively move every day already logged with them, so it is left for a data pass. Recorded in a comment at the preset.
 - **Next:** T-024b (`satFat_g` × 408) → T-024c (`fiber_g` × 408) → T-024d (UI + coverage display)
+
+### T-024b + T-024c — satFat_g + fiber_g across all 408 meals + 88 branded
+
+- **Status:** `review` — awaiting user gate to `done`
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-024-…`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md) §4a, §4b, §11 · **[DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md)**
+- **Shipped together** because both nutrients fall out of one generator; splitting them would have meant applying the same 496-line surgical write twice.
+- **Approach — a committed generator, not 800 hand-typed numbers.** [`tools/gen-nutrient-derivation.js`](tools/gen-nutrient-derivation.js) derives `satFat_g = fat_g × ratio` (leaning **high**) and `fiber_g = carbs_g × ratio` (leaning **low**), via ordered name-keyword rules falling through to a category default. Ratios, not absolutes, so values scale across serving sizes (a pizza slice vs a whole tray are separate entries) and `fiber_g <= carbs_g` holds by construction. 496 bare numbers in a diff would be unreviewable; a rule table is not.
+- **Revised a claim in the spec.** §4b said fiber was "not derivable". Half right: not from the macros *as numbers*, but derivable from the **starch base** identified in the name. That is what made the gate's "all 408" achievable without 408 guesses.
+- **Results:** 496/496 covered · **0 left absent** · **0 sanity violations** · `nutrientSource` 391 `derived` + 17 `estimated` (hand-set whole foods) + 88 branded.
+- **Four rule-ordering errors caught in dry-run review, before anything was written:**
+  1. `พิซซ่า…ขอบชีส` matched ชีส and took the 0.60 dairy ratio → pizza rule moved above dairy (0.48)
+  2. `สปาเก็ตตี้ครีมเห็ด` matched เห็ด and scored 7.8 g fiber → starch-base rules moved above vegetable rules
+  3. `ขนมจีนแกงเขียวหวาน…` matched เขียวหวาน and scored 6.9 g fiber → same fix
+  4. `ชุดไก่ป๊อป + ฟรายส์ + น้ำ` matched ฟรายส์ in the 0.08 tier and scored 8.0 g fiber → potato split out at 0.05
+  All three fiber cases were **over-statements**, which is the single direction DEC-004 forbids for fiber.
+- **Writer safety:** surgical line edit (both data files are hand-formatted; `JSON.stringify` would have reformatted 823 lines and buried 496 real changes). Refuses to write on any sanity violation. Re-parses its own output and asserts **every field other than the three it owns is unchanged**. Idempotent — the second run rewrote **0 lines**.
+- **VERSION bump required despite `index.html` being untouched:** `meals.json` is cache-first under `pracal-${VERSION}`; without a bump, installed PWAs keep the old data file.
+- **Back-test over the original 132-day export** (spec §11): satFat **~12.6% of energy** vs the <6% AHA reference for LDL lowering; fiber **~5.6 g/day** vs a 25–30 g target. Robust to the best case — if every uncovered calorie had zero of both, the floor is still 7.8% and 3.5 g.
+- **DO NOT TOUCH (verified at gate):** every pre-existing field in both data files (asserted by the writer) · the four original macros · `d22`'s `alcohol_g` · entry counts (408 / 88) · goal ring / streaks / planner / reports (DEC-004 rule 5) · `index.html` logic (only the VERSION line changed)
+- **Flagged, deliberately not fixed (Rule 3):** 329 of 496 entries fall through to a **category default** for at least one nutrient. For plain rice dishes that is the correct tier, not a weakness — but `mains` (131 entries) is heterogeneous enough that a hand-review pass would improve it. Candidate follow-up, not blocking.
+- **Next:** T-024d (UI + coverage display) · T-025 (re-baseline)
 
 ### T-025 — Re-baseline the diet analysis after T-024 *(placeholder)*
 

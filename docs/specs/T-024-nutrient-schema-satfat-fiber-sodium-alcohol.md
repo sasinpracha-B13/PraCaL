@@ -104,7 +104,9 @@ Every value so produced is `nutrientSource: "derived"`. Branded products overrid
 
 **Known weakness, stated up front:** `category` is a poor predictor inside `mains` (131 entries — a grilled fish and a green curry both live there). The keyword overrides carry most of the accuracy; entries matching no override should be reviewed by hand rather than trusted to the category default. Expect a review pass over `mains` + `fastfood` (191 entries) regardless.
 
-### 4b. `fiber_g` — **not derivable**, needs real data
+### 4b. `fiber_g` — not derivable **from the macros**, but derivable from the starch base
+
+> **Revised at implementation (T-024c).** The claim below — that fiber needs hand-authored per-entry data — was half right. Fiber is not recoverable from `protein_g`/`carbs_g`/`fat_g` *as numbers*: white rice and brown rice are near-identical on those and differ ~4× in fiber. But it **is** estimable as a **ratio of `carbs_g`** once the dish's starch base is identified from its name, and a ratio scales correctly across serving sizes (one pizza slice vs a whole large pizza are separate entries here) while making `fiber_g <= carbs_g` true by construction. The gate's "all 408" was therefore achievable without 408 guesses. The 17 whole foods in `fruits`/`healthy` are still hand-set, because for a banana a composition figure beats any ratio.
 
 Fiber is a function of vegetable/legume/whole-grain content, which `protein_g`/`carbs_g`/`fat_g` do not encode: white rice and brown rice are near-identical on the existing four fields and differ ~4× in fiber. There is no honest derivation. Options:
 
@@ -176,6 +178,21 @@ Netlify function changes ride with T-024b (the first sub-task whose values must 
 ## 10. Definition of done — by sub-task
 
 - **T-024a** — schema + `alcohol_g` + coverage-aware totals + CSV columns/`ประเภทแถว` + alcohol-aware `audit-meals.js`
-- **T-024b** — `satFat_g` across 408 meals + 88 branded, per §4a, with hand review of `mains`/`fastfood`
-- **T-024c** — `fiber_g` across all 408 (gate decision 2), reporting real-value vs left-absent counts
-- **T-024d** — UI surfaces + coverage display per DEC-004 rule 2
+- [x] **T-024b + T-024c** — `satFat_g` **and** `fiber_g` across all 408 meals + 88 branded *(v1.10.53)*. Shipped together because both fall out of one generator, `tools/gen-nutrient-derivation.js`. Coverage **496 / 496**, zero left absent, zero sanity violations: 391 rule-derived meals + 17 hand-set whole foods + 88 branded.
+- [ ] **T-024d** — UI surfaces + coverage display per DEC-004 rule 2
+
+## 11. What the data now says — back-test over the original 132 days
+
+Re-scoring the export that started this task, using only the entries whose names resolve to the database (**61.8%** of logged calories):
+
+| | measured over the covered 62% | reference |
+|---|---|---|
+| saturated fat | **17.0 g/day** | — |
+| fiber | **3.5 g/day** | 25–30 g/day |
+| satFat as % of energy, extrapolated to the whole day | **~12.6%** | **<6%** (AHA, for LDL lowering) |
+
+**The conclusion survives the most favourable possible assumption.** Even if every one of the uncovered 38% of calories contributed *exactly zero* saturated fat and *zero* fiber, the floor is still 17 g of satFat — **7.8% of energy, still above the 6% ceiling** — and **3.5 g of fiber**, about an eighth of the low end of the target. The extrapolated ~12.6% is the likelier figure. The uncovered items cut both ways: the protein drink (`Baam`, 12% of all calories) carries near-zero of both, while the restaurant and shabu aggregates almost certainly run *higher* in saturated fat than average.
+
+This is exactly what the four original macros could not show — a diet that is correct on calories (1,962/day), strong on protein (1.94 g/kg) and unremarkable on total fat (26.4% of energy), while sitting at roughly **double** the saturated-fat ceiling with roughly **a fifth** of the fiber floor.
+
+**These are derived estimates, not measurements.** Good enough to identify a direction and to compare against a re-baseline (T-025); not good enough to quote as intake figures. Nothing here is a clinical assessment.

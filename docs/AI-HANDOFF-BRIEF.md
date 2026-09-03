@@ -146,12 +146,17 @@ The owner will often hand you a CSV export alongside this brief. Three things yo
 3. **Exports made before v1.10.51 are wrong** — the add-on double-count bug (T-023) meant each `ส่วนเสริม` was counted twice if you summed the item rows. On the owner's 132-day export that was +4,485 kcal. In an old file the `สรุปวัน` row is still correct; the item rows are not. Ask for a fresh export, or run `node tools/audit-csv-addon-rows.js <file>`, which detects and names the problem.
 
 ## 10. Current snapshot
-- App VERSION: **v1.10.52** · meals.json data ver 1.10.19 (408 entries) · branded 88.
-- Last shipped: T-024a (nutrient schema `satFat_g`/`fiber_g`/`alcohol_g` + coverage-aware totals
-  + CSV `ประเภทแถว` and nutrient columns). Before that: T-023 (CSV add-on double-count fix),
+- App VERSION: **v1.10.53** · meals.json data ver 1.10.20 (408 entries) · branded 88.
+- **`satFat_g` + `fiber_g` now cover all 496 entries** (T-024b/c). They are **derived estimates**
+  produced by `tools/gen-nutrient-derivation.js`, tagged `nutrientSource: "derived"` (or
+  `"estimated"` for 17 hand-set whole foods) — never present them as measurements. If a value
+  looks wrong, fix the RULE and regenerate; do not hand-edit the JSON.
+- Last shipped: T-024b/c (satFat + fiber derived across all 408 meals + 88 branded). Before that:
+  T-024a (nutrient schema + `alcohol_g` + CSV v2), T-023 (CSV add-on double-count fix),
   T-022a/b/a.1 (body composition), T-021 (menu adds + DEC-003).
-- **In flight:** T-024b (`satFat_g` × 408) → T-024c (`fiber_g` × 408) → T-024d (UI + coverage display).
-  `sodium_mg` was proposed and **cut at the scope gate**. Governed by DEC-004.
+- **In flight:** T-024d (UI + coverage display) · T-025 (re-baseline the diet analysis once 8–12
+  weeks of data carry the new fields). `sodium_mg` was proposed and **cut at the scope gate**.
+  Governed by DEC-004.
 - On HOLD (don't auto-start): T-014 (BPC Phase 2: ghost overlay / slider / video-frame mode),
   T-015 (BPC Phase 3: PIN lock / face crop / pose-match).
 - Known future idea: **Tier 3 "empirical TDEE"** — back-calculate real TDEE from intake-vs-weight
