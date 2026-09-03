@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-024b/c → `review` (satFat_g + fiber_g derived across all 408 meals + 88 branded · one committed generator · 496/496 covered · 0 violations · back-test says satFat ~12.6% of energy vs <6% target, fiber ~5.6 g/day vs 25-30 g · v1.10.53 · meals.json 1.10.20) · T-024a → `review` (optional nutrient schema + `alcohol_g` + coverage-aware totals + CSV v2 with `ประเภทแถว` · closes the standing beer audit defect · v1.10.52 · meals.json 1.10.19) · T-023 → `done` ✅ (pushed) · T-024 gate resolved: `sodium_mg` cut, fiber → all 408 · T-025 registered · DEC-004 accepted · T-014/T-015 still HOLD
+Last updated: T-024a + T-024b/c → `done` ✅ (user-gated, both pushed — optional nutrient schema + `alcohol_g` + coverage-aware totals + CSV v2 with `ประเภทแถว`; then satFat_g + fiber_g derived across all 408 meals + 88 branded via one committed generator, 496/496 covered, 0 violations · v1.10.52 → v1.10.53 · meals.json 1.10.20) · T-023 → `done` ✅ · **next: T-024d** (UI + coverage display) · T-025 registered (re-baseline, blocked 8–12 weeks) · DEC-004 accepted · T-014/T-015 still HOLD
 
 ---
 
@@ -1103,7 +1103,7 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-024 — Nutrient schema: saturated fat · fiber · sodium · alcohol
 
-- **Status:** `in_progress` — **scope gate resolved 2026-09-03**. Sub-task T-024a in flight.
+- **Status:** `in_progress` — scope gate resolved 2026-09-03. **T-024a, T-024b and T-024c are `done` ✅ and deployed** (v1.10.52 + v1.10.53). Remaining: **T-024d** (UI + coverage display), which is what makes these fields visible in the app rather than only in the export.
 - **Gate decisions (user):** `sodium_mg` **dropped** from scope entirely (T-024e cancelled — no bearing on the LDL question, and unknowable for restaurant food) · `fiber_g` authored for **all 408 entries**, not the recommended ~80 · `nutrientSource` stays **per-entry** (my recommendation, unchallenged) · `satFat_g` stays **un-targeted** per DEC-004 rule 5 · re-baseline registered as **T-025**.
 - **Owner:** Architecture (spec) → Data/Domain + DEV Integration (implementation)
 - **Spec:** [`docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md)
@@ -1116,7 +1116,7 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-024a — Nutrient schema + `alcohol_g` + CSV v2
 
-- **Status:** `review` — awaiting user gate to `done`
+- **Status:** `done` ✅ (user-gated 2026-09-03 · committed `9bc780d` · **pushed to `main` → deployed**)
 - **Owner:** Execution Agent
 - **Spec:** [`docs/specs/T-024-…`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md) §2, §6, §7 · **[DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md)**
 - **Change:**
@@ -1141,7 +1141,7 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-024b + T-024c — satFat_g + fiber_g across all 408 meals + 88 branded
 
-- **Status:** `review` — awaiting user gate to `done`
+- **Status:** `done` ✅ (user-gated 2026-09-03 · committed `562f4ea` · **pushed to `main` → deployed**)
 - **Owner:** Execution Agent
 - **Spec:** [`docs/specs/T-024-…`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md) §4a, §4b, §11 · **[DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md)**
 - **Shipped together** because both nutrients fall out of one generator; splitting them would have meant applying the same 496-line surgical write twice.
