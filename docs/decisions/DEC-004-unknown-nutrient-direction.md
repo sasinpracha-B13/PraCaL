@@ -64,10 +64,15 @@ The unifying rule, of which DEC-003 is the calorie instance: **when uncertain, e
 
 ## Follow-ups
 
-- [ ] T-024 spec — schema, per-category derivation table, coverage-display rule, derived-value marking
-- [ ] `tools/audit-meals.js` — teach it the new optional fields; flag `|| 0` reads and any entry carrying `0` where a derived estimate was expected
-- [ ] `docs/specs/menu-addition-protocol.md` — new entries state the four fields (or explicitly record them as unknown), citing DEC-004
-- [ ] `docs/AI-HANDOFF-BRIEF.md` — tell a consultant that a blank nutrient column means unmeasured, not zero
+- [x] T-024 spec — schema, per-category derivation table, coverage-display rule, derived-value marking *(T-024)*
+- [x] `tools/audit-meals.js` — optional-nutrient sanity: `satFat_g <= fat_g`, `fiber_g <= carbs_g`, no negatives, `nutrientSource` present and valid. A violation is a **hard fail** regardless of calorie deviation — verified against 6 deliberate violations, each of which had only a 3% calorie diff and would have passed the old check. *(T-024a)*
+- [x] `docs/AI-HANDOFF-BRIEF.md` — new §9b tells a consultant that a blank nutrient column means unmeasured, not zero, and that a `0.0` **is** a measurement *(T-024a)*
+- [ ] `docs/specs/menu-addition-protocol.md` — new entries state the three fields (or explicitly record them as unknown), citing DEC-004
+- [ ] A lint pass for `|| 0` reads of these fields in `index.html` — the sanity checks catch bad *data*, not a bad *reader*
+
+> **Amendment 2026-09-03 (T-024 scope gate).** `sodium_mg` — named throughout this record as one of four nutrients — was **cut from scope** at the gate. The decision itself is unaffected: it governs whichever optional nutrients exist, and the three that shipped (`satFat_g`, `fiber_g`, `alcohol_g`) follow it unchanged. Read the `sodium_mg` rows above as historical.
+>
+> The gate also chose `fiber_g` coverage for **all 408** entries rather than the recommended ~80. That raises the stakes on rule 1: complete coverage must not become 408 confident-looking guesses. An entry whose fiber cannot be honestly estimated stays **absent** — see T-024 spec §9.
 
 ### Reversal triggers
 

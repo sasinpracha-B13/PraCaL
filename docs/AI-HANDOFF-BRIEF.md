@@ -137,15 +137,28 @@ draft prompts that fit it.
 - Assume the agent HOLDS at review every time; the owner approves explicitly to ship.
 - Prefer one bounded change per prompt (the project ships in small gated increments).
 
+## 9b. Reading an exported CSV (read this BEFORE analyzing one)
+
+The owner will often hand you a CSV export alongside this brief. Three things you must know:
+
+1. **Row types.** From v1.10.52 the second column is `ประเภทแถว`: `รายการ` (a meal) · `ส่วนเสริม` (an add-on) · `สรุปวัน` (that day's total) · `ครอบคลุม(%)` (coverage disclosure, **percentages not grams**) · `ชั่งน้ำหนัก` (a weigh-in with no food). Sum `รายการ` + `ส่วนเสริม` only. Summing `สรุปวัน` as well double-counts the day.
+2. **An empty nutrient cell means UNMEASURED, not zero** ([DEC-004](decisions/DEC-004-unknown-nutrient-direction.md)). `ไขมันอิ่มตัว(g)` / `ใยอาหาร(g)` / `แอลกอฮอล์(g)` are optional and coverage is partial. Never read a blank as 0, never average blanks in, and read every subtotal next to that day's `ครอบคลุม(%)` row. A `0.0` **is** a measurement (beer really has no fiber).
+3. **Exports made before v1.10.51 are wrong** — the add-on double-count bug (T-023) meant each `ส่วนเสริม` was counted twice if you summed the item rows. On the owner's 132-day export that was +4,485 kcal. In an old file the `สรุปวัน` row is still correct; the item rows are not. Ask for a fresh export, or run `node tools/audit-csv-addon-rows.js <file>`, which detects and names the problem.
+
 ## 10. Current snapshot
-- App VERSION: **v1.10.47** · meals.json data ver 1.10.18 (408 entries) · branded 88.
-- Last shipped: T-021 (added ข้าวหน้าไก่ย่าง + หมี่ไก่ฉีก, codified DEC-003 "ไปเกินได้แต่ห้ามขาด").
+- App VERSION: **v1.10.52** · meals.json data ver 1.10.19 (408 entries) · branded 88.
+- Last shipped: T-024a (nutrient schema `satFat_g`/`fiber_g`/`alcohol_g` + coverage-aware totals
+  + CSV `ประเภทแถว` and nutrient columns). Before that: T-023 (CSV add-on double-count fix),
+  T-022a/b/a.1 (body composition), T-021 (menu adds + DEC-003).
+- **In flight:** T-024b (`satFat_g` × 408) → T-024c (`fiber_g` × 408) → T-024d (UI + coverage display).
+  `sodium_mg` was proposed and **cut at the scope gate**. Governed by DEC-004.
 - On HOLD (don't auto-start): T-014 (BPC Phase 2: ghost overlay / slider / video-frame mode),
   T-015 (BPC Phase 3: PIN lock / face crop / pose-match).
 - Known future idea: **Tier 3 "empirical TDEE"** — back-calculate real TDEE from intake-vs-weight
   trend (the app already logs both; would auto-cover metabolic adaptation). Conservative-tone task.
-- Audit health: 408 entries · 332 pass / 70 warn / 3 fail / 3 skipped (fails are alcohol /
-  black-coffee edge cases, expected).
+- Audit health: 408 entries · 333 pass / 70 warn / **2 fail** / 3 skipped. The old third failure was
+  beer (`d22`), which could not reconcile until `alcohol_g` existed — T-024a fixed it. The two
+  remaining are 5-cal black-coffee rounding noise (declared 5, macro-implied 4 = 20%).
 
 ---
 

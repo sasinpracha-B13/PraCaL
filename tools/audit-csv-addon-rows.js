@@ -15,6 +15,16 @@
  *   This script is the regression guard for that fix, and it also identifies a
  *   pre-fix export so old files are not mistaken for corrupt data.
  *
+ * Layouts:
+ *   Two export layouts exist and both are handled — the script reads the header row
+ *   rather than assuming fixed indices.
+ *     · v1.10.51 and earlier : วันที่, ชื่ออาหาร, …                       (10 columns)
+ *     · v1.10.52 and later   : วันที่, ประเภทแถว, ชื่ออาหาร, …            (14 columns, T-024a)
+ *   In the v1.10.52 layout the row kind comes from ประเภทแถว
+ *   (รายการ / ส่วนเสริม / สรุปวัน / ครอบคลุม(%) / ชั่งน้ำหนัก) instead of being
+ *   inferred from the name's leading "  + ". ครอบคลุม(%) rows are DEC-004 coverage
+ *   disclosure, not nutrition, and are excluded from every sum.
+ *
  * Tolerances:
  *   - แคลอรี่ is an integer column and must reconcile EXACTLY.
  *   - Macro columns are printed `toFixed(1)` per row while `สรุปวัน` rounds the
@@ -38,13 +48,30 @@
 const fs = require('fs');
 
 const SUMMARY_NAME = 'สรุปวัน';
-const COLS = [
-  { key: 'kcal', idx: 4, label: 'แคลอรี่', exact: true },
-  { key: 'p',    idx: 5, label: 'โปรตีน',  exact: false },
-  { key: 'c',    idx: 6, label: 'คาร์บ',   exact: false },
-  { key: 's',    idx: 7, label: 'น้ำตาล',  exact: false },
-  { key: 'f',    idx: 8, label: 'ไขมัน',   exact: false }
-];
+const COVERAGE_KIND = 'ครอบคลุม(%)';
+
+// Column layout is resolved from the header, not hardcoded — see "Layouts" above.
+function resolveLayout(headerRow) {
+  const h = headerRow.map(x => String(x).trim());
+  const hasRowKind = h[1] === 'ประเภทแถว';
+  const at = name => {
+    const i = h.indexOf(name);
+    if (i < 0) throw new Error('header is missing the column "' + name + '"');
+    return i;
+  };
+  return {
+    hasRowKind,
+    nameIdx: hasRowKind ? at('ชื่ออาหาร') : 1,
+    kindIdx: hasRowKind ? 1 : -1,
+    cols: [
+      { key: 'kcal', idx: at('แคลอรี่'),   label: 'แคลอรี่', exact: true },
+      { key: 'p',    idx: at('โปรตีน(g)'), label: 'โปรตีน',  exact: false },
+      { key: 'c',    idx: at('คาร์บ(g)'),  label: 'คาร์บ',   exact: false },
+      { key: 's',    idx: at('น้ำตาล(g)'), label: 'น้ำตาล',  exact: false },
+      { key: 'f',    idx: at('ไขมัน(g)'),  label: 'ไขมัน',   exact: false }
+    ]
+  };
+}
 
 function parseCSV(text) {
   const rows = [];
@@ -71,20 +98,32 @@ const r1 = n => Math.round(n * 10) / 10;
 function audit(csvPath) {
   let text = fs.readFileSync(csvPath, 'utf8');
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-  const rows = parseCSV(text).slice(1).filter(r => r[0] && /^\d{4}-\d{2}-\d{2}$/.test(r[0]));
+  const parsed = parseCSV(text);
+  if (!parsed.length) throw new Error('empty file');
+  const layout = resolveLayout(parsed[0]);
+  const COLS = layout.cols;
+  const rows = parsed.slice(1).filter(r => r[0] && /^\d{4}-\d{2}-\d{2}$/.test(r[0]));
 
   const days = new Map();
   for (const r of rows) {
     const date = r[0];
-    const name = r[1] || '';
+    const name = r[layout.nameIdx] || '';
+    const kind = layout.hasRowKind ? String(r[layout.kindIdx] || '').trim() : null;
+
+    // Coverage rows carry percentages, not nutrition — never sum them.
+    if (kind === COVERAGE_KIND) continue;
+    // Standalone weigh-in rows carry no nutrition either.
+    if (kind === 'ชั่งน้ำหนัก' || name.trim() === '(ชั่งน้ำหนัก)') continue;
+
     if (!days.has(date)) days.set(date, { date, summary: null, itemRows: 0, addonRows: 0, all: {}, parentsOnly: {} });
     const d = days.get(date);
     const vals = {};
     for (const col of COLS) vals[col.key] = num(r[col.idx]);
 
-    if (name.trim() === SUMMARY_NAME) { d.summary = vals; continue; }
+    const isSummary = layout.hasRowKind ? kind === SUMMARY_NAME : name.trim() === SUMMARY_NAME;
+    if (isSummary) { d.summary = vals; continue; }
     d.itemRows++;
-    const addon = isAddonRow(name);
+    const addon = layout.hasRowKind ? kind === 'ส่วนเสริม' : isAddonRow(name);
     if (addon) d.addonRows++;
     for (const col of COLS) {
       d.all[col.key] = (d.all[col.key] || 0) + vals[col.key];
@@ -102,7 +141,7 @@ function audit(csvPath) {
         Math.abs(d.parentsOnly.kcal - d.summary.kcal) < 0.5 &&
         Math.abs(d.all.kcal - d.summary.kcal) >= 0.5) preFixSignature++;
 
-    for (const col of COLS) {
+    for (const col of layout.cols) {
       const got = d.all[col.key] || 0;
       const want = d.summary[col.key];
       const diff = got - want;
@@ -118,7 +157,8 @@ function audit(csvPath) {
 
   const fails = findings.filter(f => f.severity === 'fail');
   const warns = findings.filter(f => f.severity === 'warn');
-  return { csvPath, daysChecked, totalRows: rows.length, preFixSignature, findings, fails, warns };
+  return { csvPath, layout: layout.hasRowKind ? 'v1.10.52+ (14 คอลัมน์)' : 'v1.10.51 หรือเก่ากว่า (10 คอลัมน์)',
+           daysChecked, totalRows: rows.length, preFixSignature, findings, fails, warns };
 }
 
 function main() {
@@ -146,6 +186,7 @@ function main() {
   }
 
   console.log('audit-csv-addon-rows — ' + res.csvPath);
+  console.log('  รูปแบบไฟล์: ' + res.layout);
   console.log('  วันที่ตรวจ: ' + res.daysChecked + '  ·  แถวข้อมูล: ' + res.totalRows);
   console.log('');
 

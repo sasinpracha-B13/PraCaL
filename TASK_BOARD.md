@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-023 → `review` (CSV export add-on double-count fix · new `calcAddonTotals` · base-only parent row · `tools/audit-csv-addon-rows.js` · v1.10.51) · T-024 registered `todo` (nutrient schema spec drafted, awaiting scope gate) · DEC-004 accepted · T-022 series done · T-014/T-015 still HOLD
+Last updated: T-024a → `review` (optional nutrient schema + `alcohol_g` + coverage-aware totals + CSV v2 with `ประเภทแถว` · closes the standing beer audit defect · v1.10.52 · meals.json 1.10.19) · T-023 → `done` ✅ (pushed) · T-024 gate resolved: `sodium_mg` cut, fiber → all 408 · T-025 registered · DEC-004 accepted · T-014/T-015 still HOLD
 
 ---
 
@@ -1082,7 +1082,7 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-023 — CSV export: fix add-on double-count
 
-- **Status:** `review` — awaiting user gate to `done`
+- **Status:** `done` ✅ (user-gated 2026-09-03 · committed `31fc46e` · **pushed to `main` → deployed**)
 - **Owner:** Execution Agent
 - **Spec:** [`docs/specs/T-023-csv-addon-double-count-fix.md`](docs/specs/T-023-csv-addon-double-count-fix.md)
 - **Trigger:** found while independently verifying an external AI consultant's analysis of the user's 132-day export (the T-022 handoff use case).
@@ -1103,16 +1103,48 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-024 — Nutrient schema: saturated fat · fiber · sodium · alcohol
 
-- **Status:** `todo` — spec drafted, **awaiting scope-gate approval**. No implementation started.
+- **Status:** `in_progress` — **scope gate resolved 2026-09-03**. Sub-task T-024a in flight.
+- **Gate decisions (user):** `sodium_mg` **dropped** from scope entirely (T-024e cancelled — no bearing on the LDL question, and unknowable for restaurant food) · `fiber_g` authored for **all 408 entries**, not the recommended ~80 · `nutrientSource` stays **per-entry** (my recommendation, unchallenged) · `satFat_g` stays **un-targeted** per DEC-004 rule 5 · re-baseline registered as **T-025**.
 - **Owner:** Architecture (spec) → Data/Domain + DEV Integration (implementation)
 - **Spec:** [`docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md)
 - **Governed by:** [DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md) — absent ≠ zero · coverage disclosed · satFat/sodium/alcohol lean high, **fiber leans low** · derived values marked · no new gating
 - **Why:** the existing four macros rule out "too many calories" and "too much total fat" (verified: 1,962 kcal/day, fat 26.4% of energy, 77.5 → 71.6 kg) and then run out of answers. Fat *type* and fiber are unrecorded. Name-level evidence over 132 days: fish **5 days**, fruit **4 days**, oats/beans/whole grain **1 day**, ≥1 high-satfat item **66 days**.
 - **Backfill reach (measured):** library logs save `snapshot: null` and resolve live through `findMeal`, so filling `meals.json` retroactively enriches past logs at zero migration cost — **61% of logged calories** match a DB name; the largest unmatched item (`Baam`, 128/132 days) is a custom meal and also live-resolved.
 - **Also closes:** the standing `audit-meals.js` alcohol defect recorded at TASK_BOARD:118 — `P×4 + C×4 + F×9` cannot reconcile beer without `alcohol_g`.
-- **Proposed phasing:** T-024a schema + `alcohol_g` + CSV columns/`ประเภทแถว` → T-024b `satFat_g` → T-024c `fiber_g` (~80 highest-frequency entries) → T-024d UI + coverage display → T-024e `sodium_mg` (optional)
-- **Open questions for the gate:** (1) keep or drop `sodium_mg`? (2) fiber for ~80 entries or all 408? (3) `nutrientSource` per-entry or per-nutrient? (4) confirm `satFat_g` stays un-targeted for now (5) register a re-baseline task for 8–12 weeks out?
+- **Phasing (post-gate):** **T-024a** schema + `alcohol_g` + coverage-aware totals + CSV columns/`ประเภทแถว` + alcohol-aware audit → **T-024b** `satFat_g` × 408 → **T-024c** `fiber_g` × 408 → **T-024d** UI + coverage display. ~~T-024e `sodium_mg`~~ **cancelled at the gate.**
 - **Honest cost note in spec:** `satFat_g` is derivable from `fat_g` via a two-tier category+keyword table; **`fiber_g` is not derivable** from any existing field and needs real per-entry data.
+
+### T-024a — Nutrient schema + `alcohol_g` + CSV v2
+
+- **Status:** `review` — awaiting user gate to `done`
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-024-…`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md) §2, §6, §7 · **[DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md)**
+- **Change:**
+  - `OPTIONAL_NUTRIENTS` = `satFat_g` · `fiber_g` · `alcohol_g` (+ `OPTIONAL_NUTRIENT_CHANGE` delta keys, `ALCOHOL_KCAL_PER_G`)
+  - `calcAddonTotals` + `calcEntryTotals` carry them **null-propagating** — unknown anywhere makes the entry's total `null`, never a partial sum
+  - New `sumOptionalNutrients(entries)` → day totals with **calorie-weighted** coverage (DEC-004 rule 2)
+  - `meals.json`: `d22` เบียร์ gets `alcohol_g: 14`, `fiber_g: 0`, `nutrientSource: "derived"` · data version 1.10.18 → 1.10.19
+  - All 14 `ADDONS` get a **measured** `alcohol_g: 0` (an egg contains no ethanol — a fact, not an absence)
+  - `SPECIAL_MEAL_PRESETS.drinking` sizes get `alcohol_g` 21/26/42, **fitted to each size's existing calorie gap** so no logged day moves
+  - CSV v2: `ประเภทแถว` + `ไขมันอิ่มตัว(g)`/`ใยอาหาร(g)`/`แอลกอฮอล์(g)`; unknown exports **empty, never 0**; a `ครอบคลุม(%)` row on days with data
+  - `audit-meals.js`: alcohol-aware reconciliation + optional-nutrient sanity (hard fail)
+  - `audit-csv-addon-rows.js`: header-driven, handles both the 10- and 14-column layouts
+- **Audit results:**
+  - **Closes the standing defect at TASK_BOARD:118** — `d22` beer reconciles exactly (1×4 + 12×4 + 0×9 + 14×7 = 150). `audit-meals.js` fails **3 → 2**; the two remaining are 5-cal black-coffee rounding noise
+  - Test suite over the real extracted functions: **34 assertions, all pass** — 12 fixtures proving T-024a did not move any macro, 10 DEC-004 null-semantics cases, 4 coverage cases, 8 CSV/format cases
+  - `audit-meals.js` sanity checks proven to have teeth against **6 deliberate violations** (satFat>fat, fiber>carbs, negative, missing `nutrientSource`, invalid `nutrientSource`, non-numeric) — each had only a **3% calorie diff**, i.e. all six would have passed the old check
+  - Real v1.10.52 CSV generated and re-audited: **fail 0 · warn 0**; the tool still reads the old 10-column export correctly and still flags it (exit 2, 47 days)
+  - `node --check` clean
+- **DO NOT TOUCH (verified at gate):** the four original macros anywhere · goal ring / streaks / planner / suggester / reports (DEC-004 rule 5) · `sumEntries` return shape · the T-023 base-only parent-row invariant · every `SPECIAL_MEAL_PRESETS` `cal` value
+- **Flagged, deliberately not fixed (Rule 3):** the `drinking` preset's calorie gap implies only ~1.5 / ~1.9 / ~3 bottles, which is **less than its own labels describe** — these presets likely under-model alcohol. Correcting `cal` would retroactively move every day already logged with them, so it is left for a data pass. Recorded in a comment at the preset.
+- **Next:** T-024b (`satFat_g` × 408) → T-024c (`fiber_g` × 408) → T-024d (UI + coverage display)
+
+### T-025 — Re-baseline the diet analysis after T-024 *(placeholder)*
+
+- **Status:** `todo` — registered at the T-024 scope gate; do not start until T-024b + T-024c have shipped and 8–12 weeks of data carry the new fields.
+- **Scope:** re-run the §1 measurements from the T-024 spec (mean intake, macro split, fat as % of energy, day-coverage of fish / fruit / whole grain / high-satfat items) against a fresh export, and add the two variables that did not exist the first time: saturated fat as % of energy, and fiber g/day.
+- **Why it is worth a task:** the first pass could only *rule out* excess calories and excess total fat. With satFat + fiber recorded, a genuine before/after becomes possible on the question that started this — how much of LDL 162 is diet-responsive.
+- **Note:** the baseline it compares against is the 132-day window 2026-04-25 → 2026-09-03, whose numbers are recorded in the T-024 spec §1 and were independently verified against the raw export.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 

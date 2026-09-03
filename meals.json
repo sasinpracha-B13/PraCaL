@@ -1,5 +1,5 @@
 {
-  "version": "1.10.18",
+  "version": "1.10.19",
   "nutrition_version": "v1.10.0",
   "size_multipliers": {
     "small_pct": 75,
@@ -372,7 +372,7 @@
       { "id": "very_sweet", "label": "หวานมาก", "calChange": 80, "carbChange": 20, "sugarChange": 20 },
       { "id": "no_condensed_milk", "label": "ไม่ใส่นมข้นหวาน", "calChange": -110, "proteinChange": -2, "carbChange": -19, "fatChange": -3, "sugarChange": -25 }
     ] },
-    { "id": "d22", "name": "เบียร์ (1 ขวด 330ml)", "emoji": "🍺", "category": "drinks", "baseCalories": 150, "baseWeight_g": 330, "protein_g": 1, "carbs_g": 12, "fat_g": 0, "sugar_g": 0 },
+    { "id": "d22", "name": "เบียร์ (1 ขวด 330ml)", "emoji": "🍺", "category": "drinks", "baseCalories": 150, "baseWeight_g": 330, "protein_g": 1, "carbs_g": 12, "fat_g": 0, "sugar_g": 0, "alcohol_g": 14, "fiber_g": 0, "nutrientSource": "derived" },
     { "id": "d23", "name": "น้ำเปล่าอัดลม", "emoji": "💧", "category": "drinks", "baseCalories": 0, "baseWeight_g": 325, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "sugar_g": 0 },
     { "id": "d24", "name": "ชาดำเย็นหวาน (คาเฟ่ 12-16oz)", "emoji": "🍵", "category": "drinks", "baseCalories": 120, "baseWeight_g": 400, "protein_g": 0, "carbs_g": 30, "fat_g": 0, "sugar_g": 28, "size_profile": "cafe_12_16oz", "customizations": [
       { "id": "less_sweet", "label": "หวานน้อย", "calChange": -40, "carbChange": -10, "sugarChange": -10 },

@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.51';
+const VERSION = 'v1.10.52';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -746,23 +746,33 @@ const BRANDED_SUB_CATEGORY = {
   other: 'custom'
 };
 
+// v1.10.52 — T-024a: nutrients beyond the original four macros. Governed by DEC-004:
+//   · an unknown value is ABSENT, never 0 — read with `!= null`, never `|| 0`
+//   · null propagates through every total: unknown + known = unknown, not "known so far"
+//   · a real measured zero (e.g. an egg has no alcohol) is a number, not an absence
+// OPTIONAL_NUTRIENT_CHANGE maps each field to its customization-delta key, mirroring
+// how calChange / fatChange already work on meal.customizations[].
+const OPTIONAL_NUTRIENTS = ['satFat_g', 'fiber_g', 'alcohol_g'];
+const OPTIONAL_NUTRIENT_CHANGE = { satFat_g: 'satFatChange', fiber_g: 'fiberChange', alcohol_g: 'alcoholChange' };
+const ALCOHOL_KCAL_PER_G = 7;
+
 const ADDONS = [
   // v1.10.0 — calibrated to match standalone meal items (egg_omelet = +ไข่เจียว 1 ฟอง)
-  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 120, protein_g: 8, carbs_g: 1, fat_g: 9, sugar_g: 0 },
-  { id: 'egg_omelet', name: 'ไข่เจียว 1 ฟอง', emoji: '🍳', calories: 140, protein_g: 7, carbs_g: 1, fat_g: 11, sugar_g: 0 },
-  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 },
-  { id: 'cheese', name: 'ชีส 1 slice (20g)', emoji: '🧀', calories: 85, protein_g: 5, carbs_g: 1, fat_g: 7, sugar_g: 0 },
-  { id: 'rice_extra', name: 'ข้าวเพิ่ม 1 ทัพพี', emoji: '🍚', calories: 110, protein_g: 2, carbs_g: 22, fat_g: 0, sugar_g: 0 },
-  { id: 'sticky_rice', name: 'ข้าวเหนียว 1 ก้อน (80g)', emoji: '🍙', calories: 145, protein_g: 3, carbs_g: 30, fat_g: 0, sugar_g: 0 },
-  { id: 'no_rice', name: 'ไม่ใส่ข้าว', emoji: '❌', calories: -195, protein_g: -4, carbs_g: -42, fat_g: -1, sugar_g: 0 },
-  { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2, sugar_g: 1 },
-  { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0, sugar_g: 1 },
-  { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5, sugar_g: 10 },
+  { id: 'egg_fried', name: 'ไข่ดาว', emoji: '🍳', calories: 120, protein_g: 8, carbs_g: 1, fat_g: 9, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'egg_omelet', name: 'ไข่เจียว 1 ฟอง', emoji: '🍳', calories: 140, protein_g: 7, carbs_g: 1, fat_g: 11, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'egg_boiled', name: 'ไข่ต้ม', emoji: '🥚', calories: 75, protein_g: 6, carbs_g: 1, fat_g: 5, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'cheese', name: 'ชีส 1 slice (20g)', emoji: '🧀', calories: 85, protein_g: 5, carbs_g: 1, fat_g: 7, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'rice_extra', name: 'ข้าวเพิ่ม 1 ทัพพี', emoji: '🍚', calories: 110, protein_g: 2, carbs_g: 22, fat_g: 0, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'sticky_rice', name: 'ข้าวเหนียว 1 ก้อน (80g)', emoji: '🍙', calories: 145, protein_g: 3, carbs_g: 30, fat_g: 0, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'no_rice', name: 'ไม่ใส่ข้าว', emoji: '❌', calories: -195, protein_g: -4, carbs_g: -42, fat_g: -1, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'veg_extra', name: 'ผักเพิ่ม', emoji: '🥬', calories: 20, protein_g: 1, carbs_g: 4, fat_g: 0.2, sugar_g: 1 , alcohol_g: 0 },
+  { id: 'nam_pla', name: 'พริกน้ำปลา', emoji: '🌶️', calories: 10, protein_g: 0.5, carbs_g: 1, fat_g: 0, sugar_g: 1 , alcohol_g: 0 },
+  { id: 'nam_jim', name: 'น้ำจิ้ม', emoji: '🥄', calories: 50, protein_g: 0.5, carbs_g: 12, fat_g: 0.5, sugar_g: 10 , alcohol_g: 0 },
   // v1.10.10 — เครื่องเคียงสเต็ก (negative addons): สำหรับคนกินแค่เนื้อ ไม่กิน side
-  { id: 'no_fries', name: 'ไม่กินเฟรนช์ฟรายส์ (เครื่องเคียง)', emoji: '🍟', calories: -320, protein_g: -4, carbs_g: -42, fat_g: -16, sugar_g: 0 },
-  { id: 'no_cheese_toast', name: 'ไม่กินขนมปังชีสปิ้ง (เครื่องเคียง)', emoji: '🍞', calories: -200, protein_g: -5, carbs_g: -20, fat_g: -12, sugar_g: -2 },
-  { id: 'no_side_salad', name: 'ไม่กินสลัดข้างจาน', emoji: '🥗', calories: -100, protein_g: -2, carbs_g: -10, fat_g: -5, sugar_g: -3 },
-  { id: 'no_mashed_potato', name: 'ไม่กินมันบด (เครื่องเคียง)', emoji: '🥔', calories: -230, protein_g: -4, carbs_g: -28, fat_g: -12, sugar_g: -2 }
+  { id: 'no_fries', name: 'ไม่กินเฟรนช์ฟรายส์ (เครื่องเคียง)', emoji: '🍟', calories: -320, protein_g: -4, carbs_g: -42, fat_g: -16, sugar_g: 0 , alcohol_g: 0 },
+  { id: 'no_cheese_toast', name: 'ไม่กินขนมปังชีสปิ้ง (เครื่องเคียง)', emoji: '🍞', calories: -200, protein_g: -5, carbs_g: -20, fat_g: -12, sugar_g: -2 , alcohol_g: 0 },
+  { id: 'no_side_salad', name: 'ไม่กินสลัดข้างจาน', emoji: '🥗', calories: -100, protein_g: -2, carbs_g: -10, fat_g: -5, sugar_g: -3 , alcohol_g: 0 },
+  { id: 'no_mashed_potato', name: 'ไม่กินมันบด (เครื่องเคียง)', emoji: '🥔', calories: -230, protein_g: -4, carbs_g: -28, fat_g: -12, sugar_g: -2 , alcohol_g: 0 }
 ];
 
 const SPECIAL_MEAL_PRESETS = {
@@ -787,10 +797,16 @@ const SPECIAL_MEAL_PRESETS = {
     { id: 'normal',  label: 'ปกติ',            cal: 1700, protein_g: 90,  carbs_g: 140, fat_g: 70,  sugar_g: 30 },
     { id: 'value',   label: 'คุ้มค่าเต็มที่', cal: 2300, protein_g: 110, carbs_g: 180, fat_g: 100, sugar_g: 45 }
   ]},
+  // v1.10.52 — T-024a: alcohol_g fitted to each size's EXISTING calorie gap
+  // (cal − [P×4 + C×4 + F×9]) ÷ 7, so the preset reconciles without moving any
+  // logged calorie total. NOTE: that gap implies ~1.5 / ~1.9 / ~3 bottles, which is
+  // less drinking than the labels describe — i.e. these presets likely under-model
+  // alcohol. Flagged for a data pass; NOT silently corrected here, because changing
+  // `cal` would retroactively move every day already logged with these presets.
   drinking: { name: 'ดื่มเบียร์ + อาหาร', emoji: '🍺', sizes: [
-    { id: 'light',  label: '2-3 แก้ว + กับแกล้ม',     cal: 700,  protein_g: 20, carbs_g: 50,  fat_g: 30, sugar_g: 5 },
-    { id: 'normal', label: 'ปกติ + อาหารเต็มมื้อ',     cal: 1200, protein_g: 40, carbs_g: 90,  fat_g: 55, sugar_g: 10 },
-    { id: 'heavy',  label: 'ดื่มหนัก + อาหารเยอะ',     cal: 1800, protein_g: 55, carbs_g: 140, fat_g: 80, sugar_g: 18 }
+    { id: 'light',  label: '2-3 แก้ว + กับแกล้ม',     cal: 700,  protein_g: 20, carbs_g: 50,  fat_g: 30, sugar_g: 5,  alcohol_g: 21 },
+    { id: 'normal', label: 'ปกติ + อาหารเต็มมื้อ',     cal: 1200, protein_g: 40, carbs_g: 90,  fat_g: 55, sugar_g: 10, alcohol_g: 26 },
+    { id: 'heavy',  label: 'ดื่มหนัก + อาหารเยอะ',     cal: 1800, protein_g: 55, carbs_g: 140, fat_g: 80, sugar_g: 18, alcohol_g: 42 }
   ]},
   celebration: { name: 'มื้อฉลอง (เค้ก/ขนม)', emoji: '🎂', sizes: [
     { id: 'taste',  label: 'ชิมเล็กน้อย',     cal: 400,  protein_g: 8,  carbs_g: 55,  fat_g: 15, sugar_g: 35 },
@@ -1814,6 +1830,10 @@ function findSimilarMeals(target, count = 8) {
 // Add-ons are NOT scaled by sizePct/quantity (unchanged from the original inline loop).
 function calcAddonTotals(entry) {
   const acc = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 };
+  // v1.10.52 — T-024a: optional nutrients start at 0 and go null the moment a counted
+  // add-on lacks the field (DEC-004: absent ≠ zero). ADDONS carry a real alcohol_g: 0,
+  // so an egg never poisons an entry's alcohol total — it contributes a measured zero.
+  OPTIONAL_NUTRIENTS.forEach(k => { acc[k] = 0; });
   (entry.addons || []).forEach(addon => {
     const id = typeof addon === 'string' ? addon : addon.id;
     const count = typeof addon === 'string' ? 1 : (addon.count || 0);
@@ -1825,6 +1845,10 @@ function calcAddonTotals(entry) {
     acc.carbs_g += a.carbs_g * count;
     acc.fat_g += a.fat_g * count;
     acc.sugar_g += (a.sugar_g || 0) * count;
+    OPTIONAL_NUTRIENTS.forEach(k => {
+      if (acc[k] == null) return;
+      acc[k] = (a[k] == null) ? null : acc[k] + a[k] * count;
+    });
   });
   return acc;
 }
@@ -1865,12 +1889,54 @@ function calcEntryTotals(entry) {
   carbs += ad.carbs_g;
   fat += ad.fat_g;
   sugar += ad.sugar_g;
-  return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, weight_g: weight };
+  // v1.10.52 — T-024a: optional nutrients (DEC-004). Same base → customization → scale →
+  // add-on pipeline as the macros above, but null-propagating: if the meal has no value
+  // for a field, the entry's total for that field is null (unknown), never 0.
+  const optional = {};
+  OPTIONAL_NUTRIENTS.forEach(k => {
+    let base = m[k];
+    if (base == null) { optional[k] = null; return; }
+    const changeKey = OPTIONAL_NUTRIENT_CHANGE[k];
+    custList.forEach(cid => {
+      const c = Array.isArray(m.customizations) ? m.customizations.find(x => x.id === cid) : null;
+      if (c && c[changeKey] != null) base += c[changeKey];
+    });
+    const scaled = base * factor;
+    optional[k] = (ad[k] == null) ? null : scaled + ad[k];
+  });
+  return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, weight_g: weight, ...optional };
 }
 
 function todayEntries(userId = state.currentUserId) {
   const key = todayKey();
   return ((state.logs[userId] || {})[key] || []).slice();
+}
+
+// v1.10.52 — T-024a: day totals for the optional nutrients, with the coverage DEC-004
+// rule 2 requires. An entry counts toward `covered` only if its value for that nutrient
+// is known; `coveredCal` is how many of the day's calories those entries represent, which
+// is the honest denominator — one unknown 900-kcal dinner matters more than one unknown
+// 20-kcal side. `g` is the subtotal over the KNOWN entries only; read it together with
+// `coveredPct`, never alone.
+function sumOptionalNutrients(entries) {
+  const out = {};
+  const totalCal = entries.reduce((a, e) => a + calcEntryTotals(e).calories, 0);
+  OPTIONAL_NUTRIENTS.forEach(k => {
+    out[k] = { g: 0, covered: 0, total: entries.length, coveredCal: 0, totalCal, coveredPct: 0 };
+  });
+  entries.forEach(e => {
+    const t = calcEntryTotals(e);
+    OPTIONAL_NUTRIENTS.forEach(k => {
+      if (t[k] == null) return;
+      out[k].g += t[k];
+      out[k].covered++;
+      out[k].coveredCal += t.calories;
+    });
+  });
+  OPTIONAL_NUTRIENTS.forEach(k => {
+    out[k].coveredPct = totalCal > 0 ? (out[k].coveredCal / totalCal) * 100 : 0;
+  });
+  return out;
 }
 
 function sumEntries(entries) {
@@ -3422,7 +3488,11 @@ function csvEscape(v) {
 }
 function buildCSV(userId, startKey, endKey) {
   const user = state.users.find(u => u.id === userId);
-  const rows = [['วันที่','ชื่ออาหาร','จำนวน','ขนาด (%)','แคลอรี่','โปรตีน(g)','คาร์บ(g)','น้ำตาล(g)','ไขมัน(g)','น้ำหนัก(kg)']];
+  // v1.10.52 — T-024a: ประเภทแถว makes รายการ / ส่วนเสริม / สรุปวัน / ครอบคลุม(%) unambiguous
+  // for anyone (or any AI) summing this file. Optional-nutrient cells are EMPTY when the
+  // value is unknown — never 0 (DEC-004 rule 1).
+  const rows = [['วันที่','ประเภทแถว','ชื่ออาหาร','จำนวน','ขนาด (%)','แคลอรี่','โปรตีน(g)','คาร์บ(g)','น้ำตาล(g)','ไขมัน(g)','ไขมันอิ่มตัว(g)','ใยอาหาร(g)','แอลกอฮอล์(g)','น้ำหนัก(kg)']];
+  const optCell = v => (v == null ? '' : v.toFixed(1));
   const byDate = state.logs[userId] || {};
   const allDates = Object.keys(byDate).filter(d => d >= startKey && d <= endKey).sort();
   allDates.forEach(d => {
@@ -3435,34 +3505,47 @@ function buildCSV(userId, startKey, endKey) {
       const ad = calcAddonTotals(e);
       const baseName = m ? m.name : '(ไม่พบเมนู)';
       const qty = e.quantity || 1;
-      rows.push([d, baseName, qty, e.sizePct || 100,
+      rows.push([d, 'รายการ', baseName, qty, e.sizePct || 100,
         Math.round(t.calories - ad.calories),
         (t.protein_g - ad.protein_g).toFixed(1),
         (t.carbs_g - ad.carbs_g).toFixed(1),
         (t.sugar_g - ad.sugar_g).toFixed(1),
-        (t.fat_g - ad.fat_g).toFixed(1), '']);
+        (t.fat_g - ad.fat_g).toFixed(1),
+        ...OPTIONAL_NUTRIENTS.map(k => optCell(t[k] == null || ad[k] == null ? null : t[k] - ad[k])),
+        '']);
       (e.addons || []).forEach(a => {
         const id = typeof a === 'string' ? a : a.id;
         const count = typeof a === 'string' ? 1 : (a.count || 0);
         if (!count) return;
         const addon = ADDONS.find(x => x.id === id);
         if (!addon) return;
-        rows.push([d, `  + ${addon.name}`, count, '-',
+        rows.push([d, 'ส่วนเสริม', `  + ${addon.name}`, count, '-',
           Math.round(addon.calories * count), (addon.protein_g * count).toFixed(1),
           (addon.carbs_g * count).toFixed(1), ((addon.sugar_g || 0) * count).toFixed(1),
-          (addon.fat_g * count).toFixed(1), '']);
+          (addon.fat_g * count).toFixed(1),
+          ...OPTIONAL_NUTRIENTS.map(k => optCell(addon[k] == null ? null : addon[k] * count)),
+          '']);
       });
     });
     const daySum = sumEntries(entries);
+    const dayOpt = sumOptionalNutrients(entries);
     const wk = weightOnDate(user, d);
-    rows.push([d, 'สรุปวัน', '-', '-',
+    rows.push([d, 'สรุปวัน', 'สรุปวัน', '-', '-',
       Math.round(daySum.calories), daySum.protein_g.toFixed(1),
       daySum.carbs_g.toFixed(1), daySum.sugar_g.toFixed(1), daySum.fat_g.toFixed(1),
+      ...OPTIONAL_NUTRIENTS.map(k => (dayOpt[k].covered === 0 ? '' : dayOpt[k].g.toFixed(1))),
       wk != null ? wk.toFixed(1) : '']);
+    // DEC-004 rule 2 — a subtotal is only readable next to how much of the day it covers.
+    // Emitted only when at least one optional nutrient has data, so days with none stay clean.
+    if (OPTIONAL_NUTRIENTS.some(k => dayOpt[k].covered > 0)) {
+      rows.push([d, 'ครอบคลุม(%)', 'ครอบคลุม(%) ของแคลอรี่วันนั้น', '-', '-', '', '', '', '', '',
+        ...OPTIONAL_NUTRIENTS.map(k => dayOpt[k].coveredPct.toFixed(0)),
+        '']);
+    }
   });
   (user?.weights || []).forEach(w => {
     if (w.date >= startKey && w.date <= endKey && !allDates.includes(w.date)) {
-      rows.push([w.date, '(ชั่งน้ำหนัก)', '-', '-', '-', '-', '-', '-', '-', w.weight_kg.toFixed(1)]);
+      rows.push([w.date, 'ชั่งน้ำหนัก', '(ชั่งน้ำหนัก)', '-', '-', '-', '-', '-', '-', '-', '', '', '', w.weight_kg.toFixed(1)]);
     }
   });
   const body = rows.map(r => r.map(csvEscape).join(',')).join('\n');
