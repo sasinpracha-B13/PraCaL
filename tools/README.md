@@ -25,6 +25,7 @@ Small, focused scripts that audit, validate, or analyze the project without modi
 | Script | Purpose | Run | Exit codes |
 |---|---|---|---|
 | `audit-meals.js` | Validate macro consistency on `meals.json` (counts top-level meals correctly; flags `protein×4 + carbs×4 + fat×9` deviations >15% from `baseCalories`). Read-only. | `node tools/audit-meals.js` <br> `node tools/audit-meals.js --json` | `0` = all ≤5% (clean) · `1` = warnings only (5–15%) · `2` = failures present (>15%) or script error |
+| `audit-csv-addon-rows.js` | Verify an exported CSV reconciles: does "sum every item row" equal that day's `สรุปวัน`? Regression guard for [T-023](../docs/specs/T-023-csv-addon-double-count-fix.md) (add-on double-count), and identifies pre-v1.10.51 exports so old files aren't mistaken for corrupt data. Read-only. | `node tools/audit-csv-addon-rows.js <exported.csv>` <br> `… --json` | `0` = every day reconciles · `1` = macro drift beyond the per-row `toFixed(1)` tolerance, calories fine · `2` = calorie mismatch (pre-fix export, or the bug is back) or script error |
 
 ## Suggested next tools (not yet built)
 

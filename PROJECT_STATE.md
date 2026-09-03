@@ -7,11 +7,13 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.50` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.50';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.50';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.51` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.51';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.51';` (drives cache name `pracal-${VERSION}` and cache invalidation)
 - **`meals.json` data version:** `1.10.18` (T-021 — +2 entries r37/n41 · 406 → 408 · first add under DEC-003 calorie-safety-direction).
 - **Menu-add policy ([DEC-003](docs/decisions/DEC-003-calorie-safety-direction.md), 2026-06-28):** new entries' calories may over- but **never under**-estimate ("ไปเกินได้แต่ห้ามขาด") — per-entry macro diff must be **non-negative** (`baseCalories ≥ P×4+C×4+F×9`). Codified in `menu-addition-protocol.md` §3d-2.
+- **CSV export semantics (T-023, v1.10.51):** the item row for a meal is now **base-only**; each `  + …` add-on row is the **only** place that add-on is counted. Invariant: **Σ(all item rows) === that day's `สรุปวัน`**, guarded by `tools/audit-csv-addon-rows.js`. Before v1.10.51 the parent row silently included its add-ons *and* repeated them — any consumer summing item rows over-counted (+4,485 kcal across the user's 132-day export). `สรุปวัน` was always correct. New helper `calcAddonTotals(entry)`; `calcEntryTotals` delegates to it (behavior-identical). Exports taken before v1.10.51 are still affected — re-export rather than re-analyze them.
+- **Unknown-nutrient policy ([DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md), 2026-09-03):** for nutrients beyond the original four macros, an unknown value is **omitted, never `0`** (`x.fiber_g != null`, never `x.fiber_g || 0`); displayed totals disclose coverage; estimates lean **high** for satFat/sodium/alcohol and **low** for fiber — "never more flattering"; derived values are marked `nutrientSource`; no new nutrient may gate an existing behavior. Generalizes DEC-003 past calories. Operative from T-024.
 - **User schema:** added optional `u.birthYear` (T-019) — derives auto-incrementing age; migration-seeded from `age` for existing users. `age`/`weight` snapshots preserved as fallback.
 - **`state.bpcRange`** (T-013d.3): persisted UI preference at root state level. Shape `{ preset: '7d'|'14d'|'30d'|'90d'|'all'|'custom', startDate?, endDate? }`. Defensive default `{ preset: '30d' }`. No schema migration needed (defensive read on first load).
 - **User schema:** `u.waist = []` (T-012), `u.checkIns = []` (T-013a) + optional `updatedAt` (T-013b.1). T-013d added NO new schema fields — pure read-only interpretation over existing data.
@@ -90,6 +92,10 @@
 ---
 
 ## Current Active Task
+
+**T-023 — CSV export: fix add-on double-count — `review` (v1.10.51, awaiting user gate to `done`).** Found while independently verifying an external AI consultant's analysis of the user's 132-day export — the T-022 handoff use case. `buildCSV` wrote every add-on twice: folded into its parent row (`calcEntryTotals` already includes add-ons) **and** again as its own `  + …` row. `สรุปวัน` was always right; only the item rows were wrong. Fix: new `calcAddonTotals(entry)` (pure extraction; `calcEntryTotals` delegates, behavior-identical) + parent row printed base-only. New regression tool `tools/audit-csv-addon-rows.js` — post-fix simulation over the real 132-day export gives **fail 0 · warn 0 · 132/132 days reconcile**; the same tool exits 2 on the pre-fix export and names the signature on 47 days. Behavioral test over the real extracted functions passes 9 add-on-shape fixtures incl. a teeth-check that the pre-fix bug would have been caught. **No in-app number can move** — nothing in the app reads the CSV. VERSION v1.10.50 → **v1.10.51**.
+
+**T-024 — Nutrient schema (satFat · fiber · sodium · alcohol) — `todo`, spec drafted, awaiting scope gate.** Governed by **DEC-004**. Rationale is measured, not assumed: the existing macros rule out excess calories (1,962 kcal/day) and excess *total* fat (26.4% of energy) against a successful 77.5 → 71.6 kg cut, then run out of answers — fat *type* and fiber are unrecorded. Name-level evidence over the same 132 days: fish **5 days**, fruit **4 days**, oats/beans/whole grain **1 day**, ≥1 high-satfat item **66 days**. Backfill is nearly free: library logs save `snapshot: null` and resolve live through `findMeal`, so filling `meals.json` retroactively enriches **61% of logged calories** (the largest unmatched item, `Baam` at 128/132 days, is a custom meal and also live-resolved). Also closes the standing `audit-meals.js` alcohol defect. **No implementation started.**
 
 **T-022a.1 — Backfill body composition on past weight entries — `done` ✅ (v1.10.50 shipped).** ✏️ inline editor on each weight-log history row → add/edit `muscleMass_kg`/`bodyFat_pct` on any existing entry, prefilled; explicit per-field ✕ clear (the one place to remove a wrong BIA value w/o deleting the entry). New narrow `setBodyComp(user, date, patch)` helper — body-comp only, never touches `weight_kg`/date, never creates. Validation vs THAT entry's weight. Charts auto-pick-up (zero chart change). Today's `save-weight` flow + `setWeight` + all charts byte-identical. VERSION v1.10.49 → **v1.10.50** (shipped). **T-014/T-015 HOLD**.
 
@@ -203,6 +209,7 @@ Themes of the v1.10.x series: macro/calorie correctness (v1.10.0, v1.10.7, v1.10
 - **`addLogEntry(entry, dateKey)`** — single write path for log entries. Snapshot fallback (`entry.snapshot`) is what allows fixed-slot meals, scanned products, and OCR'd labels to survive without a meals.json row. Do not bypass.
 - **Log entry shape** — `{ id, mealId, sizePct, quantity, addons, customizations, snapshot, dateKey, loggedAt, nutrition_version }`. Reports, CSV export, and edit flow assume this shape.
 - **`meals.json` schema** — the 375-meal database has a stable shape (`id`, `name`, `emoji`, `category`, `baseCalories`, `baseWeight_g`, macros, optional `customizations`, optional `addons`). Schema changes need a migration plan.
+- **CSV export reconciliation (T-023)** — `buildCSV`'s item rows must satisfy **Σ(item rows) === `สรุปวัน`** for every day. The parent row is base-only precisely so this holds; re-folding add-ons into it (or dropping the subtraction) silently re-introduces the double-count, which is invisible in the app and only shows up in downstream analysis. Guarded by `tools/audit-csv-addon-rows.js` — run it on a fresh export after any `buildCSV`, `ADDONS`, or `calcEntryTotals` change.
 - **`localStorage` keys** — user data lives client-side; key/shape changes break existing installs without a migration.
 
 ### Auth / accounts / payments

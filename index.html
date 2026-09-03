@@ -714,7 +714,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.50';
+const VERSION = 'v1.10.51';
 const STORAGE_KEY = 'pracal_v1';
 
 const CATEGORIES = [
@@ -1809,6 +1809,26 @@ function findSimilarMeals(target, count = 8) {
     .map(x => x.meal);
 }
 
+// v1.10.51 — T-023: add-on contribution for one entry, split out of calcEntryTotals so the
+// CSV export can print a base-only parent row without re-deriving the ADDONS lookup.
+// Add-ons are NOT scaled by sizePct/quantity (unchanged from the original inline loop).
+function calcAddonTotals(entry) {
+  const acc = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0 };
+  (entry.addons || []).forEach(addon => {
+    const id = typeof addon === 'string' ? addon : addon.id;
+    const count = typeof addon === 'string' ? 1 : (addon.count || 0);
+    if (!count) return;
+    const a = ADDONS.find(x => x.id === id);
+    if (!a) return;
+    acc.calories += a.calories * count;
+    acc.protein_g += a.protein_g * count;
+    acc.carbs_g += a.carbs_g * count;
+    acc.fat_g += a.fat_g * count;
+    acc.sugar_g += (a.sugar_g || 0) * count;
+  });
+  return acc;
+}
+
 function calcEntryTotals(entry) {
   const m = entry.snapshot || findMeal(entry.mealId);
   if (!m) return { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, weight_g: 0 };
@@ -1839,19 +1859,12 @@ function calcEntryTotals(entry) {
   let fat = baseFat * factor;
   let sugar = baseSugar * factor;
   let weight = (m.baseWeight_g || 0) * factor;
-  (entry.addons || []).forEach(addon => {
-    const id = typeof addon === 'string' ? addon : addon.id;
-    const count = typeof addon === 'string' ? 1 : (addon.count || 0);
-    if (!count) return;
-    const a = ADDONS.find(x => x.id === id);
-    if (a) {
-      calories += a.calories * count;
-      protein += a.protein_g * count;
-      carbs += a.carbs_g * count;
-      fat += a.fat_g * count;
-      sugar += (a.sugar_g || 0) * count;
-    }
-  });
+  const ad = calcAddonTotals(entry);
+  calories += ad.calories;
+  protein += ad.protein_g;
+  carbs += ad.carbs_g;
+  fat += ad.fat_g;
+  sugar += ad.sugar_g;
   return { calories, protein_g: protein, carbs_g: carbs, fat_g: fat, sugar_g: sugar, weight_g: weight };
 }
 
@@ -3417,11 +3430,17 @@ function buildCSV(userId, startKey, endKey) {
     entries.forEach(e => {
       const m = e.snapshot || findMeal(e.mealId);
       const t = calcEntryTotals(e);
+      // v1.10.51 — T-023: t already includes add-ons; subtract them so the parent row is
+      // base-only and the "  + …" rows below are the ONLY place each add-on is counted.
+      const ad = calcAddonTotals(e);
       const baseName = m ? m.name : '(ไม่พบเมนู)';
       const qty = e.quantity || 1;
       rows.push([d, baseName, qty, e.sizePct || 100,
-        Math.round(t.calories), t.protein_g.toFixed(1), t.carbs_g.toFixed(1),
-        t.sugar_g.toFixed(1), t.fat_g.toFixed(1), '']);
+        Math.round(t.calories - ad.calories),
+        (t.protein_g - ad.protein_g).toFixed(1),
+        (t.carbs_g - ad.carbs_g).toFixed(1),
+        (t.sugar_g - ad.sugar_g).toFixed(1),
+        (t.fat_g - ad.fat_g).toFixed(1), '']);
       (e.addons || []).forEach(a => {
         const id = typeof a === 'string' ? a : a.id;
         const count = typeof a === 'string' ? 1 : (a.count || 0);

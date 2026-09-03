@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: T-022a.1 → `done` ✅ (Backfill body-comp on past weight entries · ✏️ inline edit on history rows · muscle/fat only · explicit ✕ clear · new setBodyComp helper · v1.10.50) · T-022a/T-022b done · T-014/T-015 still HOLD
+Last updated: T-023 → `review` (CSV export add-on double-count fix · new `calcAddonTotals` · base-only parent row · `tools/audit-csv-addon-rows.js` · v1.10.51) · T-024 registered `todo` (nutrient schema spec drafted, awaiting scope gate) · DEC-004 accepted · T-022 series done · T-014/T-015 still HOLD
 
 ---
 
@@ -1079,6 +1079,40 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
   - calcBMR / calcTDEE / calorieFloor / proteinTarget / goalZoneEval / effectiveBodyWeight / movingAverage
   - meals.json / branded_products.json / tools/audit-meals.js
 - **Gate criteria:** spec DoD + test plan · guardrails byte-identical · VERSION v1.10.49 sync · data hashes unchanged
+
+### T-023 — CSV export: fix add-on double-count
+
+- **Status:** `review` — awaiting user gate to `done`
+- **Owner:** Execution Agent
+- **Spec:** [`docs/specs/T-023-csv-addon-double-count-fix.md`](docs/specs/T-023-csv-addon-double-count-fix.md)
+- **Trigger:** found while independently verifying an external AI consultant's analysis of the user's 132-day export (the T-022 handoff use case).
+- **Defect:** `buildCSV` wrote each add-on twice — folded into its parent row (since `calcEntryTotals` already includes add-ons) **and** again as its own `  + …` row. On the real 132-day export that is **+4,485 kcal / +261 g P / +253 g C / +175 g S / +258 g F** of food never eaten. `สรุปวัน` was always correct; only the item rows were wrong.
+- **Change:**
+  - New `calcAddonTotals(entry)` — pure extraction of the add-on loop from `calcEntryTotals`; `calcEntryTotals` now delegates to it (behavior-identical)
+  - `buildCSV` parent row is **base-only** (`t − ad`); the `  + …` rows are now the only place each add-on is counted
+  - `tools/audit-csv-addon-rows.js` — regression guard + pre-fix-export detector
+  - VERSION → `v1.10.51` in both `index.html` and `service-worker.js`
+- **Audit results:**
+  - Post-fix simulation over the real 132-day export: **fail 0 · warn 0 · 132/132 days reconcile** (exit 0)
+  - Same tool on the pre-fix export: exit 2, pre-fix signature on 47 days
+  - Behavioral test over the real extracted functions — 9 fixtures (no add-on · positive · negative · multi-count · qty+size scaled · legacy string form · zero count · unknown id · customization + 2 add-ons): `calcEntryTotals` byte-identical to an independently written pre-fix reference; exported CSV sums to `สรุปวัน`; teeth-check confirms the pre-fix bug would have been caught
+  - `node --check` on the extracted inline script: clean
+- **Known tolerance (pre-existing, not introduced):** macro columns can drift ±0.1 g because each row prints `toFixed(1)` while `สรุปวัน` rounds the unrounded day total. Measured at **3.8% of cells on days with NO add-ons vs 3.4% on days with add-ons** — proof it predates this task. Calories reconcile exactly.
+- **DO NOT TOUCH (verified at gate):** `sumEntries` · `logEntryHtml` · `meal-detail` add-on arithmetic · the `  + …` rows · the `สรุปวัน` row · any dashboard/report/streak/plan number (no in-app value can move — nothing in the app reads the CSV)
+- **Flagged, deliberately not fixed (Rule 3):** `meal-detail` duplicates the add-on arithmetic inline ([index.html:5291](index.html)) · `SPECIAL_MEAL_ADDONS` has no CSV representation · the `สรุปวัน` row is still a summation trap without a row-type column → all three routed to T-024
+
+### T-024 — Nutrient schema: saturated fat · fiber · sodium · alcohol
+
+- **Status:** `todo` — spec drafted, **awaiting scope-gate approval**. No implementation started.
+- **Owner:** Architecture (spec) → Data/Domain + DEV Integration (implementation)
+- **Spec:** [`docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md`](docs/specs/T-024-nutrient-schema-satfat-fiber-sodium-alcohol.md)
+- **Governed by:** [DEC-004](docs/decisions/DEC-004-unknown-nutrient-direction.md) — absent ≠ zero · coverage disclosed · satFat/sodium/alcohol lean high, **fiber leans low** · derived values marked · no new gating
+- **Why:** the existing four macros rule out "too many calories" and "too much total fat" (verified: 1,962 kcal/day, fat 26.4% of energy, 77.5 → 71.6 kg) and then run out of answers. Fat *type* and fiber are unrecorded. Name-level evidence over 132 days: fish **5 days**, fruit **4 days**, oats/beans/whole grain **1 day**, ≥1 high-satfat item **66 days**.
+- **Backfill reach (measured):** library logs save `snapshot: null` and resolve live through `findMeal`, so filling `meals.json` retroactively enriches past logs at zero migration cost — **61% of logged calories** match a DB name; the largest unmatched item (`Baam`, 128/132 days) is a custom meal and also live-resolved.
+- **Also closes:** the standing `audit-meals.js` alcohol defect recorded at TASK_BOARD:118 — `P×4 + C×4 + F×9` cannot reconcile beer without `alcohol_g`.
+- **Proposed phasing:** T-024a schema + `alcohol_g` + CSV columns/`ประเภทแถว` → T-024b `satFat_g` → T-024c `fiber_g` (~80 highest-frequency entries) → T-024d UI + coverage display → T-024e `sodium_mg` (optional)
+- **Open questions for the gate:** (1) keep or drop `sodium_mg`? (2) fiber for ~80 entries or all 408? (3) `nutrientSource` per-entry or per-nutrient? (4) confirm `satFat_g` stays un-targeted for now (5) register a re-baseline task for 8–12 weeks out?
+- **Honest cost note in spec:** `satFat_g` is derivable from `fat_g` via a two-tier category+keyword table; **`fiber_g` is not derivable** from any existing field and needs real per-entry data.
 
 ### T-014 — Body Progress Phase 2 *(placeholder, blocked by T-013d done)*
 
