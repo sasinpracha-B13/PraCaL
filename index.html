@@ -716,11 +716,15 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.54';
+const VERSION = 'v1.10.55';
 const STORAGE_KEY = 'pracal_v1';
 // v1.10.54 — T-026a: สำรอง v2 + กู้คืน · key ต่อไปนี้อยู่นอก pracal_v1 โดยตั้งใจ — เป็นสถานะของเครื่อง/แท็บ
 // ไม่ใช่ข้อมูลผู้ใช้ จึงต้องไม่ถูกการกู้คืนเขียนทับ
-const MONEY_STORAGE_KEY = 'pracal_money_v1';         // จองไว้ให้ T-026b · ส่งออก/กู้คืนเมื่อมีอยู่
+// ข้อมูลเงินอยู่ใน IndexedDB ไม่ใช่ localStorage (T-026b · DEC-005): ทดสอบสองแท็บจริง localStorage แบบอ่านแล้วเขียน
+// เสียรายการ 300/300 รอบ เพราะแต่ละแท็บถือสำเนาของตัวเอง · IndexedDB อ่าน-ตรวจ-เขียนใน transaction เดียว เสีย 0
+const MONEY_DB_NAME = 'PraCaLMoney';
+const MONEY_DB_STORE = 'state';
+const MONEY_DB_KEY = 'main';
 const RESTORE_EPOCH_KEY = 'pracal_restore_epoch';    // เปลี่ยนทุกครั้งที่กู้คืน → แท็บที่ค้างต้องโหลดใหม่ ห้ามเขียน
 const RESTORE_MARKER_KEY = 'pracal_restore_marker';  // ตั้งก่อนโหลดหน้าใหม่หลังกู้คืน · ลบเมื่อเปิดแอปผ่านการตรวจ
 const LAST_BACKUP_KEY = 'pracal_last_backup_at';
@@ -1096,7 +1100,7 @@ function loadStored() {
 function persist() {
   // v1.10.54 — T-026a: แท็บอื่นเพิ่งกู้คืนข้อมูล → state ในแท็บนี้เก่าแล้ว ถ้าเขียนลงไปจะทับข้อมูลที่กู้มาทั้งก้อน
   // จึงไม่เขียนและโหลดใหม่แทน · เกิดเฉพาะหลังมีการกู้คืนจากแท็บอื่นเท่านั้น
-  if (restoreEpochChangedElsewhere()) { reloadAfterExternalRestore(); return; }
+  if (restoreEpochChangedElsewhere()) { reloadAfterExternalRestore(); return false; }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       users: state.users,
@@ -1108,8 +1112,10 @@ function persist() {
       // v1.10.38 — T-013d.3: persist BPC range UI preference
       bpcRange: state.bpcRange
     }));
+    return true;   // v1.10.55 — ผู้เรียกที่ต้องรู้ผล (ลบโปรไฟล์) ใช้ค่านี้ · ผู้เรียกเดิมไม่ได้ใช้ จึงไม่เปลี่ยนพฤติกรรม
   } catch (e) {
     toast('ไม่สามารถบันทึกข้อมูลได้', true);
+    return false;
   }
 }
 
@@ -3525,15 +3531,11 @@ function formatTsThai(ts) {
   const mi = String(d.getMinutes()).padStart(2, '0');
   return `${formatDateTH(dateToKey(d))} ${hh}:${mi}`;
 }
-function readMoneyRaw() {
-  try { return localStorage.getItem(MONEY_STORAGE_KEY); } catch { return null; }
-}
 
 // ---------- ส่งออก ----------
-function buildBackupObject() {
-  let money = null;
-  const raw = readMoneyRaw();
-  if (raw) { try { money = JSON.parse(raw); } catch { money = null; } }
+// moneyRaw มาจาก moneyReadRaw() · ข้อมูลเงินอ่านไม่ได้ = throw ให้ผู้เรียกแจ้ง — ห้ามส่งออกไฟล์ที่ขาดข้อมูลเงินแบบเงียบ ๆ
+function buildBackupObject(moneyRaw) {
+  const money = moneyRaw ? JSON.parse(moneyRaw) : null;
   return {
     format: BACKUP_FORMAT,
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -3589,6 +3591,8 @@ function validateMoneySection(m) {
   if (typeof m.schemaVersion !== 'number') return 'ข้อมูลเงินในไฟล์ไม่มีเวอร์ชัน';
   if (m.schemaVersion > MONEY_SCHEMA_VERSION_SUPPORTED) return 'ข้อมูลเงินในไฟล์มาจากแอปเวอร์ชันใหม่กว่า — อัปเดตแอปก่อนนำเข้า';
   if (!isPlainObject(m.byUser)) return 'ข้อมูลเงินในไฟล์ผิดรูปแบบ';
+  // v1.10.55 — T-026b: ตรวจกติกาเงินทั้งชุดของทุกโปรไฟล์ (ใช้ทั้งตอนนำเข้าไฟล์และก่อนบันทึกทุกครั้ง)
+  for (const uid of Object.keys(m.byUser)) { const err = moneyValidateUser(m.byUser[uid]); if (err) return err; }
   return null;
 }
 // รูปเดียวกับที่ persist() เขียน (ลำดับ key เดียวกัน) — bpcRange ใส่เมื่อไฟล์มีเท่านั้น
@@ -3665,7 +3669,13 @@ function parseBackupText(text, byteLength) {
   const mErr = validateMoneySection(money);
   if (mErr) return fail(mErr);
   const health = normalizeHealthSection(hs);
-  return { ok: true, kind, health, money, meta, summary: summarizeData(health, money) };
+  // ข้อมูลเงินของโปรไฟล์ที่ไม่มีในส่วนสุขภาพ = ข้อมูลกำพร้า → ไม่นำเข้า และบอกในหน้าตัวอย่าง
+  let droppedMoneyProfiles = 0;
+  if (money) {
+    const ids = new Set(health.users.map(u => u.id));
+    for (const uid of Object.keys(money.byUser)) if (!ids.has(uid)) { delete money.byUser[uid]; droppedMoneyProfiles++; }
+  }
+  return { ok: true, kind, health, money, meta, droppedMoneyProfiles, summary: summarizeData(health, money) };
 }
 
 // ---------- สำเนาความปลอดภัย (IndexedDB แยกฐาน — ไม่แตะ PraCaLBodyProgress) ----------
@@ -3766,9 +3776,11 @@ function reloadAfterExternalRestore() {
 }
 
 // ---------- กู้คืน ----------
-function rollbackRaw(prevHealth, prevMoney) {
+// คืนทั้งสองส่วน แล้วอ่านกลับมาตรวจ — คืน true เฉพาะเมื่อทั้งสองส่วนตรงกับค่าเดิมจริง
+async function rollbackRaw(prevHealth, prevMoney) {
   try { if (prevHealth === null) localStorage.removeItem(STORAGE_KEY); else localStorage.setItem(STORAGE_KEY, prevHealth); } catch {}
-  try { if (prevMoney === null) localStorage.removeItem(MONEY_STORAGE_KEY); else localStorage.setItem(MONEY_STORAGE_KEY, prevMoney); } catch {}
+  try { await moneyWriteRaw(prevMoney); } catch {}
+  try { return localStorage.getItem(STORAGE_KEY) === prevHealth && (await moneyReadRaw()) === prevMoney; } catch { return false; }
 }
 // source = { healthRaw: string|null, moneyRaw: string|null, reason: 'pre-restore'|'pre-undo', label }
 async function performRestore(source) {
@@ -3779,7 +3791,7 @@ async function performRestore(source) {
   let prevHealth, prevMoney;
   try {
     prevHealth = localStorage.getItem(STORAGE_KEY);
-    prevMoney = localStorage.getItem(MONEY_STORAGE_KEY);
+    prevMoney = await moneyReadRaw();
   } catch (e) {
     state.tmp.restoring = false;
     state.tmp.restoreError = 'อ่านข้อมูลปัจจุบันไม่ได้ จึงยกเลิกการนำเข้า — ไม่มีอะไรเปลี่ยน';
@@ -3795,15 +3807,24 @@ async function performRestore(source) {
   }
   // epoch ก่อน: นับจากตอนนี้ persist() ของทุกแท็บอื่นจะปฏิเสธการเขียน จึงแทรกข้อมูลเก่าเข้ามาระหว่างนี้ไม่ได้
   try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now())); } catch {}
-  try {
-    if (source.healthRaw === null) localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, source.healthRaw);
-    if (source.moneyRaw === null) localStorage.removeItem(MONEY_STORAGE_KEY);
-    else localStorage.setItem(MONEY_STORAGE_KEY, source.moneyRaw);
-  } catch (e) {
-    rollbackRaw(prevHealth, prevMoney);
-    try { await deleteSafetySnapshot(snapId); } catch {}   // สำเนานี้เท่ากับข้อมูลปัจจุบัน ไม่ต้องเก็บ
-    setBootNotice('restore-write-failed', String(e && (e.name || e.message) || e));
+  // เขียนเงิน (IndexedDB) แล้วสุขภาพ (localStorage) — สองที่เก็บจึงไม่มี transaction ร่วม:
+  // ขั้นใดล้มเหลว คืนทั้งสองส่วนแล้วตรวจ ห้ามเหลือสุขภาพชุดใหม่กับเงินชุดเก่า
+  let failed = null;
+  try { await moneyWriteRaw(source.moneyRaw); } catch (e) { failed = e; }
+  if (!failed) {
+    try {
+      if (source.healthRaw === null) localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, source.healthRaw);
+    } catch (e) { failed = e; }
+  }
+  if (failed) {
+    const detail = String(failed && (failed.name || failed.message) || failed);
+    if (await rollbackRaw(prevHealth, prevMoney)) {
+      try { await deleteSafetySnapshot(snapId); } catch {}   // สำเนานี้เท่ากับข้อมูลปัจจุบัน ไม่ต้องเก็บ
+      setBootNotice('restore-write-failed', detail);
+    } else {
+      setBootNotice('restore-rollback-incomplete', detail);   // เก็บสำเนาไว้ ให้ผู้ใช้กด "ย้อนการนำเข้า"
+    }
     location.reload();   // epoch ของแท็บนี้เปลี่ยนแล้วเช่นกัน ต้องโหลดใหม่ให้ตรงกัน
     return;
   }
@@ -3835,8 +3856,7 @@ async function revertFailedRestore(marker, err) {
   let reverted = false;
   try {
     const snap = await getSafetySnapshot(marker.snapId);
-    if (snap) {
-      rollbackRaw(snap.health, snap.money);
+    if (snap && await rollbackRaw(snap.health, snap.money)) {
       reverted = true;
       // สำเนานี้เท่ากับข้อมูลที่คืนแล้ว — ลบทิ้ง ไม่งั้นปุ่ม "ย้อนการนำเข้า" จะชวนให้ย้อนการนำเข้าที่ล้มเหลวไปแล้ว
       try { await deleteSafetySnapshot(marker.snapId); } catch {}
@@ -3854,12 +3874,16 @@ function handleBackupFile(file) {
   if (file.size > BACKUP_MAX_BYTES) { state.tmp.importError = 'ไฟล์ใหญ่เกิน 20 MB — ไม่น่าใช่ไฟล์สำรองของ PraCaL'; return render(); }
   const reader = new FileReader();
   reader.onerror = () => { state.tmp.importError = 'อ่านไฟล์ไม่ได้'; render(); };
-  reader.onload = () => {
+  reader.onload = async () => {
     const parsed = parseBackupText(String(reader.result || ''), file.size);
     if (!parsed.ok) { state.tmp.importError = parsed.error; return render(); }
+    let curMoneyRaw;
+    try { curMoneyRaw = await moneyReadRaw(); }
+    catch { state.tmp.importError = 'อ่านข้อมูลเงินในเครื่องไม่ได้ จึงยังนำเข้าไม่ได้ — ไม่มีอะไรเปลี่ยน'; return render(); }
     go('restore-preview', { restore: {
       source: 'file', fileName: file.name, fileSize: file.size,
       kind: parsed.kind, meta: parsed.meta, summary: parsed.summary,
+      droppedMoneyProfiles: parsed.droppedMoneyProfiles, curMoneyRaw,
       healthRaw: JSON.stringify(parsed.health),
       moneyRaw: parsed.money ? JSON.stringify(parsed.money) : null
     } });
@@ -3926,8 +3950,7 @@ function renderRestorePreview() {
   const src = isUndo ? 'สำเนา' : 'ไฟล์';
   const f = r.summary;
   let curMoney = null;
-  const rawMoney = readMoneyRaw();
-  if (rawMoney) { try { curMoney = JSON.parse(rawMoney); } catch {} }
+  if (r.curMoneyRaw) { try { curMoney = JSON.parse(r.curMoneyRaw); } catch {} }
   const cur = summarizeData({ users: state.users, logs: state.logs }, curMoney);
   const list = s => s.profiles.length
     ? s.profiles.map(p => `<li><b>${h(p.name)}</b> — อาหาร ${p.foodDays} วัน (${p.foodEntries} รายการ)${p.lastFoodDate ? ' · ล่าสุด ' + h(formatDateTH(p.lastFoodDate)) : ''} · น้ำหนัก ${p.weights} ครั้ง${s.hasMoney ? ' · เงิน ' + p.moneyTxns + ' รายการ · หนี้ ' + p.debts : ''}</li>`).join('')
@@ -3936,7 +3959,8 @@ function renderRestorePreview() {
   if (f.foodEntries < cur.foodEntries) warnings.push(`ข้อมูลอาหารใน${src}น้อยกว่าในเครื่องนี้ (${f.foodEntries} กับ ${cur.foodEntries} รายการ)`);
   const keepIds = new Set(f.profiles.map(p => p.id));
   cur.profiles.filter(p => !keepIds.has(p.id)).forEach(p => warnings.push(`โปรไฟล์ "${p.name}" ในเครื่องนี้ไม่อยู่ใน${src} และจะหายไป`));
-  if (cur.hasMoney && !f.hasMoney) warnings.push(`ข้อมูลเงินในเครื่องนี้จะถูกลบ เพราะ${src}นี้ไม่มีข้อมูลเงิน`);
+  if (cur.hasMoney && !f.hasMoney) warnings.push(`${src}นี้ไม่มีข้อมูลเงิน — ข้อมูลเงินในเครื่องนี้ (${cur.moneyTxns} รายการ · หนี้ ${cur.debts}) จะถูกลบทั้งหมด · ย้อนกลับได้ภายใน 7 วัน`);
+  if (r.droppedMoneyProfiles) warnings.push(`ข้อมูลเงินในไฟล์ของ ${r.droppedMoneyProfiles} โปรไฟล์ที่ไม่มีอยู่ในไฟล์ จะไม่ถูกนำเข้า`);
   if (!f.profiles.length) warnings.push(`${src}นี้ไม่มีโปรไฟล์ — แอปจะกลับไปหน้าเริ่มต้นใช้งาน`);
   let head;
   if (isUndo) {
@@ -3966,7 +3990,7 @@ function renderRestorePreview() {
       <div class="callout">
         <b>สิ่งที่จะเกิดขึ้น</b>
         <ul>
-          <li>ข้อมูลทั้งหมดในเครื่องนี้ (ทุกโปรไฟล์) จะถูกแทนที่ด้วย${src}นี้</li>
+          <li>ข้อมูลทั้งหมดในเครื่องนี้ (ทุกโปรไฟล์ ทั้งสุขภาพและเงิน) จะถูกแทนที่ด้วย${src}นี้${f.hasMoney ? '' : ' — ข้อมูลเงินจะว่าง'}</li>
           <li>ระบบจะเก็บสำเนาข้อมูลตอนนี้ไว้ ย้อนกลับได้ภายใน 7 วัน ที่ ตั้งค่า → สำรอง / นำเข้า</li>
           <li>รูปถ่ายความคืบหน้าไม่อยู่ในไฟล์สำรอง — รูปที่อยู่ในเครื่องนี้ยังอยู่ตามเดิม</li>
           <li>ถ้าเปิด PraCaL ไว้หลายหน้าต่าง หน้าต่างอื่นจะโหลดใหม่เอง</li>
@@ -3985,6 +4009,7 @@ const BACKUP_NOTICES = {
   'restore-reverted': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'ข้อมูลในไฟล์ทำให้แอปเปิดไม่ได้ จึงคืนข้อมูลเดิมให้แล้ว — ไม่มีอะไรเปลี่ยน', error: true },
   'restore-revert-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'คืนข้อมูลเดิมอัตโนมัติไม่ได้ — ไปที่ ตั้งค่า → นำเข้าจากไฟล์สำรอง แล้วเลือกไฟล์สำรองล่าสุดของคุณ', error: true },
   'restore-write-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'บันทึกข้อมูลจากไฟล์ไม่ได้ (พื้นที่ในเครื่องอาจไม่พอ) — ข้อมูลเดิมยังอยู่ครบ ไม่มีอะไรเปลี่ยน', error: true },
+  'restore-rollback-incomplete': { title: '⚠️ นำเข้าไม่สำเร็จ และคืนข้อมูลเดิมได้ไม่ครบ', body: 'ไปที่ ตั้งค่า → สำรอง / นำเข้า แล้วกด "ย้อนการนำเข้า" เพื่อคืนข้อมูลก่อนนำเข้าทั้งสุขภาพและเงิน', error: true },
   'external-restore': { title: 'ℹ️ โหลดข้อมูลใหม่แล้ว', body: 'มีการนำเข้าข้อมูลจากหน้าต่าง PraCaL อื่น · ถ้าเพิ่งบันทึกอะไรในหน้าต่างนี้ กรุณาบันทึกอีกครั้ง' }
 };
 function showPendingBootNotice() {
@@ -4015,6 +4040,661 @@ function showBackupNotice(kind, detail) {
 function dismissBackupNotice() {
   document.getElementById('backup-notice')?.remove();
   document.getElementById('backup-notice-backdrop')?.remove();
+}
+
+/* ========== MONEY — ที่เก็บ + เครื่องคำนวณ (v1.10.55 — T-026b · ยังไม่มี UI) ========== */
+// Spec: docs/specs/T-026-money-tracking.md §5 (ร่าง 3)
+// - จำนวนเงินทุกตัวเป็นสตางค์จำนวนเต็ม · วันที่เป็นสตริงท้องถิ่น YYYY-MM-DD เทียบกันแบบสตริง
+// - ยอดหนี้ / ค้างรับ / ต้องคืน ไม่ถูกเก็บ — คำนวณจากรายการทุกครั้ง ณ วันที่ที่ขอ (P4)
+// - "ค่าใช้จ่ายของฉัน" = ตามการชำระ · ทุกบรรทัดลงวันที่ของเหตุการณ์ตัวเอง → เหตุการณ์ใหม่ไม่ย้อนแก้ช่วงที่ผ่านไป
+// - เขียนผ่าน moneyCommit() เท่านั้น: อ่านใหม่จาก storage → ตรวจแท็บเก่า → แก้สำเนา → ตรวจกติกาทั้งชุด → เขียน
+
+const MONEY_SCHEMA_VERSION = 1;
+const MONEY_MAX_SATANG = 999999999;                    // ฿9,999,999.99
+const MONEY_INTEREST_CAT = 'c_interest';               // ปลายทางของดอกเบี้ย/ค่าธรรมเนียมของเงินกู้
+const MONEY_SELF_CTX = 'x_self';
+const MONEY_DUP_INSTALLMENT_DAYS = 5;                  // เตือนเมื่อรายจ่ายหน้าตาเหมือนงวดผ่อน ภายใน ±5 วันจากวันครบกำหนด
+const MONEY_DEFAULT_CATEGORIES = [
+  ['c_food', 'expense', 'อาหาร/เครื่องดื่ม'], ['c_travel', 'expense', 'เดินทาง'], ['c_daily', 'expense', 'ของใช้ประจำวัน'],
+  ['c_shop', 'expense', 'ช้อปปิ้ง'], ['c_fun', 'expense', 'เกม/บันเทิง'], ['c_home', 'expense', 'บ้าน/บิล'],
+  ['c_health', 'expense', 'สุขภาพ'], ['c_gift', 'expense', 'ของขวัญ/ทำบุญ'], [MONEY_INTEREST_CAT, 'expense', 'ดอกเบี้ย/ค่าธรรมเนียม'],
+  ['c_other', 'expense', 'อื่น ๆ'],
+  ['i_salary', 'income', 'เงินเดือน'], ['i_side', 'income', 'รายได้เสริม'], ['i_bonus', 'income', 'โบนัส/พิเศษ'], ['i_other', 'income', 'อื่น ๆ']
+];
+const MONEY_DEFAULT_CONTEXTS = [
+  [MONEY_SELF_CTX, 'ตัวเอง'], ['x_partner', 'แฟน'], ['x_friend', 'เพื่อน'], ['x_family', 'ครอบครัว'], ['x_work', 'งาน'], ['x_other', 'อื่น ๆ']
+];
+// ชนิดหนี้กำหนดกติกาการนับ — ไม่มีสวิตช์ให้ผู้ใช้ตั้งเอง (C1)
+// ไม่มีชนิดไหนรองรับวงเงินหมุนเวียน / บัตรที่ยังรูดเพิ่ม (C6) — UI ต้องแจ้งก่อนสร้าง
+const DEBT_TYPES = {
+  installment: { name: 'ผ่อนสินค้า', paymentsAreMyCost: true },
+  loan: { name: 'เงินกู้ / กดเงินสด', paymentsAreMyCost: false },
+  card: { name: 'หนี้บัตรเดิม', paymentsAreMyCost: false },
+  personal: { name: 'ยืมเงินคนรู้จัก', paymentsAreMyCost: false }
+};
+const DEBT_ANCHOR_TYPES = ['start', 'statement', 'adjust', 'close'];
+
+// ---------- จำนวนเงินและวันที่ ----------
+function isSatang(n) { return Number.isInteger(n) && n >= 0 && n <= MONEY_MAX_SATANG; }
+// แยกสตริง ไม่คูณทศนิยม (1200.1 * 100 = 120009.99…) · รับ 1200 · 1,200 · 1200.5 · ฿1,200.50
+function parseMoneyInput(text) {
+  let s = String(text == null ? '' : text).trim().replace(/^฿\s*/, '');
+  if (!s) return null;
+  if (s.includes(',')) {
+    if (!/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(s)) return null;
+    s = s.replace(/,/g, '');
+  }
+  const m = s.match(/^(\d+)(?:\.(\d{1,2}))?$/);
+  if (!m) return null;
+  const baht = m[1].replace(/^0+(?=\d)/, '');
+  if (baht.length > 7) return null;
+  const v = Number(baht) * 100 + Number((m[2] || '').padEnd(2, '0'));
+  return v <= MONEY_MAX_SATANG ? v : null;
+}
+function formatMoney(satang, opts) {
+  if (opts && opts.hidden) return '฿•••';
+  const a = Math.abs(satang);
+  const st = a % 100;
+  const s = '฿' + Math.floor(a / 100).toLocaleString('en-US') + (st ? '.' + String(st).padStart(2, '0') : '');
+  return satang < 0 ? '−' + s : s;
+}
+function moneyAddDays(key, n) {
+  const [y, m, d] = key.split('-').map(Number);
+  return dateToKey(new Date(y, m - 1, d + n));
+}
+function moneyDaysBetween(a, b) {
+  const [y1, m1, d1] = a.split('-').map(Number);
+  const [y2, m2, d2] = b.split('-').map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+}
+function moneyMonthRange(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return { start: dateToKey(new Date(y, m - 1, 1)), end: dateToKey(new Date(y, m, 0)) };
+}
+// ช่วงวันที่ — สัปดาห์เริ่มวันจันทร์ (F8) · กำหนดเองรวมทั้งสองวัน สิ้นสุดก่อนเริ่ม = null
+function moneyPeriodRange(kind, today, custom) {
+  const [y, m, d] = today.split('-').map(Number);
+  if (kind === 'today') return { start: today, end: today };
+  if (kind === 'week') {
+    const start = moneyAddDays(today, -((new Date(y, m - 1, d).getDay() + 6) % 7));
+    return { start, end: moneyAddDays(start, 6) };
+  }
+  if (kind === 'month') return moneyMonthRange(today.slice(0, 7));
+  if (kind === 'lastMonth') return { start: dateToKey(new Date(y, m - 2, 1)), end: dateToKey(new Date(y, m - 1, 0)) };
+  if (kind === 'custom') {
+    if (!custom || !isRealDateKey(custom.start) || !isRealDateKey(custom.end) || custom.end < custom.start) return null;
+    return { start: custom.start, end: custom.end };
+  }
+  return null;
+}
+// ยอดคงค้างของช่วง = ณ สิ้นช่วง ถ้าช่วงจบแล้ว · ณ วันนี้ ถ้ายังไม่จบ (A13)
+function moneyAsOf(range, today) {
+  return range.end < today ? { date: range.end, label: 'ณ สิ้นช่วง ' + formatDateTH(range.end) } : { date: today, label: 'ณ วันนี้ ' + formatDateTH(today) };
+}
+
+// ---------- โครงข้อมูลเริ่มต้น ----------
+function moneyEmpty() { return { schemaVersion: MONEY_SCHEMA_VERSION, revision: 0, byUser: {} }; }
+function moneyEmptyUser() {
+  let order = 0;
+  return {
+    enabled: false,
+    categories: MONEY_DEFAULT_CATEGORIES.map(([id, kind, name]) => ({
+      id, kind, name, order: ++order, archived: false, system: id === MONEY_INTEREST_CAT ? 'interest' : null
+    })),
+    contexts: MONEY_DEFAULT_CONTEXTS.map(([id, name], i) => ({ id, name, order: i + 1, archived: false })),
+    txns: [],
+    debts: [],
+    prefs: { period: 'month', hideAmounts: false }
+  };
+}
+function moneyUser(data, uid) {
+  if (!data.byUser[uid]) data.byUser[uid] = moneyEmptyUser();
+  return data.byUser[uid];
+}
+
+// ---------- ดัชนีรายการที่ผูกกับรายจ่าย (คนอื่นคืน · ร้านคืน · ไม่ต้องคืนแล้ว · คืนเงินให้คนอื่น) ----------
+function moneyLinkIndex(mu) {
+  const idx = new Map();
+  const add = (eid, ev) => { if (!eid) return; if (!idx.has(eid)) idx.set(eid, []); idx.get(eid).push(ev); };
+  for (const t of mu.txns) {
+    if (t.kind === 'moneyBack') {
+      for (const a of (t.allocations || [])) {
+        if (t.backType === 'refund') add(a.txnId, { kind: 'refund', txnId: t.id, date: t.date, mine: a.mine || 0, others: a.others || 0 });
+        else add(a.txnId, { kind: 'reimburse', txnId: t.id, date: t.date, amount: a.amount || 0 });
+      }
+    } else if (t.kind === 'writeOff') add(t.sourceTxnId, { kind: 'writeOff', txnId: t.id, date: t.date, amount: t.amount });
+    else if (t.kind === 'payOut') add(t.sourceTxnId, { kind: 'payOut', txnId: t.id, date: t.date, amount: t.amount });
+  }
+  return idx;
+}
+function moneyLinkTotals(idx, eid, upTo) {
+  const r = { reimbursed: 0, writtenOff: 0, refundMine: 0, refundOthers: 0, paidOut: 0 };
+  for (const ev of (idx.get(eid) || [])) {
+    if (upTo && ev.date > upTo) continue;
+    if (ev.kind === 'reimburse') r.reimbursed += ev.amount;
+    else if (ev.kind === 'writeOff') r.writtenOff += ev.amount;
+    else if (ev.kind === 'payOut') r.paidOut += ev.amount;
+    else { r.refundMine += ev.mine; r.refundOthers += ev.others; }
+  }
+  return r;
+}
+// ยอดกับคนอื่นของรายจ่าย e ณ วันที่ t: บวก = ค้างรับ · ลบ = ต้องคืน (§5.4ค)
+function moneyPosition(idx, e, upTo) {
+  const L = moneyLinkTotals(idx, e.id, upTo);
+  return (e.amount - e.myShare) - L.reimbursed - L.writtenOff - L.refundOthers + L.paidOut;
+}
+function moneyBalancesWithOthersAt(mu, t) {
+  const idx = moneyLinkIndex(mu);
+  let receivable = 0, payable = 0;
+  const items = [];
+  for (const e of mu.txns) {
+    if (e.kind !== 'expense' || e.date > t) continue;
+    const pos = moneyPosition(idx, e, t);
+    if (pos > 0) receivable += pos; else if (pos < 0) payable -= pos;
+    if (pos !== 0) items.push({ txnId: e.id, date: e.date, pos });
+  }
+  return { receivable, payable, items };
+}
+
+// ---------- หนี้ ----------
+function moneyAnchorCutoff(a) { return a.type === 'start' ? moneyAddDays(a.date, -1) : a.date; }   // start = ก่อนการจ่ายวันนั้น
+function moneyDebtStart(debt) { return (debt.anchors || []).find(a => a.type === 'start') || null; }
+// ยอดหนี้ ณ วันที่ t — งวดที่ไม่ทราบเงินต้นหลังยอดอ้างอิงล่าสุด → "ยังไม่ยืนยัน" ไม่แสดงตัวเลขเดา (§5.4ง, DEC-004)
+function moneyDebtBalanceAt(mu, debt, t) {
+  const anchors = debt.anchors.map((a, i) => ({ a, i, c: moneyAnchorCutoff(a) })).filter(x => x.c <= t)
+    .sort((x, y) => (x.c < y.c ? -1 : x.c > y.c ? 1 : x.i - y.i));
+  if (!anchors.length) return null;                     // ยังไม่เริ่มติดตาม ณ วันนั้น
+  const A = anchors[anchors.length - 1].a;
+  const cut = moneyAnchorCutoff(A);
+  const pays = mu.txns.filter(p => p.kind === 'debtPayment' && p.debtId === debt.id && p.date > cut && p.date <= t);
+  const paidSince = pays.reduce((s, p) => s + p.amount, 0);
+  if (pays.some(p => p.principal == null)) {
+    return { confirmed: false, lastConfirmed: A.balance, lastConfirmedDate: A.date, paidSince, unsplitCount: pays.filter(p => p.principal == null).length };
+  }
+  return { confirmed: true, balance: A.balance - pays.reduce((s, p) => s + p.principal, 0), basedOn: A.date, anchorType: A.type };
+}
+// หนี้รวม: แสดงผลรวมทั้งหมดเฉพาะเมื่อยืนยันครบ (C3)
+function moneyDebtTotalsAt(mu, t) {
+  let confirmedTotal = 0, confirmedCount = 0, unconfirmedCount = 0;
+  for (const d of mu.debts) {
+    const b = moneyDebtBalanceAt(mu, d, t);
+    if (!b) continue;
+    if (b.confirmed) { confirmedTotal += b.balance; confirmedCount++; } else unconfirmedCount++;
+  }
+  return { confirmedTotal, confirmedCount, unconfirmedCount, total: unconfirmedCount ? null : confirmedTotal };
+}
+// ข้อเท็จจริงตอนใส่ใบแจ้ง/ปรับยอด — ไม่เดาดอกเบี้ย ไม่สร้างเงินสด
+function moneyAnchorFacts(mu, debt, anchor) {
+  const prev = debt.anchors.filter(a => a !== anchor && moneyAnchorCutoff(a) < anchor.date)
+    .sort((x, y) => (moneyAnchorCutoff(x) < moneyAnchorCutoff(y) ? -1 : 1)).pop();
+  if (!prev) return null;
+  const cut = moneyAnchorCutoff(prev);
+  const paidSince = mu.txns.filter(p => p.kind === 'debtPayment' && p.debtId === debt.id && p.date > cut && p.date <= anchor.date)
+    .reduce((s, p) => s + p.amount, 0);
+  return { previousBalance: prev.balance, previousDate: prev.date, paidSince, decreasedBy: prev.balance - anchor.balance };
+}
+
+// ---------- ค่าใช้จ่ายของฉัน (ตามการชำระ) ----------
+function moneyMyCostLines(mu, S, E) {
+  const tx = new Map(mu.txns.map(t => [t.id, t]));
+  const debts = new Map(mu.debts.map(d => [d.id, d]));
+  const lines = [];
+  let unsplitLoan = 0;
+  const unsplitTxnIds = [];
+  const line = (t, categoryId, contextId, amount, kind, extra) => lines.push({ txnId: t.id, date: t.date, categoryId, contextId, amount, kind, ...extra });
+  for (const t of mu.txns) {
+    if (t.date < S || t.date > E) continue;
+    if (t.kind === 'expense') line(t, t.categoryId, t.contextId, t.myShare, 'spend', { paid: t.amount });
+    else if (t.kind === 'writeOff') line(t, t.categoryId, t.contextId, t.amount, 'writeOff', { sourceTxnId: t.sourceTxnId });
+    else if (t.kind === 'moneyBack' && t.backType === 'refund') {
+      for (const a of (t.allocations || [])) {
+        const src = tx.get(a.txnId);
+        if (src && a.mine) line(t, src.categoryId, src.contextId, -a.mine, 'refund', { sourceTxnId: src.id });
+      }
+    } else if (t.kind === 'debtPayment') {
+      const d = debts.get(t.debtId);
+      if (!d) continue;
+      if (DEBT_TYPES[d.type].paymentsAreMyCost) line(t, d.categoryId, d.contextId, t.amount, 'installment', { debtId: d.id });
+      else if (t.principal == null) { unsplitLoan += t.amount; unsplitTxnIds.push(t.id); }
+      else if (t.interest + t.fee > 0) line(t, MONEY_INTEREST_CAT, MONEY_SELF_CTX, t.interest + t.fee, 'interest', { debtId: d.id });
+    }
+  }
+  return { lines, unsplitLoan, unsplitTxnIds };
+}
+function moneySummary(mu, S, E) {
+  const P = mu.txns.filter(t => t.date >= S && t.date <= E);
+  const sum = (arr, f) => arr.reduce((s, t) => s + (f ? f(t) : t.amount), 0);
+  const of = k => P.filter(t => t.kind === k);
+  const pays = of('debtPayment');
+  const cash = {
+    income: sum(of('income')), back: sum(of('moneyBack')),
+    paid: sum(of('expense')), debtPaid: sum(pays), payOut: sum(of('payOut'))
+  };
+  cash.cashIn = cash.income + cash.back;
+  cash.cashOut = cash.paid + cash.debtPaid + cash.payOut;
+  cash.net = cash.cashIn - cash.cashOut;
+  const { lines, unsplitLoan, unsplitTxnIds } = moneyMyCostLines(mu, S, E);
+  const byCategory = {}, byContext = {};
+  for (const l of lines) {
+    const c = byCategory[l.categoryId] || (byCategory[l.categoryId] = { paid: 0, refunded: 0, net: 0 });
+    if (l.amount >= 0) c.paid += l.amount; else c.refunded -= l.amount;
+    c.net += l.amount;
+    byContext[l.contextId] = (byContext[l.contextId] || 0) + l.amount;
+  }
+  const by = k => lines.filter(l => l.kind === k).reduce((s, l) => s + l.amount, 0);
+  const mine = lines.reduce((s, l) => s + l.amount, 0);
+  return {
+    range: { start: S, end: E }, cash, mine, byCategory, byContext,
+    // mine = จ่าย − ส่วนของคนอื่น + ไม่ต้องคืนแล้ว − ร้านคืน (ส่วนของฉัน) + งวดผ่อนสินค้า + ดอกเบี้ย/ค่าธรรมเนียมของเงินกู้
+    reconcile: {
+      paid: cash.paid, othersShare: cash.paid - by('spend'), writeOff: by('writeOff'),
+      refundMine: -by('refund'), installment: by('installment'), interestFee: by('interest')
+    },
+    debt: {
+      paid: cash.debtPaid,
+      principal: sum(pays.filter(p => p.principal != null), p => p.principal),
+      interest: sum(pays, p => p.interest || 0), fee: sum(pays, p => p.fee || 0),
+      unsplit: sum(pays.filter(p => p.principal == null))
+    },
+    unsplitLoan, unsplitTxnIds,          // งวดเงินกู้ที่ยังไม่แยก — ไม่อยู่ใน mine และต้องแจ้งผู้ใช้ (C2)
+    negativeBecauseRefunds: mine < 0     // C8
+  };
+}
+// กรองหมวด × บริบท (null = ทั้งหมด) — บรรทัดค่าใช้จ่ายของฉันที่ตรง + ยอดที่จ่ายจริงของรายจ่ายที่ตรง
+function moneyFilteredCost(mu, S, E, categoryId, contextId) {
+  const ok = l => (!categoryId || l.categoryId === categoryId) && (!contextId || l.contextId === contextId);
+  const lines = moneyMyCostLines(mu, S, E).lines.filter(ok);
+  return {
+    net: lines.reduce((s, l) => s + l.amount, 0),
+    paid: lines.filter(l => l.kind === 'spend').reduce((s, l) => s + l.paid, 0),
+    count: new Set(lines.map(l => l.txnId)).size
+  };
+}
+// ผลต่อค่าใช้จ่ายของฉันรายเดือน ระหว่างข้อมูลสองชุด — ใช้ preview ก่อนแก้ประวัติ (C2, C7)
+function moneyMonthlyDelta(muBefore, muAfter) {
+  const months = new Set();
+  for (const mu of [muBefore, muAfter]) for (const t of mu.txns) months.add(t.date.slice(0, 7));
+  const out = [];
+  for (const ym of [...months].sort()) {
+    const r = moneyMonthRange(ym);
+    const before = moneySummary(muBefore, r.start, r.end).mine;
+    const after = moneySummary(muAfter, r.start, r.end).mine;
+    if (before !== after) out.push({ month: ym, before, after, delta: after - before });
+  }
+  return out;
+}
+
+// ---------- ตรวจกติกาทั้งชุดของหนึ่งโปรไฟล์ (คืนข้อความไทย หรือ null) ----------
+function moneyValidateUser(mu) {
+  if (!isPlainObject(mu)) return 'ข้อมูลเงินของโปรไฟล์ผิดรูปแบบ';
+  for (const k of ['categories', 'contexts', 'txns', 'debts']) if (!Array.isArray(mu[k])) return `ข้อมูลเงิน (${k}) ผิดรูปแบบ`;
+  const cats = new Map(mu.categories.map(c => [c.id, c]));
+  const ctxs = new Set(mu.contexts.map(c => c.id));
+  const catOk = (id, kind) => cats.has(id) && cats.get(id).kind === kind;
+  const tx = new Map();
+  for (const t of mu.txns) {
+    if (!isPlainObject(t) || typeof t.id !== 'string' || !t.id) return 'รายการเงินไม่มี id';
+    if (tx.has(t.id)) return 'รายการเงินมี id ซ้ำ';
+    tx.set(t.id, t);
+  }
+  const debts = new Map();
+  for (const d of mu.debts) {
+    if (!isPlainObject(d) || typeof d.id !== 'string' || !d.id || debts.has(d.id)) return 'หนี้ไม่มี id หรือ id ซ้ำ';
+    debts.set(d.id, d);
+    if (!DEBT_TYPES[d.type]) return `ชนิดหนี้ "${d.name}" ไม่รู้จัก`;
+    if (!Array.isArray(d.anchors) || d.anchors.filter(a => a.type === 'start').length !== 1) return `หนี้ "${d.name}" ต้องมียอดตั้งต้น 1 รายการ`;
+    for (const a of d.anchors) {
+      if (!DEBT_ANCHOR_TYPES.includes(a.type) || !isRealDateKey(a.date) || !isSatang(a.balance)) return `ยอดอ้างอิงของหนี้ "${d.name}" ผิดรูปแบบ`;
+      if (a.date < moneyDebtStart(d).date) return `ยอดอ้างอิงของหนี้ "${d.name}" ต้องไม่ก่อนวันเริ่มติดตาม`;
+      if (a.type === 'close' && a.balance !== 0) return `ยอดปิดหนี้ "${d.name}" ต้องเป็น 0`;
+    }
+    if (d.type === 'installment' && (!catOk(d.categoryId, 'expense') || !ctxs.has(d.contextId))) return `หนี้ผ่อนสินค้า "${d.name}" ต้องมีหมวดและบริบทของสินค้า`;
+  }
+  for (const t of mu.txns) {
+    if (!isRealDateKey(t.date)) return 'วันที่ของรายการเงินผิดรูปแบบ';
+    if (!isSatang(t.amount) || t.amount === 0) return `รายการ ${formatDateTH(t.date)}: จำนวนเงินต้องมากกว่า 0`;
+    const at = `รายการ ${formatDateTH(t.date)}`;
+    const srcOf = id => { const s = tx.get(id); return s && s.kind === 'expense' ? s : null; };
+    if (t.kind === 'expense') {
+      if (!catOk(t.categoryId, 'expense') || !ctxs.has(t.contextId)) return `${at}: ไม่มีหมวดหรือบริบท`;
+      if (!isSatang(t.myShare) || t.myShare > t.amount) return `${at}: ส่วนของฉันต้องอยู่ระหว่าง 0 ถึงยอดที่จ่าย`;
+      if (t.debtId && !debts.has(t.debtId)) return `${at}: เงินดาวน์ผูกกับหนี้ที่ไม่มีอยู่`;
+    } else if (t.kind === 'income') {
+      if (!catOk(t.categoryId, 'income')) return `${at}: ไม่มีหมวดรายรับ`;
+    } else if (t.kind === 'moneyBack') {
+      if (t.backType !== 'refund' && t.backType !== 'reimburse') return `${at}: ชนิดเงินคืนไม่ถูกต้อง`;
+      const al = Array.isArray(t.allocations) ? t.allocations : null;
+      if (!al) return `${at}: การจัดสรรเงินคืนผิดรูปแบบ`;
+      if (t.backType === 'refund' && al.length > 1) return `${at}: ร้านคืนผูกได้ 1 รายการ`;
+      let total = 0;
+      for (const a of al) {
+        const src = srcOf(a.txnId);
+        if (!src) return `${at}: เงินคืนผูกกับรายการที่ไม่ใช่รายจ่าย`;
+        if (src.date > t.date) return `${at}: วันที่ต้องไม่ก่อนวันจ่าย (${formatDateTH(src.date)})`;
+        if (t.backType === 'refund') {
+          if (!isSatang(a.mine) || !isSatang(a.others)) return `${at}: จำนวนเงินคืนผิดรูปแบบ`;
+          if (a.others > 0 && src.myShare === src.amount) return `${at}: รายการนี้ไม่ได้จ่ายแทนใคร จึงไม่มีส่วนของคนอื่น`;
+          total += a.mine + a.others;
+        } else {
+          if (!isSatang(a.amount) || a.amount === 0) return `${at}: จำนวนที่จัดสรรผิดรูปแบบ`;
+          total += a.amount;
+        }
+      }
+      if (total > t.amount) return `${at}: จัดสรรเกินยอดที่ได้รับ (${formatMoney(t.amount)})`;
+    } else if (t.kind === 'writeOff' || t.kind === 'payOut') {
+      const src = srcOf(t.sourceTxnId);
+      if (t.kind === 'writeOff') {
+        if (!src) return `${at}: "ไม่ต้องคืนแล้ว" ต้องผูกกับรายจ่าย`;
+        if (!catOk(t.categoryId, 'expense') || !ctxs.has(t.contextId)) return `${at}: ไม่มีหมวดหรือบริบท`;
+      } else if (t.sourceTxnId != null && !src) return `${at}: คืนเงินให้คนอื่นผูกกับรายการที่ไม่ใช่รายจ่าย`;
+      if (src && src.date > t.date) return `${at}: วันที่ต้องไม่ก่อนวันจ่าย (${formatDateTH(src.date)})`;
+    } else if (t.kind === 'debtPayment') {
+      const d = debts.get(t.debtId);
+      if (!d) return `${at}: ไม่พบหนี้ที่จ่าย`;
+      if (t.date < moneyDebtStart(d).date) return `${at}: วันที่จ่ายต้องไม่ก่อนวันเริ่มติดตามหนี้ (${formatDateTH(moneyDebtStart(d).date)})`;
+      const parts = [t.principal, t.interest, t.fee];
+      if (parts.every(v => v == null)) { /* ยังไม่แยก */ }
+      else if (!parts.every(isSatang)) return `${at}: ต้องใส่ เงินต้น ดอกเบี้ย และค่าธรรมเนียม ให้ครบ (ใส่ 0 ได้)`;
+      else if (t.principal + t.interest + t.fee !== t.amount) return `${at}: รวมได้ ${formatMoney(t.principal + t.interest + t.fee)} ไม่เท่ายอดจ่าย ${formatMoney(t.amount)}`;
+      else if (d.interestFree && t.interest > 0) return `${at}: หนี้ 0% ไม่มีดอกเบี้ย — ใส่เป็นค่าธรรมเนียมแทน`;
+    } else return 'ชนิดรายการเงินไม่รู้จัก';
+  }
+  // ข้ามรายการ: ยอดกับคนอื่นของแต่ละรายจ่าย
+  const idx = moneyLinkIndex(mu);
+  for (const e of mu.txns) {
+    if (e.kind !== 'expense') continue;
+    const owed = e.amount - e.myShare;
+    const L = moneyLinkTotals(idx, e.id);
+    const at = `รายการ ${formatDateTH(e.date)}`;
+    if (L.reimbursed + L.writtenOff > owed) return `${at}: ได้รับคืนแล้ว ${formatMoney(L.reimbursed + L.writtenOff)} เกินส่วนของคนอื่น ${formatMoney(owed)} — ส่วนของฉันสูงสุดได้ ${formatMoney(e.amount - L.reimbursed - L.writtenOff)}`;
+    if (L.refundOthers + L.writtenOff > owed) return `${at}: ส่วนของคนอื่นในรายการนี้มี ${formatMoney(owed - L.writtenOff)}`;
+    if (L.refundMine > e.myShare + L.writtenOff) return `${at}: ส่วนของฉันคืนได้สูงสุด ${formatMoney(e.myShare + L.writtenOff)}`;
+    for (const ev of (idx.get(e.id) || [])) {
+      const pos = moneyPosition(idx, e, ev.date);
+      if (ev.kind === 'writeOff' && pos < 0) return `${at}: "ไม่ต้องคืนแล้ว" เกินยอดค้างรับ`;
+      if (ev.kind === 'payOut' && pos > 0) return `${at}: ต้องคืนรายการนี้ ${formatMoney(Math.max(0, ev.amount - pos))}`;
+      // ร้านคืนส่วนของฉันได้ไม่เกินค่าใช้จ่ายสุทธิที่ยังเหลือ ณ วันที่คืน (ส่วนของฉัน + ที่ยกให้แล้ว − ร้านคืนก่อนหน้า)
+      if (ev.kind === 'refund') {
+        const Lt = moneyLinkTotals(idx, e.id, ev.date);
+        if (Lt.refundMine > e.myShare + Lt.writtenOff) return `${at}: ส่วนของฉันคืนได้สูงสุด ${formatMoney(e.myShare + Lt.writtenOff - (Lt.refundMine - ev.mine))} ณ วันที่คืน`;
+      }
+    }
+  }
+  // หนี้: จ่ายเงินต้นเกินยอดที่ยืนยัน · จ่ายหลังปิด
+  for (const d of mu.debts) {
+    const close = d.anchors.find(a => a.type === 'close');
+    for (const p of mu.txns) {
+      if (p.kind !== 'debtPayment' || p.debtId !== d.id) continue;
+      if (close && p.date > close.date) return `หนี้ "${d.name}" ปิดแล้วเมื่อ ${formatDateTH(close.date)}`;
+      if (p.principal == null) continue;
+      const b = moneyDebtBalanceAt(mu, d, p.date);
+      if (b && b.confirmed && b.balance < 0) return `หนี้ "${d.name}": เงินต้นมากกว่ายอดคงเหลือ ${formatMoney(b.balance + p.principal)}`;
+    }
+  }
+  return null;
+}
+
+// ---------- เปลี่ยนข้อมูล (เรียกภายใน moneyCommit เท่านั้น · throw Error ข้อความไทยเมื่อผิด) ----------
+function moneyUpsertTxn(mu, txn, today) {
+  if (!isRealDateKey(txn.date)) throw new Error('วันที่ไม่ถูกต้อง');
+  if (txn.date > today) throw new Error('วันที่ต้องไม่อยู่ในอนาคต');
+  const stamp = new Date().toISOString();
+  const i = mu.txns.findIndex(t => t.id === txn.id);   // id สร้างตอนเปิดฟอร์ม → กดซ้ำ = แทนที่ ไม่เพิ่ม
+  if (i >= 0) mu.txns[i] = { ...txn, createdAt: mu.txns[i].createdAt, updatedAt: stamp };
+  else mu.txns.push({ ...txn, createdAt: stamp, updatedAt: stamp });
+}
+// ผลของการลบ — ใช้ทั้งแสดงในกล่องยืนยันและลงมือลบ ให้ตรงกันเสมอ
+function moneyDeleteEffects(mu, id) {
+  const t = mu.txns.find(x => x.id === id);
+  if (!t || t.kind !== 'expense') return [];
+  const out = [];
+  for (const b of mu.txns) {
+    if (b.kind === 'moneyBack') {
+      for (const a of (b.allocations || [])) if (a.txnId === id) {
+        out.push({ type: 'unlink-back', txnId: b.id, date: b.date, backType: b.backType, amount: b.backType === 'refund' ? a.mine + a.others : a.amount });
+      }
+    } else if (b.kind === 'writeOff' && b.sourceTxnId === id) out.push({ type: 'delete-writeoff', txnId: b.id, date: b.date, amount: b.amount });
+    else if (b.kind === 'payOut' && b.sourceTxnId === id) out.push({ type: 'unlink-payout', txnId: b.id, date: b.date, amount: b.amount });
+  }
+  if (t.debtId) out.push({ type: 'unlink-downpayment', debtId: t.debtId });
+  return out;
+}
+function moneyDeleteTxn(mu, id) {
+  const effects = moneyDeleteEffects(mu, id);
+  const t = mu.txns.find(x => x.id === id);
+  if (!t) throw new Error('ไม่พบรายการ (อาจถูกลบจากหน้าต่างอื่นแล้ว)');
+  const doomed = new Set([id, ...effects.filter(e => e.type === 'delete-writeoff').map(e => e.txnId)]);
+  mu.txns = mu.txns.filter(x => !doomed.has(x.id));
+  for (const b of mu.txns) {
+    if (b.kind === 'moneyBack') b.allocations = (b.allocations || []).filter(a => a.txnId !== id);   // เงินคืนยังอยู่ในเงินเข้า แต่ไม่ผูก
+    if (b.kind === 'payOut' && b.sourceTxnId === id) b.sourceTxnId = null;
+  }
+  if (t.debtId) { const d = mu.debts.find(x => x.id === t.debtId); if (d && d.purchase) d.purchase.downPaymentTxnId = null; }
+  return effects;
+}
+// เพิ่มหนี้เดิม — ยอดตั้งต้นไม่สร้างรายการเงินใด ๆ
+function moneyAddDebt(mu, d, today) {
+  if (mu.debts.some(x => x.id === d.id)) return;      // กดซ้ำ
+  if (!DEBT_TYPES[d.type]) throw new Error('เลือกชนิดหนี้');
+  if (!d.name || !String(d.name).trim()) throw new Error('ใส่ชื่อหนี้');
+  if (!isRealDateKey(d.startDate) || d.startDate > today) throw new Error('วันเริ่มติดตามต้องไม่อยู่ในอนาคต');
+  if (!isSatang(d.startBalance)) throw new Error('ยอดคงเหลือไม่ถูกต้อง');
+  mu.debts.push({
+    id: d.id, name: String(d.name).trim(), type: d.type, interestFree: !!d.interestFree,
+    categoryId: d.type === 'installment' ? d.categoryId : (d.categoryId || null),
+    contextId: d.type === 'installment' ? d.contextId : (d.contextId || null),
+    originDate: d.originDate || null, purchase: d.purchase || null,
+    installment: d.installment || null, dueDay: d.dueDay || null, note: d.note || '',
+    history: [], status: 'active',
+    anchors: [{ id: d.id + '_start', type: 'start', date: d.startDate, balance: d.startBalance }],
+    createdAt: new Date().toISOString()
+  });
+}
+// ซื้อผ่อนใหม่ (§5.4จ) — หนี้ + เงินดาวน์ใน commit เดียว · ราคาเต็มไม่เคยเป็นเงินออกหรือค่าใช้จ่าย
+function moneyCreateInstallmentPurchase(mu, p, today) {
+  if (!isSatang(p.price) || p.price === 0) throw new Error('ใส่ราคาสินค้า');
+  if (!isSatang(p.down) || p.down > p.price) throw new Error('เงินดาวน์ต้องไม่เกินราคา');
+  if (p.down === p.price) throw new Error('ไม่มียอดผ่อนเหลือ — บันทึกเป็นรายจ่ายปกติ');
+  moneyAddDebt(mu, {
+    id: p.debtId, name: p.name, type: 'installment', interestFree: p.interestFree, categoryId: p.categoryId, contextId: p.contextId,
+    startDate: p.date, startBalance: p.price - p.down, originDate: p.date,
+    purchase: { price: p.price, downPaymentTxnId: p.down > 0 ? p.downTxnId : null },
+    installment: p.installment, dueDay: p.dueDay, note: p.note
+  }, today);
+  if (p.down > 0) {
+    moneyUpsertTxn(mu, {
+      id: p.downTxnId, kind: 'expense', date: p.date, amount: p.down, myShare: p.down,
+      categoryId: p.categoryId, contextId: p.contextId, debtId: p.debtId, note: 'เงินดาวน์ ' + String(p.name).trim()
+    }, today);
+  }
+}
+// ใบแจ้ง / ปรับยอด — มีประวัติ ไม่สร้างเงินสด
+function moneyAddDebtAnchor(mu, debtId, a, today) {
+  const d = mu.debts.find(x => x.id === debtId);
+  if (!d) throw new Error('ไม่พบหนี้');
+  if (a.type !== 'statement' && a.type !== 'adjust') throw new Error('ชนิดยอดอ้างอิงไม่ถูกต้อง');
+  if (!isRealDateKey(a.date) || a.date > today) throw new Error('วันที่ต้องไม่อยู่ในอนาคต');
+  if (d.anchors.some(x => x.id === a.id)) return;
+  d.anchors.push({ id: a.id, type: a.type, date: a.date, balance: a.balance, note: a.note || '' });
+}
+// ปิดหนี้ — ต้องยืนยันยอดก่อน · ส่วนที่เหลือ = ส่วนลด (ไม่ใช่เงินสด ไม่ใช่ค่าใช้จ่าย)
+function moneyCloseDebt(mu, debtId, date, today) {
+  const d = mu.debts.find(x => x.id === debtId);
+  if (!d) throw new Error('ไม่พบหนี้');
+  if (date > today) throw new Error('วันที่ต้องไม่อยู่ในอนาคต');
+  const b = moneyDebtBalanceAt(mu, d, date);
+  if (!b) throw new Error('วันที่ปิดต้องไม่ก่อนวันเริ่มติดตาม');
+  if (!b.confirmed) throw new Error('ยืนยันยอดก่อนปิดหนี้ — แยกเงินต้นของงวดที่จ่าย หรืออัปเดตยอดจากใบแจ้ง');
+  d.anchors.push({ id: debtId + '_close', type: 'close', date, balance: 0, waived: b.balance });
+  d.status = 'closed';
+  return b.balance;
+}
+function moneyDeleteDebt(mu, debtId, withDownPayment) {
+  const d = mu.debts.find(x => x.id === debtId);
+  if (!d) return;
+  if (mu.txns.some(t => t.kind === 'debtPayment' && t.debtId === debtId)) throw new Error('หนี้นี้มีการชำระแล้ว ลบไม่ได้ — ปิดหนี้ หรือเก็บแทน');
+  mu.debts = mu.debts.filter(x => x.id !== debtId);
+  const dp = mu.txns.find(t => t.kind === 'expense' && t.debtId === debtId);
+  if (dp) {
+    if (withDownPayment) moneyDeleteTxn(mu, dp.id);
+    else delete dp.debtId;
+  }
+}
+// แก้ชนิด / หมวด / บริบทของหนี้ — preview ก่อน แล้วเก็บประวัติ (C7)
+function moneyApplyDebtPatch(d, patch) {
+  for (const k of ['type', 'categoryId', 'contextId']) if (k in patch) d[k] = patch[k];
+}
+function moneyDebtChangePreview(mu, debtId, patch) {
+  const after = JSON.parse(JSON.stringify(mu));
+  const d = after.debts.find(x => x.id === debtId);
+  if (!d) return null;
+  moneyApplyDebtPatch(d, patch);
+  const pays = mu.txns.filter(t => t.kind === 'debtPayment' && t.debtId === debtId).map(t => t.date).sort();
+  return {
+    error: moneyValidateUser(after),
+    months: moneyMonthlyDelta(mu, after),
+    firstDate: pays[0] || null, lastDate: pays[pays.length - 1] || null, paymentCount: pays.length
+  };
+}
+function moneyChangeDebt(mu, debtId, patch, at) {
+  const d = mu.debts.find(x => x.id === debtId);
+  if (!d) throw new Error('ไม่พบหนี้');
+  for (const k of ['type', 'categoryId', 'contextId']) {
+    if (k in patch && patch[k] !== d[k]) d.history.push({ at: at || new Date().toISOString(), field: k, from: d[k] == null ? null : d[k], to: patch[k] });
+  }
+  moneyApplyDebtPatch(d, patch);
+}
+// เตือนบันทึกงวดผ่อนซ้ำเป็นรายจ่าย (ไม่บล็อก)
+function moneyInstallmentDupWarning(mu, exp) {
+  for (const d of mu.debts) {
+    if (d.type !== 'installment' || d.status !== 'active' || !d.installment) continue;
+    if (d.categoryId !== exp.categoryId || d.installment !== exp.amount) continue;
+    if (d.dueDay) {
+      const [y, m] = exp.date.split('-').map(Number);
+      const near = [-1, 0, 1].some(k => {
+        const last = new Date(y, m - 1 + k + 1, 0).getDate();
+        const due = dateToKey(new Date(y, m - 1 + k, Math.min(d.dueDay, last)));
+        return Math.abs(moneyDaysBetween(exp.date, due)) <= MONEY_DUP_INSTALLMENT_DAYS;
+      });
+      if (!near) continue;
+    }
+    return { debtId: d.id, name: d.name };
+  }
+  return null;
+}
+
+// ---------- ที่เก็บ: IndexedDB (DEC-005) ----------
+// อ่าน-ตรวจ-เขียนอยู่ใน readwrite transaction เดียว — เบราว์เซอร์จัดคิว transaction ที่ทับกันให้ทีละอัน ข้ามทุกแท็บ
+// จึงไม่มีช่องว่างระหว่างการตรวจ revision กับการเขียน · ผลลัพธ์ส่งกลับหลัง oncomplete (เขียนลงจริงแล้ว) เท่านั้น
+function moneyIdbBackend() {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error('เบราว์เซอร์นี้ไม่รองรับ IndexedDB'));
+    const req = indexedDB.open(MONEY_DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(MONEY_DB_STORE)) db.createObjectStore(MONEY_DB_STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = () => { const db = req.result; db.onversionchange = () => { db.close(); dbp = null; }; resolve(db); };
+    req.onerror = () => { dbp = null; reject(req.error); };
+  }));
+  return {
+    async readRaw() {
+      const db = await open();
+      return new Promise((resolve, reject) => {
+        const g = db.transaction(MONEY_DB_STORE, 'readonly').objectStore(MONEY_DB_STORE).get(MONEY_DB_KEY);
+        g.onsuccess = () => resolve(g.result ? g.result.json : null);
+        g.onerror = () => reject(g.error);
+      });
+    },
+    // fn(raw) → { result, write? } · write: string = แทนที่ · null = ลบ · ไม่ระบุ = ไม่เขียน
+    async transact(fn) {
+      const db = await open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(MONEY_DB_STORE, 'readwrite');
+        const st = tx.objectStore(MONEY_DB_STORE);
+        let out, thrown = null;
+        const g = st.get(MONEY_DB_KEY);
+        g.onsuccess = () => {
+          try {
+            const step = fn(g.result ? g.result.json : null);
+            out = step.result;
+            if (step.write === null) st.delete(MONEY_DB_KEY);
+            else if (typeof step.write === 'string') st.put({ id: MONEY_DB_KEY, json: step.write });
+          } catch (e) { thrown = e; tx.abort(); }
+        };
+        tx.oncomplete = () => resolve(out);
+        tx.onabort = () => reject(thrown || tx.error || new Error('ยกเลิกการบันทึก'));
+      });
+    }
+  };
+}
+let _moneyBackend = null;
+function moneyBackend() { return _moneyBackend || (_moneyBackend = moneyIdbBackend()); }
+// throw เมื่ออ่านไม่ได้ — ผู้เรียกต้องหยุด ห้ามถือว่า "ไม่มีข้อมูลเงิน"
+function moneyReadRaw() { return moneyBackend().readRaw(); }
+function moneyWriteRaw(raw) { return moneyBackend().transact(() => ({ write: raw, result: true })); }
+
+let _money = null;            // สำเนาล่าสุดที่แท็บนี้อ่าน/เขียนสำเร็จ
+let _moneyStamp = null;       // instance:revision ของสำเนานั้น — ใช้จับว่าแท็บอื่นบันทึกก่อน
+function moneyStampOf(d) { return d ? (d.instance || '') + ':' + (d.revision || 0) : ':0'; }
+function moneyParse(raw) {
+  if (raw == null) return { ok: true, data: moneyEmpty() };
+  let d;
+  try { d = JSON.parse(raw); } catch { return { ok: false, reason: 'corrupt', error: 'ข้อมูลเงินในเครื่องเสียหาย' }; }
+  const err = validateMoneySection(d);
+  return err ? { ok: false, reason: 'corrupt', error: err } : { ok: true, data: d };
+}
+async function moneyLoad() {
+  let raw;
+  try { raw = await moneyReadRaw(); } catch (e) { return { ok: false, reason: 'read-failed', error: 'อ่านข้อมูลเงินไม่ได้' }; }
+  const p = moneyParse(raw);
+  if (!p.ok) { _money = null; _moneyStamp = null; return p; }
+  _money = p.data;
+  _moneyStamp = moneyStampOf(raw == null ? null : p.data);
+  return { ok: true, data: p.data };
+}
+// ผลลัพธ์: { ok:true, data, result } หรือ { ok:false, reason, error } โดย reason =
+//   'restored-elsewhere' แท็บอื่นกู้คืนข้อมูล → ต้องโหลดหน้าใหม่ · 'stale' แท็บอื่นบันทึกก่อน → โหลดข้อมูลใหม่แล้ว ให้ผู้ใช้กดอีกครั้ง
+//   'invalid' ผิดกติกา · 'write-failed' เขียนไม่สำเร็จ · 'corrupt' / 'read-failed'
+// ไม่สำเร็จทุกกรณี: ที่เก็บไม่เปลี่ยน และ _money ไม่มีข้อมูลที่ไม่ได้บันทึก
+// opts.ignoreStale — ใช้กับการเปลี่ยนที่ไม่อิงข้อมูลที่แท็บนี้แสดงอยู่ (เช่นลบข้อมูลเงินทั้งโปรไฟล์) · ยังเป็น transaction เดียว
+async function moneyCommit(mutate, opts) {
+  if (restoreEpochChangedElsewhere()) return { ok: false, reason: 'restored-elsewhere', error: 'มีการนำเข้าข้อมูลจากหน้าต่างอื่น — กำลังโหลดใหม่' };
+  if (_moneyStamp === null) { const l = await moneyLoad(); if (!l.ok) return l; }
+  const expect = _moneyStamp;
+  let out;
+  try {
+    out = await moneyBackend().transact(raw => {
+      const p = moneyParse(raw);
+      if (!p.ok) return { result: p };
+      const cur = p.data;
+      if (!(opts && opts.ignoreStale) && moneyStampOf(raw == null ? null : cur) !== expect) {
+        return { result: { ok: false, reason: 'stale', error: 'มีการแก้จากหน้าต่างอื่น ตรวจแล้วกดบันทึกอีกครั้ง', fresh: cur, freshStamp: moneyStampOf(raw == null ? null : cur) } };
+      }
+      const next = JSON.parse(JSON.stringify(cur));
+      let result;
+      try { result = mutate(next); } catch (e) { return { result: { ok: false, reason: 'invalid', error: String(e && e.message || e) } }; }
+      next.schemaVersion = MONEY_SCHEMA_VERSION;
+      next.instance = cur.instance || ('m' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+      next.revision = (cur.revision || 0) + 1;
+      const err = validateMoneySection(next);
+      if (err) return { result: { ok: false, reason: 'invalid', error: err } };
+      return { write: JSON.stringify(next), result: { ok: true, data: next, result } };
+    });
+  } catch (e) {
+    return { ok: false, reason: 'write-failed', error: 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ (' + String(e && (e.name || e.message) || e) + ')' };
+  }
+  if (out.ok) { _money = out.data; _moneyStamp = moneyStampOf(out.data); }
+  else if (out.reason === 'stale') { _money = out.fresh; _moneyStamp = out.freshStamp; delete out.fresh; delete out.freshStamp; }
+  return out;
+}
+// ลบข้อมูลเงินทั้งหมดของโปรไฟล์ (ก่อนลบโปรไฟล์) — result = ข้อมูลที่ลบ (ไว้คืนถ้าลบโปรไฟล์ไม่สำเร็จ)
+function moneyDeleteUserData(uid) {
+  return moneyCommit(d => { const removed = d.byUser[uid] || null; delete d.byUser[uid]; return removed; }, { ignoreStale: true });
+}
+function moneyPutUserData(uid, mu) {
+  return moneyCommit(d => { d.byUser[uid] = mu; }, { ignoreStale: true });
 }
 
 /* ========== CSV EXPORT ========== */
@@ -11092,18 +11772,35 @@ const actions = {
     back();
   },
 
-  'delete-user': () => {
+  // v1.10.55 — T-026b: ลบข้อมูลเงินของคนนี้ก่อน (ถ้าไม่สำเร็จ ไม่ลบโปรไฟล์) แล้วจึงลบสุขภาพ
+  // สุขภาพบันทึกไม่สำเร็จ → คืนข้อมูลเงินที่ลบไป · ไม่ขึ้น "ลบแล้ว" จนกว่าทั้งสองส่วนสำเร็จจริง
+  'delete-user': async () => {
     if (state.users.length <= 1) return toast('ต้องมีอย่างน้อย 1 ผู้ใช้', true);
     const u = state.tmp.user;
-    if (!u || !confirm(`ลบ "${u.name}" และประวัติทั้งหมด?`)) return;
-    const idx = state.users.findIndex(x => x.id === u.id);
-    if (idx >= 0) state.users.splice(idx, 1);
-    delete state.logs[u.id];
-    delete state.dailyTargets[u.id];
-    if (state.currentUserId === u.id) state.currentUserId = state.users[0].id;
-    persist();
-    toast('ลบแล้ว');
-    goHome();
+    if (!u || state.tmp.deletingUser || !confirm(`ลบ "${u.name}" และประวัติทั้งหมด (รวมข้อมูลเงินของคนนี้)?`)) return;
+    state.tmp.deletingUser = true;
+    try {
+      const mr = await moneyDeleteUserData(u.id);
+      if (!mr.ok) return toast(`ลบข้อมูลเงินของ "${u.name}" ไม่สำเร็จ จึงยังไม่ลบโปรไฟล์ — ลองใหม่อีกครั้ง`, true);
+      const before = { users: state.users.slice(), logs: state.logs[u.id], targets: state.dailyTargets[u.id], current: state.currentUserId };
+      const idx = state.users.findIndex(x => x.id === u.id);
+      if (idx >= 0) state.users.splice(idx, 1);
+      delete state.logs[u.id];
+      delete state.dailyTargets[u.id];
+      if (state.currentUserId === u.id) state.currentUserId = state.users[0].id;
+      if (!persist()) {
+        state.users = before.users;
+        if (before.logs !== undefined) state.logs[u.id] = before.logs;
+        if (before.targets !== undefined) state.dailyTargets[u.id] = before.targets;
+        state.currentUserId = before.current;
+        const back = mr.result ? await moneyPutUserData(u.id, mr.result) : { ok: true };
+        return toast(back.ok ? 'ลบโปรไฟล์ไม่สำเร็จ — ข้อมูลยังอยู่ครบ' : 'ลบโปรไฟล์ไม่สำเร็จ และคืนข้อมูลเงินของคนนี้ไม่ได้', true);
+      }
+      toast('ลบแล้ว');
+      goHome();
+    } finally {
+      state.tmp.deletingUser = false;
+    }
   },
 
   'save-custom-protein': () => {
@@ -11128,8 +11825,11 @@ const actions = {
   },
 
   // v1.10.54 — T-026a: ไฟล์สำรองรูปแบบ v2 (สุขภาพ + เงิน + ตัวระบุรูปแบบ) · ชื่อไฟล์เหมือนเดิม
-  'export-data': () => {
-    const blob = new Blob([JSON.stringify(buildBackupObject(), null, 2)], { type: 'application/json' });
+  'export-data': async () => {
+    let backup;
+    try { backup = buildBackupObject(await moneyReadRaw()); }
+    catch (e) { return toast('อ่านข้อมูลเงินไม่ได้ จึงยังไม่ดาวน์โหลด — ลองใหม่อีกครั้ง', true); }
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -11168,9 +11868,11 @@ const actions = {
       hs = snap.health ? JSON.parse(snap.health) : null;
       money = snap.money ? JSON.parse(snap.money) : null;
     } catch { return toast('สำเนาเสียหาย อ่านไม่ได้', true); }
+    let curMoneyRaw;
+    try { curMoneyRaw = await moneyReadRaw(); } catch { return toast('อ่านข้อมูลเงินในเครื่องไม่ได้', true); }
     go('restore-preview', { restore: {
       source: 'undo', meta: { createdAt: snap.createdAt, reason: snap.reason },
-      summary: summarizeData(hs, money), healthRaw: snap.health, moneyRaw: snap.money
+      summary: summarizeData(hs, money), healthRaw: snap.health, moneyRaw: snap.money, curMoneyRaw
     } });
   },
   'dismiss-backup-notice': () => dismissBackupNotice(),

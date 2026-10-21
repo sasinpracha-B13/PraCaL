@@ -7,9 +7,9 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.54` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.54';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.54';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.55` in the working tree (**uncommitted** — T-026b in `review`; last shipped `v1.10.54`). Set in two places — must be kept in sync:
+  - `index.html` — `const VERSION = 'v1.10.55';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.55';` (drives cache name `pracal-${VERSION}` and cache invalidation)
 - **`meals.json` data version:** `1.10.20` (T-024b/c — `satFat_g` + `fiber_g` + `nutrientSource` on **all 408** entries, plus all 88 branded; 408 entries unchanged, no new meals). Previously `1.10.19` (T-024a — `alcohol_g` on `d22`) and `1.10.18` (T-021 — +2 entries r37/n41 · 406 → 408 · first add under DEC-003).
 
 > **A VERSION bump was required even though `index.html` was not touched by T-024b/c.** `meals.json` is in `CORE_ASSETS` and served cache-first from `pracal-${VERSION}`; without a new VERSION, installed PWAs would keep serving the old data file forever. Any future data-only change carries the same obligation.
@@ -30,7 +30,7 @@
 - **localStorage draft key:** `pracal_checkin_draft_<userId>` — T-013b/b.1 schema unchanged. T-013c + T-013d added no new localStorage keys.
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
-- **Working tree:** clean after the T-026a commit.
+- **Working tree:** uncommitted T-026b (`index.html`, `service-worker.js`, new `tools/test-money-engine.js`, spec draft 3) awaiting review.
 
 > Note: the existing `README.md` still says `v1.0.0` — that line is stale and is **not** the source of truth for version. Treat the two `VERSION` constants as canonical.
 
@@ -100,7 +100,7 @@
 
 ## Current Active Task
 
-**T-026b — money storage + calculation engine (no UI) — `in_progress`.** Spec [`docs/specs/T-026-money-tracking.md`](docs/specs/T-026-money-tracking.md) draft 3 (user ruled on C1–C8, 2026-10-21).
+**T-026b — money storage + calculation engine (no UI) — `review` (v1.10.55, uncommitted).** Spec [`docs/specs/T-026-money-tracking.md`](docs/specs/T-026-money-tracking.md) draft 3 (user ruled on C1–C8, 2026-10-21); evidence §12. `tools/test-money-engine.js` runs 172 checks on the real functions extracted from `index.html`. No user-visible change: nothing calls the engine until T-026c adds the UI.
 
 **T-026a — Backup v2 + real restore — `done` ✅ (v1.10.54).** Export is now backup v2 (health + `bpcRange` + money); import accepts v2 and every legacy file (v1.0.0–v1.10.53 share one envelope), replaces the whole device after validate → preview → IndexedDB safety snapshot, rolls back on write failure, reloads through `migrateData()` and smoke-renders every profile, auto-reverting on failure; undo for 7 days; `persist()` refuses to write after another tab restored. Proven on files exported by the real v1.0.0 and v1.10.53 code (deep-equal state, byte-identical food CSV). **Known limitations (recorded at close):** not tested on a real phone — desktop browser + 320/360/375 px iframes only · `navigator.storage.persist()` was not granted by the test browser, so only truthful status display is verified, not the granted path · "last backup" time is set when the download is triggered; the app cannot detect a user cancelling the save dialog · if the safety snapshot itself were missing when a post-restore check fails, the app reports it cannot revert (same failure mode as before T-026a, only reachable if IndexedDB loses a record written seconds earlier) · progress photos are not in backups (stated on screen). **`audit-meals.js` exit 2 is the pre-existing baseline, not a regression:** the 2 fails are `d03` กาแฟดำร้อน and `d15` กาแฟดำเย็น (declared 5 kcal vs macro-implied 4 kcal, 20%), already recorded at T-024a; `meals.json`/`branded_products.json` are unchanged vs HEAD.
 
@@ -227,6 +227,7 @@ Themes of the v1.10.x series: macro/calorie correctness (v1.10.0, v1.10.7, v1.10
 - **`meals.json` schema** — the 375-meal database has a stable shape (`id`, `name`, `emoji`, `category`, `baseCalories`, `baseWeight_g`, macros, optional `customizations`, optional `addons`). Schema changes need a migration plan.
 - **Absent ≠ zero on optional nutrients (T-024a / DEC-004)** — `satFat_g`, `fiber_g`, `alcohol_g` must be read with `!= null`. Writing `m.fiber_g || 0` turns "we never measured this" into "this food has no fiber", which is the exact way this feature can mislead. The one legitimate `|| 0` is the calorie reconciliation in `audit-meals.js`, where a missing `alcohol_g` genuinely contributes no calories — and it is commented as such. `tools/audit-meals.js` fails any entry whose `satFat_g > fat_g`, `fiber_g > carbs_g`, or which carries a nutrient without a valid `nutrientSource`.
 - **CSV export reconciliation (T-023)** — `buildCSV`'s item rows must satisfy **Σ(item rows) === `สรุปวัน`** for every day. The parent row is base-only precisely so this holds; re-folding add-ons into it (or dropping the subtraction) silently re-introduces the double-count, which is invisible in the app and only shows up in downstream analysis. Guarded by `tools/audit-csv-addon-rows.js` — run it on a fresh export after any `buildCSV`, `ADDONS`, or `calcEntryTotals` change.
+- **Money writes (T-026b)** — `pracal_money_v1` is written only through `moneyCommit()`, which re-reads storage, refuses on a changed restore epoch or a stale `revision` (another tab saved first), and runs `moneyValidateUser` on every profile before writing. Balances (debt, receivable, payable) are never stored — always derived as of a date. "My cost" lines are dated by their own event, so a new event never changes a closed period. Run `node tools/test-money-engine.js index.html` after any change to the money block.
 - **Restore safety (T-026a)** — every write to `pracal_v1` goes through `persist()`, whose first line refuses to write after a restore from another tab (`pracal_restore_epoch`). A new direct `setItem(STORAGE_KEY…)` would bypass it and let a stale tab overwrite restored data. Restore never touches `PraCaLBodyProgress`.
 - **`localStorage` keys** — user data lives client-side; key/shape changes break existing installs without a migration.
 
