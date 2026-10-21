@@ -259,6 +259,8 @@
   }
   .callout b { color: #5a2e00; }
   .callout.info { background: #e0f2fe; color: #075985; }
+  .callout.warn { background: var(--red-soft); color: #7f1d1d; }
+  .callout.warn b { color: #7f1d1d; }
   .callout ul { margin: 6px 0 0; padding-left: 20px; }
   .callout li { margin-bottom: 2px; }
 
@@ -714,8 +716,28 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.53';
+const VERSION = 'v1.10.54';
 const STORAGE_KEY = 'pracal_v1';
+// v1.10.54 — T-026a: สำรอง v2 + กู้คืน · key ต่อไปนี้อยู่นอก pracal_v1 โดยตั้งใจ — เป็นสถานะของเครื่อง/แท็บ
+// ไม่ใช่ข้อมูลผู้ใช้ จึงต้องไม่ถูกการกู้คืนเขียนทับ
+const MONEY_STORAGE_KEY = 'pracal_money_v1';         // จองไว้ให้ T-026b · ส่งออก/กู้คืนเมื่อมีอยู่
+const RESTORE_EPOCH_KEY = 'pracal_restore_epoch';    // เปลี่ยนทุกครั้งที่กู้คืน → แท็บที่ค้างต้องโหลดใหม่ ห้ามเขียน
+const RESTORE_MARKER_KEY = 'pracal_restore_marker';  // ตั้งก่อนโหลดหน้าใหม่หลังกู้คืน · ลบเมื่อเปิดแอปผ่านการตรวจ
+const LAST_BACKUP_KEY = 'pracal_last_backup_at';
+const BOOT_NOTICE_KEY = 'pracal_boot_notice';        // sessionStorage — ข้อความที่ต้องแสดงหลังโหลดหน้าใหม่
+const TAB_ID_KEY = 'pracal_tab_id';                  // sessionStorage — ระบุแท็บ (อยู่รอดข้ามการโหลดใหม่ของแท็บเดียวกัน)
+const RESTORE_MARKER_STALE_MS = 30 * 1000;           // แท็บที่กู้คืนหายไปเกินนี้ → แท็บอื่นรับช่วงตรวจแทน
+const BACKUP_FORMAT = 'pracal-backup';
+const BACKUP_FORMAT_VERSION = 2;
+const MONEY_SCHEMA_VERSION_SUPPORTED = 1;
+const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
+const SAFETY_DB_NAME = 'PraCaLSafety';               // ฐานแยกโดยตั้งใจ — ไม่แตะ PraCaLBodyProgress
+const SAFETY_STORE = 'snapshots';
+const SAFETY_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+const SAFETY_MAX_SNAPSHOTS = 3;
+// epoch ตอนแท็บนี้โหลด — อยู่ต้นสคริปต์เพราะ persist() อ่านค่านี้ (กัน TDZ)
+let _loadedRestoreEpoch = (() => { try { return localStorage.getItem(RESTORE_EPOCH_KEY) || ''; } catch { return ''; } })();
+let _reloadingForRestore = false;
 
 const CATEGORIES = [
   { id: 'all', name: 'ทั้งหมด', emoji: '🍽️' },
@@ -1072,6 +1094,9 @@ function loadStored() {
 }
 
 function persist() {
+  // v1.10.54 — T-026a: แท็บอื่นเพิ่งกู้คืนข้อมูล → state ในแท็บนี้เก่าแล้ว ถ้าเขียนลงไปจะทับข้อมูลที่กู้มาทั้งก้อน
+  // จึงไม่เขียนและโหลดใหม่แทน · เกิดเฉพาะหลังมีการกู้คืนจากแท็บอื่นเท่านั้น
+  if (restoreEpochChangedElsewhere()) { reloadAfterExternalRestore(); return; }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       users: state.users,
@@ -3479,6 +3504,519 @@ function svgDailyBarChart(days, opts) {
   </svg>`;
 }
 
+/* ========== BACKUP v2 + RESTORE (v1.10.54 — T-026a) ========== */
+// Spec: docs/specs/T-026-money-tracking.md §5.8
+// ไฟล์สำรองเดิมทุกเวอร์ชัน (v1.0.0 → v1.10.53) ใช้ซองไฟล์แบบเดียวกัน เพราะโค้ดส่งออกไม่เคยเปลี่ยน
+// สิ่งที่ต่างคือรูปข้อมูลข้างใน ซึ่งเป็นงานของ migrateData() ตอนเปิดแอปอยู่แล้ว
+// การกู้คืนจึงไม่ migrate เอง: ตรวจ → เขียน → โหลดหน้าใหม่ผ่านเส้นทางเปิดแอปปกติ
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function isRealDateKey(s) {
+  if (typeof s !== 'string' || !DATE_KEY_RE.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+function formatTsThai(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDateTH(dateToKey(d))} ${hh}:${mi}`;
+}
+function readMoneyRaw() {
+  try { return localStorage.getItem(MONEY_STORAGE_KEY); } catch { return null; }
+}
+
+// ---------- ส่งออก ----------
+function buildBackupObject() {
+  let money = null;
+  const raw = readMoneyRaw();
+  if (raw) { try { money = JSON.parse(raw); } catch { money = null; } }
+  return {
+    format: BACKUP_FORMAT,
+    formatVersion: BACKUP_FORMAT_VERSION,
+    appVersion: VERSION,
+    exportedAt: new Date().toISOString(),
+    health: {
+      users: state.users,
+      currentUserId: state.currentUserId,
+      customMeals: state.customMeals,
+      favorites: state.favorites,
+      logs: state.logs,
+      dailyTargets: state.dailyTargets,
+      bpcRange: state.bpcRange
+    },
+    money
+  };
+}
+
+// ---------- อ่านและตรวจไฟล์ (pure — ไม่แตะ storage) ----------
+function validateHealthSection(hs) {
+  if (!isPlainObject(hs)) return 'ไม่พบข้อมูลสุขภาพในไฟล์';
+  if (!Array.isArray(hs.users) || hs.users.length === 0) return 'ไฟล์นี้ไม่มีโปรไฟล์ — ไม่นำเข้า เพื่อป้องกันข้อมูลในเครื่องหาย';
+  if (hs.users.length > MAX_USERS) return `ไฟล์นี้มี ${hs.users.length} โปรไฟล์ เกินที่แอปรองรับ (${MAX_USERS})`;
+  const ids = new Set();
+  for (const u of hs.users) {
+    if (!isPlainObject(u) || typeof u.id !== 'string' || !u.id) return 'โปรไฟล์ในไฟล์ไม่มี id ที่ถูกต้อง';
+    if (ids.has(u.id)) return 'ไฟล์นี้มี id โปรไฟล์ซ้ำกัน';
+    ids.add(u.id);
+    if (typeof u.name !== 'string') return 'โปรไฟล์ในไฟล์ไม่มีชื่อ';
+    for (const k of ['weights', 'waist', 'checkIns', 'scannedProducts']) {
+      if (u[k] !== undefined && !Array.isArray(u[k])) return `ข้อมูล ${k} ของโปรไฟล์ "${u.name}" ผิดรูปแบบ`;
+    }
+  }
+  if (!isPlainObject(hs.logs)) return 'ข้อมูลบันทึกอาหารในไฟล์ผิดรูปแบบ';
+  for (const uid of Object.keys(hs.logs)) {
+    const byDate = hs.logs[uid];
+    if (!isPlainObject(byDate)) return 'ข้อมูลบันทึกอาหารในไฟล์ผิดรูปแบบ';
+    for (const d of Object.keys(byDate)) {
+      if (!isRealDateKey(d)) return `วันที่ในบันทึกอาหารผิดรูปแบบ (${d})`;
+      if (!Array.isArray(byDate[d])) return `บันทึกอาหารวันที่ ${d} ผิดรูปแบบ`;
+      for (const e of byDate[d]) if (!isPlainObject(e)) return `รายการอาหารวันที่ ${d} ผิดรูปแบบ`;
+    }
+  }
+  for (const k of ['customMeals', 'favorites']) {
+    if (hs[k] !== undefined && hs[k] !== null && !Array.isArray(hs[k])) return `ข้อมูล ${k} ในไฟล์ผิดรูปแบบ`;
+  }
+  if (hs.dailyTargets !== undefined && hs.dailyTargets !== null && !isPlainObject(hs.dailyTargets)) return 'ข้อมูลเป้าหมายรายวันในไฟล์ผิดรูปแบบ';
+  return null;
+}
+function validateMoneySection(m) {
+  if (m === null || m === undefined) return null;
+  if (!isPlainObject(m)) return 'ข้อมูลเงินในไฟล์ผิดรูปแบบ';
+  if (typeof m.schemaVersion !== 'number') return 'ข้อมูลเงินในไฟล์ไม่มีเวอร์ชัน';
+  if (m.schemaVersion > MONEY_SCHEMA_VERSION_SUPPORTED) return 'ข้อมูลเงินในไฟล์มาจากแอปเวอร์ชันใหม่กว่า — อัปเดตแอปก่อนนำเข้า';
+  if (!isPlainObject(m.byUser)) return 'ข้อมูลเงินในไฟล์ผิดรูปแบบ';
+  return null;
+}
+// รูปเดียวกับที่ persist() เขียน (ลำดับ key เดียวกัน) — bpcRange ใส่เมื่อไฟล์มีเท่านั้น
+function normalizeHealthSection(hs) {
+  const users = hs.users;
+  const out = {
+    users,
+    currentUserId: users.some(u => u.id === hs.currentUserId) ? hs.currentUserId : users[0].id,
+    customMeals: Array.isArray(hs.customMeals) ? hs.customMeals : [],
+    favorites: Array.isArray(hs.favorites) ? hs.favorites : [],
+    logs: hs.logs,
+    dailyTargets: isPlainObject(hs.dailyTargets) ? hs.dailyTargets : {}
+  };
+  if (isPlainObject(hs.bpcRange)) out.bpcRange = hs.bpcRange;
+  return out;
+}
+function summarizeData(hs, money) {
+  const users = (hs && Array.isArray(hs.users)) ? hs.users : [];
+  const logs = (hs && isPlainObject(hs.logs)) ? hs.logs : {};
+  const byUser = (money && isPlainObject(money.byUser)) ? money.byUser : {};
+  const profiles = users.map(u => {
+    const byDate = isPlainObject(logs[u.id]) ? logs[u.id] : {};
+    const days = Object.keys(byDate).filter(d => Array.isArray(byDate[d]) && byDate[d].length > 0).sort();
+    const mu = byUser[u.id];
+    return {
+      id: u.id,
+      name: u.name,
+      foodDays: days.length,
+      foodEntries: days.reduce((n, d) => n + byDate[d].length, 0),
+      lastFoodDate: days.length ? days[days.length - 1] : null,
+      weights: Array.isArray(u.weights) ? u.weights.length : 0,
+      moneyTxns: mu && Array.isArray(mu.txns) ? mu.txns.length : 0,
+      debts: mu && Array.isArray(mu.debts) ? mu.debts.length : 0
+    };
+  });
+  const sum = k => profiles.reduce((n, p) => n + p[k], 0);
+  return {
+    profiles,
+    foodDays: sum('foodDays'), foodEntries: sum('foodEntries'), weights: sum('weights'),
+    moneyTxns: sum('moneyTxns'), debts: sum('debts'),
+    hasMoney: !!money
+  };
+}
+function parseBackupText(text, byteLength) {
+  const fail = error => ({ ok: false, error });
+  if (byteLength > BACKUP_MAX_BYTES) return fail('ไฟล์ใหญ่เกิน 20 MB — ไม่น่าใช่ไฟล์สำรองของ PraCaL');
+  if (typeof text !== 'string' || !text.trim()) return fail('ไฟล์ว่างเปล่า');
+  let obj;
+  try { obj = JSON.parse(text.replace(/^﻿/, '')); }
+  catch { return fail('อ่านไฟล์ไม่ได้ — ไฟล์อาจเสีย หรือไม่ใช่ไฟล์สำรองของ PraCaL'); }
+  if (!isPlainObject(obj)) return fail('ไม่ใช่ไฟล์สำรองของ PraCaL');
+  let kind, hs, money = null, meta;
+  if (obj.format !== undefined) {
+    if (obj.format !== BACKUP_FORMAT) return fail('ไม่ใช่ไฟล์สำรองของ PraCaL');
+    if (!Number.isInteger(obj.formatVersion) || obj.formatVersion < 2) return fail('รูปแบบไฟล์สำรองไม่ถูกต้อง');
+    if (obj.formatVersion > BACKUP_FORMAT_VERSION) return fail('ไฟล์นี้มาจาก PraCaL เวอร์ชันใหม่กว่า — อัปเดตแอปก่อนนำเข้า');
+    kind = 'v2';
+    hs = obj.health;
+    money = obj.money === undefined ? null : obj.money;
+    meta = { appVersion: obj.appVersion, exportedAt: obj.exportedAt, formatVersion: obj.formatVersion };
+  } else if (Array.isArray(obj.users) && 'logs' in obj && typeof obj.version === 'string' && /^v1\.\d+/.test(obj.version)) {
+    // ซองไฟล์เดิม — export-data เหมือนกันทุกไบต์ตั้งแต่ v1.0.0 ถึง v1.10.53
+    kind = 'legacy';
+    hs = {
+      users: obj.users, currentUserId: obj.currentUserId, customMeals: obj.customMeals,
+      favorites: obj.favorites, logs: obj.logs, dailyTargets: obj.dailyTargets
+    };
+    meta = { appVersion: obj.version, exportedAt: obj.exportedAt, formatVersion: 1 };
+  } else {
+    return fail('ไม่ใช่ไฟล์สำรองของ PraCaL');
+  }
+  const hErr = validateHealthSection(hs);
+  if (hErr) return fail(hErr);
+  const mErr = validateMoneySection(money);
+  if (mErr) return fail(mErr);
+  const health = normalizeHealthSection(hs);
+  return { ok: true, kind, health, money, meta, summary: summarizeData(health, money) };
+}
+
+// ---------- สำเนาความปลอดภัย (IndexedDB แยกฐาน — ไม่แตะ PraCaLBodyProgress) ----------
+// id = เวลาที่สร้าง จึงเรียงและตัดของเก่าได้จาก key โดยไม่ต้องโหลดข้อมูลทั้งก้อน
+let _safetyDbPromise = null;
+function openSafetyDb() {
+  if (_safetyDbPromise) return _safetyDbPromise;
+  _safetyDbPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error('IndexedDB ไม่รองรับในเบราว์เซอร์นี้'));
+    const req = indexedDB.open(SAFETY_DB_NAME, 1);
+    req.onerror = () => { _safetyDbPromise = null; reject(req.error); };
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(SAFETY_STORE)) db.createObjectStore(SAFETY_STORE, { keyPath: 'id' });
+    };
+  });
+  return _safetyDbPromise;
+}
+async function saveSafetySnapshot(rec) {
+  const db = await openSafetyDb();
+  const id = Date.now();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SAFETY_STORE, 'readwrite');
+    tx.objectStore(SAFETY_STORE).put({ ...rec, id, createdAt: id });
+    tx.oncomplete = () => resolve(id);          // คืนค่าเมื่อเขียนเสร็จจริงเท่านั้น
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('snapshot aborted'));
+  });
+}
+async function getSafetySnapshot(id) {
+  const db = await openSafetyDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(SAFETY_STORE, 'readonly').objectStore(SAFETY_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function deleteSafetySnapshot(id) {
+  const db = await openSafetyDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SAFETY_STORE, 'readwrite');
+    tx.objectStore(SAFETY_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function safetySnapshotKeys() {
+  const db = await openSafetyDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(SAFETY_STORE, 'readonly').objectStore(SAFETY_STORE).getAllKeys();
+    req.onsuccess = () => resolve((req.result || []).slice().sort((a, b) => b - a));
+    req.onerror = () => reject(req.error);
+  });
+}
+async function pruneSafetySnapshots() {
+  const keys = await safetySnapshotKeys();
+  const now = Date.now();
+  const doomed = keys.filter((k, i) => i >= SAFETY_MAX_SNAPSHOTS || now - k > SAFETY_KEEP_MS);
+  for (const k of doomed) await deleteSafetySnapshot(k);
+  return doomed.length;
+}
+async function getNewestSafetySnapshotMeta() {
+  const keys = await safetySnapshotKeys();
+  if (!keys.length || Date.now() - keys[0] > SAFETY_KEEP_MS) return null;
+  const snap = await getSafetySnapshot(keys[0]);
+  return snap ? { id: snap.id, createdAt: snap.createdAt, reason: snap.reason, label: snap.label || '' } : null;
+}
+
+// ---------- กันแท็บอื่นเขียนทับหลังกู้คืน ----------
+// _loadedRestoreEpoch ประกาศไว้ต้นสคริปต์ (ใกล้ STORAGE_KEY) เพราะ persist() อ่านค่านี้
+function restoreEpochChangedElsewhere() {
+  try { return (localStorage.getItem(RESTORE_EPOCH_KEY) || '') !== _loadedRestoreEpoch; } catch { return false; }
+}
+// เครื่องหมาย "เพิ่งนำเข้า" อยู่ใน localStorage ซึ่งทุกแท็บเห็น — ถ้าทุกแท็บตรวจและคืนข้อมูลพร้อมกัน
+// แท็บหนึ่งจะคืนสำเร็จแล้วลบสำเนา อีกแท็บจะหาสำเนาไม่เจอแล้วเตือนว่า "คืนไม่ได้" ทั้งที่ข้อมูลปลอดภัย
+// และแท็บที่ผู้ใช้กดนำเข้าจะไม่เห็นผลลัพธ์ → ให้เฉพาะแท็บที่กู้คืนเป็นผู้ตรวจ
+function myTabId() {
+  try {
+    let id = sessionStorage.getItem(TAB_ID_KEY);
+    if (!id) { id = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); sessionStorage.setItem(TAB_ID_KEY, id); }
+    return id;
+  } catch { return ''; }
+}
+function ownsRestoreMarker(marker) {
+  if (!marker) return false;
+  if (marker.tabId && marker.tabId === myTabId()) return true;
+  return Date.now() - (Number(marker.at) || 0) > RESTORE_MARKER_STALE_MS;   // แท็บที่กู้คืนปิดไปแล้ว
+}
+function setBootNotice(kind, detail) {
+  try { sessionStorage.setItem(BOOT_NOTICE_KEY, JSON.stringify({ kind, detail: detail || '' })); } catch {}
+}
+function reloadAfterExternalRestore() {
+  if (_reloadingForRestore) return;
+  _reloadingForRestore = true;
+  setBootNotice('external-restore', '');
+  location.reload();
+}
+
+// ---------- กู้คืน ----------
+function rollbackRaw(prevHealth, prevMoney) {
+  try { if (prevHealth === null) localStorage.removeItem(STORAGE_KEY); else localStorage.setItem(STORAGE_KEY, prevHealth); } catch {}
+  try { if (prevMoney === null) localStorage.removeItem(MONEY_STORAGE_KEY); else localStorage.setItem(MONEY_STORAGE_KEY, prevMoney); } catch {}
+}
+// source = { healthRaw: string|null, moneyRaw: string|null, reason: 'pre-restore'|'pre-undo', label }
+async function performRestore(source) {
+  if (state.tmp.restoring) return;
+  state.tmp.restoring = true;
+  state.tmp.restoreError = '';
+  render();
+  let prevHealth, prevMoney;
+  try {
+    prevHealth = localStorage.getItem(STORAGE_KEY);
+    prevMoney = localStorage.getItem(MONEY_STORAGE_KEY);
+  } catch (e) {
+    state.tmp.restoring = false;
+    state.tmp.restoreError = 'อ่านข้อมูลปัจจุบันไม่ได้ จึงยกเลิกการนำเข้า — ไม่มีอะไรเปลี่ยน';
+    return render();
+  }
+  let snapId;
+  try {
+    snapId = await saveSafetySnapshot({ reason: source.reason, label: source.label || '', appVersion: VERSION, health: prevHealth, money: prevMoney });
+  } catch (e) {
+    state.tmp.restoring = false;
+    state.tmp.restoreError = 'เก็บสำเนาข้อมูลปัจจุบันไม่สำเร็จ จึงยังไม่นำเข้า — กด "ดาวน์โหลดไฟล์สำรอง" ของเครื่องนี้เก็บไว้ก่อน แล้วลองใหม่ (' + (e && e.message || e) + ')';
+    return render();
+  }
+  // epoch ก่อน: นับจากตอนนี้ persist() ของทุกแท็บอื่นจะปฏิเสธการเขียน จึงแทรกข้อมูลเก่าเข้ามาระหว่างนี้ไม่ได้
+  try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now())); } catch {}
+  try {
+    if (source.healthRaw === null) localStorage.removeItem(STORAGE_KEY);
+    else localStorage.setItem(STORAGE_KEY, source.healthRaw);
+    if (source.moneyRaw === null) localStorage.removeItem(MONEY_STORAGE_KEY);
+    else localStorage.setItem(MONEY_STORAGE_KEY, source.moneyRaw);
+  } catch (e) {
+    rollbackRaw(prevHealth, prevMoney);
+    try { await deleteSafetySnapshot(snapId); } catch {}   // สำเนานี้เท่ากับข้อมูลปัจจุบัน ไม่ต้องเก็บ
+    setBootNotice('restore-write-failed', String(e && (e.name || e.message) || e));
+    location.reload();   // epoch ของแท็บนี้เปลี่ยนแล้วเช่นกัน ต้องโหลดใหม่ให้ตรงกัน
+    return;
+  }
+  try { localStorage.setItem(RESTORE_MARKER_KEY, JSON.stringify({ snapId, at: Date.now(), reason: source.reason, tabId: myTabId() })); } catch {}
+  // epoch อีกครั้งหลังเขียนเสร็จ: แท็บที่โหลดใหม่ระหว่างช่วงเขียน (อาจอ่านได้ข้อมูลเก่า) จะได้ event อีกรอบแล้วโหลดข้อมูลชุดสุดท้าย
+  try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now()) + 'b'); } catch {}
+  location.reload();
+}
+function readRestoreMarker() {
+  try { const raw = localStorage.getItem(RESTORE_MARKER_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function clearRestoreMarker() {
+  try { localStorage.removeItem(RESTORE_MARKER_KEY); } catch {}
+}
+// render() จับ error แล้วแสดงการ์ด "เกิดข้อผิดพลาด" แทนการพัง แอปที่เปิดได้จึงไม่ได้แปลว่าข้อมูลใช้ได้
+// → ลอง render หน้าหลักของทุกโปรไฟล์แบบไม่แสดงผล ถ้า throw ถือว่าข้อมูลที่กู้มาใช้ไม่ได้
+function smokeTestAllProfiles() {
+  const keepId = state.currentUserId;
+  try {
+    for (const u of state.users) { state.currentUserId = u.id; renderDashboard(); }
+  } finally {
+    state.currentUserId = keepId;
+  }
+}
+async function revertFailedRestore(marker, err) {
+  // อ่านเครื่องหมายซ้ำ: ถ้าหายไปแล้ว แปลว่ามีแท็บอื่นจัดการแล้ว — อย่าคืนซ้ำและอย่าเตือนว่าคืนไม่ได้
+  const still = readRestoreMarker();
+  if (!still || still.snapId !== marker.snapId) { location.reload(); return; }
+  let reverted = false;
+  try {
+    const snap = await getSafetySnapshot(marker.snapId);
+    if (snap) {
+      rollbackRaw(snap.health, snap.money);
+      reverted = true;
+      // สำเนานี้เท่ากับข้อมูลที่คืนแล้ว — ลบทิ้ง ไม่งั้นปุ่ม "ย้อนการนำเข้า" จะชวนให้ย้อนการนำเข้าที่ล้มเหลวไปแล้ว
+      try { await deleteSafetySnapshot(marker.snapId); } catch {}
+    }
+  } catch {}
+  clearRestoreMarker();
+  try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now())); } catch {}
+  setBootNotice(reverted ? 'restore-reverted' : 'restore-revert-failed', String(err && err.message || err));
+  location.reload();
+}
+
+// ---------- ไฟล์ที่ผู้ใช้เลือก ----------
+function handleBackupFile(file) {
+  state.tmp.importError = '';
+  if (file.size > BACKUP_MAX_BYTES) { state.tmp.importError = 'ไฟล์ใหญ่เกิน 20 MB — ไม่น่าใช่ไฟล์สำรองของ PraCaL'; return render(); }
+  const reader = new FileReader();
+  reader.onerror = () => { state.tmp.importError = 'อ่านไฟล์ไม่ได้'; render(); };
+  reader.onload = () => {
+    const parsed = parseBackupText(String(reader.result || ''), file.size);
+    if (!parsed.ok) { state.tmp.importError = parsed.error; return render(); }
+    go('restore-preview', { restore: {
+      source: 'file', fileName: file.name, fileSize: file.size,
+      kind: parsed.kind, meta: parsed.meta, summary: parsed.summary,
+      healthRaw: JSON.stringify(parsed.health),
+      moneyRaw: parsed.money ? JSON.stringify(parsed.money) : null
+    } });
+  };
+  reader.readAsText(file);
+}
+
+// ---------- สถานะในหน้าตั้งค่า ----------
+async function requestPersistentStorage() {
+  try { if (navigator.storage && navigator.storage.persist) return await navigator.storage.persist(); } catch {}
+  return false;
+}
+async function loadBackupStatus() {
+  const st = { supported: !!(navigator.storage && navigator.storage.persisted), persisted: null, snapshot: null, snapshotError: '' };
+  try { if (st.supported) st.persisted = await navigator.storage.persisted(); } catch {}
+  try { st.snapshot = await getNewestSafetySnapshotMeta(); } catch (e) { st.snapshotError = String(e && e.message || e); }
+  state.backupStatus = st;
+  if (state.view === 'settings') render();
+}
+function backupAgeLine() {
+  let iso = null;
+  try { iso = localStorage.getItem(LAST_BACKUP_KEY); } catch {}
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!iso || isNaN(t)) return { text: 'ยังไม่เคยดาวน์โหลดไฟล์สำรองจากเครื่องนี้', warn: true };
+  const days = Math.floor((Date.now() - t) / 86400000);
+  return { text: `ดาวน์โหลดไฟล์สำรองล่าสุด: ${days <= 0 ? 'วันนี้' : days + ' วันก่อน'} (${formatTsThai(t)})`, warn: days > 30 };
+}
+function renderBackupCard() {
+  const age = backupAgeLine();
+  const st = state.backupStatus;
+  let persistLine;
+  if (!st) persistLine = 'กำลังตรวจการเก็บข้อมูลของเบราว์เซอร์…';
+  else if (!st.supported) persistLine = 'เบราว์เซอร์นี้ไม่รองรับการตั้งให้เก็บข้อมูลแบบถาวร';
+  else if (st.persisted) persistLine = 'เบราว์เซอร์ตั้งให้เก็บข้อมูลแบบถาวรแล้ว — ลดโอกาสถูกลบ ไม่ใช่การรับประกัน';
+  else persistLine = 'เบราว์เซอร์ยังไม่ได้ตั้งให้เก็บข้อมูลแบบถาวร <button class="btn ghost sm" data-act="request-persist" style="padding:2px 8px">ขอเปิด</button>';
+  let undoBtn = '';
+  if (st && st.snapshot) {
+    const when = formatTsThai(st.snapshot.createdAt);
+    const label = st.snapshot.reason === 'pre-undo' ? `↩️ ยกเลิกการย้อนกลับเมื่อ ${when}` : `↩️ ย้อนการนำเข้าเมื่อ ${when}`;
+    undoBtn = `<button class="btn ghost block mt" data-act="restore-undo">${h(label)}</button>`;
+  }
+  return `
+      <div class="card">
+        <h3 style="margin-top:0">💾 สำรอง / นำเข้า / ล้าง</h3>
+        <div style="font-size:13px;line-height:1.7;margin-bottom:10px;color:${age.warn ? 'var(--red)' : 'var(--ink-2)'}">${h(age.text)}</div>
+        <div class="muted" style="font-size:12.5px;line-height:1.6;margin-bottom:10px">${persistLine}</div>
+        <button class="btn secondary block" data-act="export-data">⬇️ ดาวน์โหลดไฟล์สำรอง (JSON)</button>
+        <div class="hint" style="font-size:12px;margin-top:6px;line-height:1.6">รวมทุกโปรไฟล์ · ไม่รวมรูปถ่ายความคืบหน้า · เก็บไฟล์ไว้นอกเครื่อง (เช่น Google Drive) เผื่อมือถือหาย</div>
+        <button class="btn secondary block mt" data-act="import-data">⬆️ นำเข้าจากไฟล์สำรอง</button>
+        <input id="backup-import-file" type="file" accept="application/json,.json" style="display:none">
+        ${state.tmp.importError ? `<div class="callout warn mt" style="margin-bottom:0">${h(state.tmp.importError)}</div>` : ''}
+        ${undoBtn}
+        <button class="btn ghost block mt" data-act="clear-today" style="color:var(--red)">🗑️ ล้างรายการวันนี้</button>
+      </div>`;
+}
+
+// ---------- หน้ายืนยันก่อนแทนที่ข้อมูล ----------
+function renderRestorePreview() {
+  const r = state.tmp.restore;
+  if (!r) {
+    return `<div class="screen"><div class="header"><button class="icon-btn" data-act="restore-cancel">←</button><h1>นำเข้าข้อมูล</h1></div><div class="card">ไม่มีไฟล์ที่เลือก</div></div>`;
+  }
+  const isUndo = r.source === 'undo';
+  const src = isUndo ? 'สำเนา' : 'ไฟล์';
+  const f = r.summary;
+  let curMoney = null;
+  const rawMoney = readMoneyRaw();
+  if (rawMoney) { try { curMoney = JSON.parse(rawMoney); } catch {} }
+  const cur = summarizeData({ users: state.users, logs: state.logs }, curMoney);
+  const list = s => s.profiles.length
+    ? s.profiles.map(p => `<li><b>${h(p.name)}</b> — อาหาร ${p.foodDays} วัน (${p.foodEntries} รายการ)${p.lastFoodDate ? ' · ล่าสุด ' + h(formatDateTH(p.lastFoodDate)) : ''} · น้ำหนัก ${p.weights} ครั้ง${s.hasMoney ? ' · เงิน ' + p.moneyTxns + ' รายการ · หนี้ ' + p.debts : ''}</li>`).join('')
+    : '<li>ไม่มีข้อมูล</li>';
+  const warnings = [];
+  if (f.foodEntries < cur.foodEntries) warnings.push(`ข้อมูลอาหารใน${src}น้อยกว่าในเครื่องนี้ (${f.foodEntries} กับ ${cur.foodEntries} รายการ)`);
+  const keepIds = new Set(f.profiles.map(p => p.id));
+  cur.profiles.filter(p => !keepIds.has(p.id)).forEach(p => warnings.push(`โปรไฟล์ "${p.name}" ในเครื่องนี้ไม่อยู่ใน${src} และจะหายไป`));
+  if (cur.hasMoney && !f.hasMoney) warnings.push(`ข้อมูลเงินในเครื่องนี้จะถูกลบ เพราะ${src}นี้ไม่มีข้อมูลเงิน`);
+  if (!f.profiles.length) warnings.push(`${src}นี้ไม่มีโปรไฟล์ — แอปจะกลับไปหน้าเริ่มต้นใช้งาน`);
+  let head;
+  if (isUndo) {
+    head = `เก็บไว้เมื่อ ${h(formatTsThai(r.meta.createdAt))}${r.meta.reason === 'pre-undo' ? ' (ก่อนการย้อนกลับ)' : ' (ก่อนการนำเข้า)'}`;
+  } else {
+    const kb = Math.max(1, Math.round((r.fileSize || 0) / 1024));
+    const made = r.meta.exportedAt ? formatTsThai(Date.parse(r.meta.exportedAt)) : '';
+    head = `${h(r.fileName || '')} · ${kb} KB<br>สร้างเมื่อ ${h(made || 'ไม่ทราบ')} · แอป ${h(r.meta.appVersion || '?')}${r.kind === 'legacy' ? ' · ไฟล์รูปแบบเดิม' : ''}`;
+  }
+  const busy = !!state.tmp.restoring;
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="restore-cancel" ${busy ? 'disabled' : ''}>←</button>
+        <h1>${isUndo ? '↩️ ย้อนข้อมูล' : '⬆️ นำเข้าข้อมูล'}</h1>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">${isUndo ? 'สำเนาที่จะย้อนกลับไป' : 'ไฟล์ที่เลือก'}</h3>
+        <div class="muted" style="font-size:13px;line-height:1.7">${head}</div>
+        <ul style="margin:8px 0 0;padding-left:20px;font-size:14px;line-height:1.7">${list(f)}</ul>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">ในเครื่องนี้ตอนนี้</h3>
+        <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.7">${list(cur)}</ul>
+      </div>
+      ${warnings.length ? `<div class="callout warn"><b>⚠️ ตรวจก่อนแทนที่</b><ul>${warnings.map(w => `<li>${h(w)}</li>`).join('')}</ul></div>` : ''}
+      <div class="callout">
+        <b>สิ่งที่จะเกิดขึ้น</b>
+        <ul>
+          <li>ข้อมูลทั้งหมดในเครื่องนี้ (ทุกโปรไฟล์) จะถูกแทนที่ด้วย${src}นี้</li>
+          <li>ระบบจะเก็บสำเนาข้อมูลตอนนี้ไว้ ย้อนกลับได้ภายใน 7 วัน ที่ ตั้งค่า → สำรอง / นำเข้า</li>
+          <li>รูปถ่ายความคืบหน้าไม่อยู่ในไฟล์สำรอง — รูปที่อยู่ในเครื่องนี้ยังอยู่ตามเดิม</li>
+          <li>ถ้าเปิด PraCaL ไว้หลายหน้าต่าง หน้าต่างอื่นจะโหลดใหม่เอง</li>
+        </ul>
+      </div>
+      ${state.tmp.restoreError ? `<div class="callout warn">${h(state.tmp.restoreError)}</div>` : ''}
+      <button class="btn danger block lg" data-act="restore-confirm" ${busy ? 'disabled' : ''}>${busy ? 'กำลังดำเนินการ…' : (isUndo ? 'ย้อนกลับเป็นข้อมูลชุดนี้' : 'แทนที่ข้อมูลในเครื่อง')}</button>
+      <button class="btn ghost block mt" data-act="restore-cancel" ${busy ? 'disabled' : ''}>ยกเลิก</button>
+    </div>`;
+}
+
+// ---------- ข้อความหลังโหลดหน้าใหม่ ----------
+const BACKUP_NOTICES = {
+  'restore-ok': { title: '✅ นำเข้าข้อมูลแล้ว', body: 'ย้อนกลับได้ภายใน 7 วัน ที่ ตั้งค่า → สำรอง / นำเข้า' },
+  'undo-ok': { title: '↩️ ย้อนกลับแล้ว', body: 'ข้อมูลกลับเป็นชุดก่อนหน้า · ถ้าเปลี่ยนใจ ย้อนอีกครั้งได้ที่ ตั้งค่า → สำรอง / นำเข้า' },
+  'restore-reverted': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'ข้อมูลในไฟล์ทำให้แอปเปิดไม่ได้ จึงคืนข้อมูลเดิมให้แล้ว — ไม่มีอะไรเปลี่ยน', error: true },
+  'restore-revert-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'คืนข้อมูลเดิมอัตโนมัติไม่ได้ — ไปที่ ตั้งค่า → นำเข้าจากไฟล์สำรอง แล้วเลือกไฟล์สำรองล่าสุดของคุณ', error: true },
+  'restore-write-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'บันทึกข้อมูลจากไฟล์ไม่ได้ (พื้นที่ในเครื่องอาจไม่พอ) — ข้อมูลเดิมยังอยู่ครบ ไม่มีอะไรเปลี่ยน', error: true },
+  'external-restore': { title: 'ℹ️ โหลดข้อมูลใหม่แล้ว', body: 'มีการนำเข้าข้อมูลจากหน้าต่าง PraCaL อื่น · ถ้าเพิ่งบันทึกอะไรในหน้าต่างนี้ กรุณาบันทึกอีกครั้ง' }
+};
+function showPendingBootNotice() {
+  let n = null;
+  try { const raw = sessionStorage.getItem(BOOT_NOTICE_KEY); if (raw) { sessionStorage.removeItem(BOOT_NOTICE_KEY); n = JSON.parse(raw); } } catch {}
+  if (!n || !BACKUP_NOTICES[n.kind]) return;
+  showBackupNotice(n.kind, n.detail);
+}
+function showBackupNotice(kind, detail) {
+  const def = BACKUP_NOTICES[kind];
+  if (!def || document.getElementById('backup-notice')) return;
+  const el = document.createElement('div');
+  el.id = 'backup-notice';
+  el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.25);padding:20px 22px;z-index:1500;max-width:340px;width:calc(100% - 32px);font-family:inherit;line-height:1.6;animation:fadeIn 220ms ease';
+  el.innerHTML = `
+    <div style="font-size:18px;font-weight:700;color:${def.error ? 'var(--red)' : 'var(--primary-dark)'};margin-bottom:8px">${h(def.title)}</div>
+    <div style="font-size:14px;color:var(--ink-2)">${h(def.body)}</div>
+    ${detail ? `<div class="muted" style="font-size:12px;margin-top:6px;word-break:break-word">${h(detail)}</div>` : ''}
+    <button class="btn block mt" type="button" data-act="dismiss-backup-notice" style="margin-top:14px">ตกลง</button>
+  `;
+  const bd = document.createElement('div');
+  bd.id = 'backup-notice-backdrop';
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1499;animation:fadeIn 220ms ease';
+  bd.addEventListener('click', dismissBackupNotice);
+  document.body.appendChild(bd);
+  document.body.appendChild(el);
+}
+function dismissBackupNotice() {
+  document.getElementById('backup-notice')?.remove();
+  document.getElementById('backup-notice-backdrop')?.remove();
+}
+
 /* ========== CSV EXPORT ========== */
 function csvEscape(v) {
   if (v == null) return '';
@@ -3661,6 +4199,10 @@ function renderOnbWelcome() {
         </p>
       </div>
       <button class="btn block lg mt2" data-act="onb-next">เริ่มกัน →</button>
+      <!-- v1.10.54 — T-026a: เครื่องใหม่กู้คืนได้ทันที ไม่ต้องสร้างโปรไฟล์หลอกก่อน -->
+      <button class="btn ghost block mt" data-act="import-data">⬆️ มีไฟล์สำรองอยู่แล้ว? นำเข้าข้อมูล</button>
+      <input id="backup-import-file" type="file" accept="application/json,.json" style="display:none">
+      ${state.tmp.importError ? `<div class="callout warn mt">${h(state.tmp.importError)}</div>` : ""}
       <div class="center mt muted" style="font-size:12px">เวอร์ชัน ${VERSION}</div>
       <div style="height:30px"></div>
     </div>
@@ -8211,11 +8753,7 @@ function renderSettings() {
         <div class="hint" style="font-size:12px;margin-top:8px">🔒 ข้อมูลของคุณ download ลงเครื่องตรง ไม่ถูกส่งออกไปที่ไหน</div>
       </div>
 
-      <div class="card">
-        <h3 style="margin-top:0">💾 สำรอง / ล้าง</h3>
-        <button class="btn secondary block" data-act="export-data">⬇️ ดาวน์โหลดสำรอง (JSON)</button>
-        <button class="btn ghost block mt" data-act="clear-today" style="color:var(--red)">🗑️ ล้างรายการวันนี้</button>
-      </div>
+      ${renderBackupCard()}
 
       <div class="card">
         <h3 style="margin-top:0">📊 เกี่ยวกับค่าแคลอรี่</h3>
@@ -8394,6 +8932,7 @@ function render() {
       case 'add-activity': html = renderAddActivity(); break;
       case 'users': html = renderUserSwitcher(); break;
       case 'settings': html = renderSettings(); break;
+      case 'restore-preview': html = renderRestorePreview(); break;   // v1.10.54 — T-026a
       case 'profile-edit': html = renderProfileEdit(); break;
       case 'reports': html = renderReports(); break;
       case 'weight-log': html = renderWeightLog(); break;
@@ -8736,7 +9275,7 @@ const actions = {
   },
   'nav-history': () => go('history'),
   'nav-users': () => go('users'),
-  'nav-settings': () => go('settings'),
+  'nav-settings': () => { go('settings'); loadBackupStatus(); },
   'nav-reports': () => go('reports'),
   'nav-weight': () => go('weight-log'),
   'nav-scan': () => go('scan', { error: '' }),
@@ -10588,21 +11127,53 @@ const actions = {
     render();
   },
 
+  // v1.10.54 — T-026a: ไฟล์สำรองรูปแบบ v2 (สุขภาพ + เงิน + ตัวระบุรูปแบบ) · ชื่อไฟล์เหมือนเดิม
   'export-data': () => {
-    const blob = new Blob([JSON.stringify({
-      version: VERSION, exportedAt: new Date().toISOString(),
-      users: state.users, currentUserId: state.currentUserId,
-      customMeals: state.customMeals, favorites: state.favorites,
-      logs: state.logs, dailyTargets: state.dailyTargets
-    }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(buildBackupObject(), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `pracal-backup-${todayKey()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    try { localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch {}
     toast('ดาวน์โหลดแล้ว');
+    // ขอให้เบราว์เซอร์เก็บแบบถาวรตอนที่ผู้ใช้เพิ่งกดเอง (บางเบราว์เซอร์ต้องมีการกด)
+    requestPersistentStorage().then(loadBackupStatus).catch(() => {});
+    if (state.view === 'settings') render();
   },
+  'import-data': () => { document.getElementById('backup-import-file')?.click(); },
+  'request-persist': async () => {
+    const ok = await requestPersistentStorage();
+    toast(ok ? 'ตั้งให้เก็บข้อมูลแบบถาวรแล้ว' : 'เบราว์เซอร์ยังไม่อนุญาตในตอนนี้', !ok);
+    loadBackupStatus();
+  },
+  'restore-cancel': () => { if (!state.tmp.restoring) back(); },
+  'restore-confirm': () => {
+    const r = state.tmp.restore;
+    if (!r || state.tmp.restoring) return;
+    performRestore({
+      healthRaw: r.healthRaw, moneyRaw: r.moneyRaw,
+      reason: r.source === 'undo' ? 'pre-undo' : 'pre-restore', label: r.fileName || ''
+    });
+  },
+  'restore-undo': async () => {
+    const meta = state.backupStatus && state.backupStatus.snapshot;
+    if (!meta) return;
+    let snap;
+    try { snap = await getSafetySnapshot(meta.id); } catch (e) { return toast('อ่านสำเนาไม่ได้', true); }
+    if (!snap) return toast('ไม่พบสำเนา (อาจหมดอายุแล้ว)', true);
+    let hs = null, money = null;
+    try {
+      hs = snap.health ? JSON.parse(snap.health) : null;
+      money = snap.money ? JSON.parse(snap.money) : null;
+    } catch { return toast('สำเนาเสียหาย อ่านไม่ได้', true); }
+    go('restore-preview', { restore: {
+      source: 'undo', meta: { createdAt: snap.createdAt, reason: snap.reason },
+      summary: summarizeData(hs, money), healthRaw: snap.health, moneyRaw: snap.money
+    } });
+  },
+  'dismiss-backup-notice': () => dismissBackupNotice(),
 
   'clear-today': () => {
     if (!confirm('ลบรายการอาหารของวันนี้ทั้งหมด?')) return;
@@ -10659,6 +11230,13 @@ document.addEventListener('click', (e) => {
 // Pattern: checkin-photo-{front|side|back}-{camera|gallery}
 document.addEventListener('change', (e) => {
   if (!e.target || !e.target.id) return;
+  // v1.10.54 — T-026a: ไฟล์สำรองที่เลือกเพื่อนำเข้า
+  if (e.target.id === 'backup-import-file') {
+    const file = e.target.files && e.target.files[0];
+    try { e.target.value = ''; } catch (err) {}
+    if (file) handleBackupFile(file);
+    return;
+  }
   const m = String(e.target.id).match(/^checkin-photo-(front|side|back)(?:-(camera|gallery))?$/);
   if (m) {
     const angle = m[1];
@@ -10925,8 +11503,26 @@ function initFromStorage() {
 }
 
 async function main() {
-  initFromStorage();
+  // v1.10.54 — T-026a: แท็บอื่นกู้คืนข้อมูล → แท็บนี้ถือข้อมูลเก่า ต้องโหลดใหม่ ห้ามเขียนทับ
+  window.addEventListener('storage', (e) => {
+    if (e.key === RESTORE_EPOCH_KEY && (e.newValue || '') !== _loadedRestoreEpoch) reloadAfterExternalRestore();
+  });
+  // v1.10.54 — T-026a: ถ้าเพิ่งกู้คืน ต้องพิสูจน์ว่าข้อมูลใช้ได้จริงก่อนยอมรับ ไม่งั้นคืนสำเนาเดิมอัตโนมัติ
+  const markerSeen = readRestoreMarker();
+  const restoreMarker = ownsRestoreMarker(markerSeen) ? markerSeen : null;   // แท็บอื่นเปิดตามปกติ ไม่ตรวจ ไม่คืน
+  let initError = null;
+  try { initFromStorage(); } catch (err) { initError = err; }
   await Promise.all([loadPreloadedMeals(), loadBrandedProducts()]);
+  if (restoreMarker) {
+    if (!initError) { try { smokeTestAllProfiles(); } catch (err) { initError = err; } }
+    if (initError) { await revertFailedRestore(restoreMarker, initError); return; }
+    clearRestoreMarker();
+    let pending = null;
+    try { pending = sessionStorage.getItem(BOOT_NOTICE_KEY); } catch {}
+    if (!pending) setBootNotice(restoreMarker.reason === 'pre-undo' ? 'undo-ok' : 'restore-ok', '');
+  } else if (initError) {
+    throw initError;   // เปิดแอปปกติ: คงพฤติกรรมเดิม
+  }
   state.ready = true;
   if (state.users.length === 0) {
     state.view = 'onboarding';
@@ -10936,11 +11532,15 @@ async function main() {
     state.tmp = {};
   }
   render();
+  // v1.10.54 — T-026a: ข้อความหลังกู้คืน/ย้อนกลับ + ล้างสำเนาที่เกิน 7 วัน
+  showPendingBootNotice();
+  pruneSafetySnapshots().catch(() => {});
 
   // v1.10.0 — show migration notice once if user has prior data
   try {
     const seen = localStorage.getItem('pracal_v1_10_notice_seen');
-    if (!seen && state.users.length > 0) {
+    // v1.10.54 — T-026a: ไม่ซ้อนกับข้อความหลังกู้คืน (จะแสดงในการเปิดครั้งถัดไป)
+    if (!seen && state.users.length > 0 && !document.getElementById('backup-notice')) {
       setTimeout(() => showV110Notice(), 1200);
     }
   } catch {}
