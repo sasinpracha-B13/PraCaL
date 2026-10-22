@@ -7,9 +7,9 @@
 
 ## Current Version / Current Build
 
-- **App version:** `v1.10.56` (set in two places — must be kept in sync):
-  - `index.html` — `const VERSION = 'v1.10.56';` (used at runtime, e.g., update banner / GET_VERSION message)
-  - `service-worker.js` — `const VERSION = 'v1.10.56';` (drives cache name `pracal-${VERSION}` and cache invalidation)
+- **App version:** `v1.10.57` (set in two places — must be kept in sync):
+  - `index.html` — `const VERSION = 'v1.10.57';` (used at runtime, e.g., update banner / GET_VERSION message)
+  - `service-worker.js` — `const VERSION = 'v1.10.57';` (drives cache name `pracal-${VERSION}` and cache invalidation)
 - **`meals.json` data version:** `1.10.20` (T-024b/c — `satFat_g` + `fiber_g` + `nutrientSource` on **all 408** entries, plus all 88 branded; 408 entries unchanged, no new meals). Previously `1.10.19` (T-024a — `alcohol_g` on `d22`) and `1.10.18` (T-021 — +2 entries r37/n41 · 406 → 408 · first add under DEC-003).
 
 > **A VERSION bump was required even though `index.html` was not touched by T-024b/c.** `meals.json` is in `CORE_ASSETS` and served cache-first from `pracal-${VERSION}`; without a new VERSION, installed PWAs would keep serving the old data file forever. Any future data-only change carries the same obligation.
@@ -31,7 +31,7 @@
 - **localStorage draft key:** `pracal_checkin_draft_<userId>` — T-013b/b.1 schema unchanged. T-013c + T-013d added no new localStorage keys.
 - **Bumping policy:** every shipped change that touches `index.html` or `service-worker.js` must bump both. Bumping only one ships stale UI to existing PWA installs.
 - **Repo:** https://github.com/sasinpracha-B13/PraCaL · `main` is the deploy branch (Netlify auto-deploy).
-- **Working tree:** clean after the T-026c commit.
+- **Working tree:** clean after the T-026d commit.
 
 > Note: the existing `README.md` still says `v1.0.0` — that line is stale and is **not** the source of truth for version. Treat the two `VERSION` constants as canonical.
 
@@ -101,7 +101,7 @@
 
 ## Current Active Task
 
-**T-026d — money UI for advances, refunds, debts, installments — `in_progress`.**
+**T-026 — money tab — development complete (v1.10.57).** T-026d `done` ✅: advances, refunds, write-offs, pay-backs, debts and installment purchases through the UI; every linked record editable in place (same id, one commit, order-checked, conflicts named, nothing changed silently); "close debt" only at a real zero balance or with a recorded reason. Acceptance checklist: spec §14.2. **Not yet tried by the user on a real phone.** Deferred: money CSV (L10), archiving closed debts.
 
 **T-026c — money UI — `done` ✅ (v1.10.56).** Spec §13. Money tab, summary, entry form, categories/contexts, hide amounts, 5-tab nav that fits 320 px, other-tab refresh. Adds a durable **import journal**: an interrupted import (tab closed/reloaded mid-write) is detected at boot and the pre-import set restored before anything can write; if that fails the app shows a recovery screen instead of opening. IndexedDB opens time out with "close other PraCaL tabs" instead of spinning.
 
@@ -173,6 +173,7 @@ Recent shipped commits, newest first (from `git log`):
 
 | Version | Summary |
 |---|---|
+| v1.10.57 | T-026d — Advances, refunds, write-offs, pay-backs, debts and installment purchases in the UI; linked records editable in place; close debt only at zero or with a reason. |
 | v1.10.56 | T-026c — Money UI (tab, summary, entry, categories, hide amounts, 320 px nav) + durable import journal with boot recovery + blocked-DB message. Real tab close/reload tests at every write point. |
 | v1.10.55 | T-026b — Money engine (no UI): IndexedDB store with one-transaction commits (DEC-005), all money calculations and rules, backup/restore carries money with verified rollback, profile deletion removes that profile's money and fails safe. 189 real-function checks + real two-tab tests. |
 | v1.10.54 | T-026a — Backup v2 + real restore (validate · preview · safety snapshot · rollback · post-restore smoke test + auto-revert · undo 7 days · cross-tab `persist()` guard · import from onboarding). Legacy v1.0.0 and v1.10.53 exports restore exactly. |
@@ -235,6 +236,7 @@ Themes of the v1.10.x series: macro/calorie correctness (v1.10.0, v1.10.7, v1.10
 - **Absent ≠ zero on optional nutrients (T-024a / DEC-004)** — `satFat_g`, `fiber_g`, `alcohol_g` must be read with `!= null`. Writing `m.fiber_g || 0` turns "we never measured this" into "this food has no fiber", which is the exact way this feature can mislead. The one legitimate `|| 0` is the calorie reconciliation in `audit-meals.js`, where a missing `alcohol_g` genuinely contributes no calories — and it is commented as such. `tools/audit-meals.js` fails any entry whose `satFat_g > fat_g`, `fiber_g > carbs_g`, or which carries a nutrient without a valid `nutrientSource`.
 - **CSV export reconciliation (T-023)** — `buildCSV`'s item rows must satisfy **Σ(item rows) === `สรุปวัน`** for every day. The parent row is base-only precisely so this holds; re-folding add-ons into it (or dropping the subtraction) silently re-introduces the double-count, which is invisible in the app and only shows up in downstream analysis. Guarded by `tools/audit-csv-addon-rows.js` — run it on a fresh export after any `buildCSV`, `ADDONS`, or `calcEntryTotals` change.
 - **Money writes (T-026b)** — money lives in IndexedDB `PraCaLMoney` and is written only through `moneyCommit()`: read → stamp check (another tab saved first = `stale`) → mutate → `moneyValidateUser` on every profile → put, all inside **one readwrite transaction**, reported only after `oncomplete`. Never move this back to localStorage read-then-write (DEC-005: lost 300/300 in a real two-tab test). Balances (debt, receivable, payable) are never stored. "My cost" lines are dated by their own event, so a new event never changes a closed period. Export must read money first and refuse to export if it cannot. Restore writes money then health and verifies rollback of both. Run `node tools/test-money-engine.js index.html` after any change to the money block.
+- **Closing a debt (T-026d)** — `moneyCloseDebt` only closes at a confirmed zero balance, or with a non-empty reason that is stored on the `close` anchor (`waived` + `note`); validation rejects a waived close without a reason. Never let a debt balance disappear through a status change alone.
 - **Import journal (T-026c, v1.10.56)** — `performRestore` must write the safety snapshot and the journal (`pracal_restore_marker`, `phase: writing`) **before** changing any data, hold the Web Lock `pracal-restore` while writing, and `handleRestoreJournalAtBoot()` must stay the first thing `main()` does, **before `initFromStorage()`** (which can write via `migrateData`). Never prune the snapshot named by an open journal.
 - **Restore safety (T-026a)** — every write to `pracal_v1` goes through `persist()`, whose first line refuses to write after a restore from another tab (`pracal_restore_epoch`). A new direct `setItem(STORAGE_KEY…)` would bypass it and let a stale tab overwrite restored data. Restore never touches `PraCaLBodyProgress`.
 - **`localStorage` keys** — user data lives client-side; key/shape changes break existing installs without a migration.

@@ -3,7 +3,7 @@
 > **Live state of every task, governed by a state machine.**
 > Update on every transition. The Orchestrator owns the file; the Execution Agent updates its own task's status during a flow.
 
-Last updated: **T-026c → `done` ✅** (money UI + interrupted-import journal · v1.10.56 · user-approved 2026-10-22 after blocking items closed) · **T-026d → `in_progress`** (advances, refunds, debts UI) · T-026b `done` ✅ · T-026a `done` ✅
+Last updated: **T-026d → `done` ✅** (v1.10.57 · user-approved 2026-10-22) · **T-026 development complete** — awaiting the user's own real-phone trial (not yet done) · T-026a/b/c `done` ✅
 
 ---
 
@@ -1170,7 +1170,7 @@ User decision: split into 4 gated sub-tasks instead of single 1,300-line commit.
 
 ### T-026 — แท็บเงิน: บันทึกรายรับรายจ่าย
 
-- **Status:** T-026a `done` ✅ (v1.10.54 · spec §11) · **T-026b `done` ✅** (v1.10.55 · spec §12 — user approved review → done + commit/push after checks A backup/restore with money · B real two-tab · C profile deletion · D spec/test review) · **T-026c `done` ✅** (v1.10.56 · spec §13, §13.1). **T-026d `in_progress`** — advances, refunds, debts, installments UI per spec §4/§7, general entry stays simple.
+- **Status:** T-026a `done` ✅ (v1.10.54 · spec §11) · **T-026b `done` ✅** (v1.10.55 · spec §12 — user approved review → done + commit/push after checks A backup/restore with money · B real two-tab · C profile deletion · D spec/test review) · **T-026c `done` ✅** (v1.10.56 · spec §13, §13.1). **T-026d `done` ✅** (v1.10.57 · spec §14, §14.1). All four sub-tasks done; acceptance checklist in spec §14.2 (money CSV deferred to Later L10). **Developed and tested — not yet tried by the user on a real phone.**
 - **Owner:** Orchestrator (PM + UX + Eng spec) → DEV Integration on approval
 - **Spec:** [`docs/specs/T-026-money-tracking.md`](docs/specs/T-026-money-tracking.md) — status: T-026a approved · money part draft 2 (awaiting §10 review)
 - **Goal:** fast mobile entry of income/expense with numbers whose meaning is correct — cash in/out per period, spending by category and by "เกี่ยวกับใคร" context, advances and reimbursements that never count as income nor inflate "my cost", and debt tracking (0% and interest-bearing, existing and new installment purchases) where the opening balance and full purchase price are never cash out, "my cost" is payment-basis and event-dated, and an unknown principal split makes the balance "ยังไม่ยืนยันยอดหลังการชำระ" rather than a guessed number.

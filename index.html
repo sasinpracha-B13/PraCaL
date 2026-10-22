@@ -265,6 +265,9 @@
   .mtable .mth span:first-child, .mtable .mtr span:first-child { text-align: left; overflow-wrap: anywhere; }
   .mtable .mtr { cursor: pointer; }
   .mtable .mtr.on { background: var(--primary-soft); }
+  .mpick { cursor: pointer; border: 2px solid transparent; }
+  .mpick.on { border-color: var(--primary); }
+  .stat-row[data-act] { cursor: pointer; }
   /* แถบล่าง 5 แท็บบนจอ ≤ 340px (เช่น 320px): ป้ายไม่ตัดกลางคำ แถบไม่สูงขึ้น */
   @media (max-width: 340px) { .botnav button { padding: 4px 2px; min-width: 56px; } .botnav button span:last-child { white-space: nowrap; } }
 
@@ -739,7 +742,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.56';
+const VERSION = 'v1.10.57';
 const STORAGE_KEY = 'pracal_v1';
 // v1.10.54 — T-026a: สำรอง v2 + กู้คืน · key ต่อไปนี้อยู่นอก pracal_v1 โดยตั้งใจ — เป็นสถานะของเครื่อง/แท็บ
 // ไม่ใช่ข้อมูลผู้ใช้ จึงต้องไม่ถูกการกู้คืนเขียนทับ
@@ -4480,6 +4483,7 @@ function moneyValidateUser(mu) {
       if (!DEBT_ANCHOR_TYPES.includes(a.type) || !isRealDateKey(a.date) || !isSatang(a.balance)) return `ยอดอ้างอิงของหนี้ "${d.name}" ผิดรูปแบบ`;
       if (a.date < moneyDebtStart(d).date) return `ยอดอ้างอิงของหนี้ "${d.name}" ต้องไม่ก่อนวันเริ่มติดตาม`;
       if (a.type === 'close' && a.balance !== 0) return `ยอดปิดหนี้ "${d.name}" ต้องเป็น 0`;
+      if (a.type === 'close' && a.waived > 0 && !String(a.note || '').trim()) return `ปิดหนี้ "${d.name}" ที่ยังเหลือยอด ต้องมีเหตุผล`;
     }
     if (d.type === 'installment' && (!catOk(d.categoryId, 'expense') || !ctxs.has(d.contextId))) return `หนี้ผ่อนสินค้า "${d.name}" ต้องมีหมวดและบริบทของสินค้า`;
   }
@@ -4544,12 +4548,13 @@ function moneyValidateUser(mu) {
     if (L.refundMine > e.myShare + L.writtenOff) return `${at}: ส่วนของฉันคืนได้สูงสุด ${formatMoney(e.myShare + L.writtenOff)}`;
     for (const ev of (idx.get(e.id) || [])) {
       const pos = moneyPosition(idx, e, ev.date);
-      if (ev.kind === 'writeOff' && pos < 0) return `${at}: "ไม่ต้องคืนแล้ว" เกินยอดค้างรับ`;
-      if (ev.kind === 'payOut' && pos > 0) return `${at}: ต้องคืนรายการนี้ ${formatMoney(Math.max(0, ev.amount - pos))}`;
+      // ข้อความระบุรายการที่ติด + วิธีแก้ — ห้ามลบ/ปรับรายการอื่นให้เอง
+      if (ev.kind === 'writeOff' && pos < 0) return `${at}: "ไม่ต้องคืนแล้ว" วันที่ ${formatDateTH(ev.date)} เกินยอดค้างรับ ณ วันนั้น — ลดจำนวน หรือแก้รายการเงินคืนของรายการนี้ก่อน`;
+      if (ev.kind === 'payOut' && pos > 0) return `${at}: คืนเงินให้คนอื่นวันที่ ${formatDateTH(ev.date)} — ต้องคืนรายการนี้ ${formatMoney(Math.max(0, ev.amount - pos))} ณ วันนั้น · ลดจำนวน หรือลงวันที่หลังวันที่ร้านคืน/คนอื่นคืน`;
       // ร้านคืนส่วนของฉันได้ไม่เกินค่าใช้จ่ายสุทธิที่ยังเหลือ ณ วันที่คืน (ส่วนของฉัน + ที่ยกให้แล้ว − ร้านคืนก่อนหน้า)
       if (ev.kind === 'refund') {
         const Lt = moneyLinkTotals(idx, e.id, ev.date);
-        if (Lt.refundMine > e.myShare + Lt.writtenOff) return `${at}: ส่วนของฉันคืนได้สูงสุด ${formatMoney(e.myShare + Lt.writtenOff - (Lt.refundMine - ev.mine))} ณ วันที่คืน`;
+        if (Lt.refundMine > e.myShare + Lt.writtenOff) return `${at}: ร้านคืนวันที่ ${formatDateTH(ev.date)}: ส่วนของฉันคืนได้สูงสุด ${formatMoney(e.myShare + Lt.writtenOff - (Lt.refundMine - ev.mine))} ณ วันที่คืน — ถ้าจะรวมส่วนที่ยกให้ ให้ลงวันที่ตั้งแต่วัน "ไม่ต้องคืนแล้ว"`;
       }
     }
   }
@@ -4650,15 +4655,18 @@ function moneyAddDebtAnchor(mu, debtId, a, today) {
   if (d.anchors.some(x => x.id === a.id)) return;
   d.anchors.push({ id: a.id, type: a.type, date: a.date, balance: a.balance, note: a.note || '' });
 }
-// ปิดหนี้ — ต้องยืนยันยอดก่อน · ส่วนที่เหลือ = ส่วนลด (ไม่ใช่เงินสด ไม่ใช่ค่าใช้จ่าย)
-function moneyCloseDebt(mu, debtId, date, today) {
+// ปิดหนี้ — ต้องยืนยันยอดก่อน · ยอดเหลือ 0 (จ่ายครบ) ปิดได้เลย · ยังเหลือยอด → ต้องมีเหตุผล (เช่นส่วนลดปิดก่อนกำหนด)
+// ยอดที่ปรับเป็น 0 เก็บเป็น waived + เหตุผลในประวัติ — ไม่ใช่เงินสด ไม่ใช่ค่าใช้จ่าย · ห้ามทำให้ยอดหายโดยไม่มีรายการอธิบาย
+function moneyCloseDebt(mu, debtId, date, today, reason) {
   const d = mu.debts.find(x => x.id === debtId);
   if (!d) throw new Error('ไม่พบหนี้');
   if (date > today) throw new Error('วันที่ต้องไม่อยู่ในอนาคต');
   const b = moneyDebtBalanceAt(mu, d, date);
   if (!b) throw new Error('วันที่ปิดต้องไม่ก่อนวันเริ่มติดตาม');
   if (!b.confirmed) throw new Error('ยืนยันยอดก่อนปิดหนี้ — แยกเงินต้นของงวดที่จ่าย หรืออัปเดตยอดจากใบแจ้ง');
-  d.anchors.push({ id: debtId + '_close', type: 'close', date, balance: 0, waived: b.balance });
+  const why = String(reason || '').trim();
+  if (b.balance > 0 && !why) throw new Error(`ยังเหลือยอด ${formatMoney(b.balance)} ณ ${formatDateTH(date)} — บันทึกการจ่ายยอดที่เหลือก่อน หรือใส่เหตุผลที่ปรับยอดเป็น 0`);
+  d.anchors.push({ id: debtId + '_close', type: 'close', date, balance: 0, waived: b.balance, note: b.balance > 0 ? why : '' });
   d.status = 'closed';
   return b.balance;
 }
@@ -4838,7 +4846,7 @@ function moneyPutUserData(uid, mu) {
 // - บันทึกไม่สำเร็จ: ฟอร์มไม่ถูกล้าง ข้อความอยู่ในฟอร์มจนกว่าจะบันทึกสำเร็จหรือแก้
 
 const MONEY_PERIOD_KEY = 'pracal_money_period_';      // + userId · ช่วงที่เลือกล่าสุด (การตั้งค่าการแสดงผลของเครื่องนี้ ไม่ใช่ข้อมูลเงิน)
-const MONEY_VIEWS = ['money', 'money-summary', 'money-form', 'money-cats'];
+const MONEY_VIEWS = ['money', 'money-summary', 'money-form', 'money-cats', 'money-debts', 'money-debt', 'money-debt-form', 'money-others', 'money-back', 'money-refund', 'money-writeoff', 'money-payout', 'money-txn'];
 const MONEY_PERIODS = [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['lastMonth', 'เดือนก่อน'], ['custom', 'กำหนดเอง']];
 const MONEY_DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 let _moneyLoadError = '';
@@ -4865,7 +4873,7 @@ async function moneyBoot() {
     // อีกแท็บบันทึกเงิน → โหลดใหม่และวาดหน้าเงินใหม่ (ความถูกต้องไม่ขึ้นกับข้อนี้ — แท็บเก่าถูกปฏิเสธตอนบันทึกอยู่แล้ว)
     _moneyChannel.onmessage = async () => {
       await moneyLoad();
-      if (['money', 'money-summary', 'money-cats', 'settings'].includes(state.view)) render();
+      if (['money', 'money-summary', 'money-cats', 'money-debts', 'money-debt', 'money-others', 'settings'].includes(state.view)) render();
     };
   } catch {}
   render();
@@ -4924,12 +4932,12 @@ function renderMoneyAsOf(mu, range) {
   const lines = [];
   if (moneyHasDebts(mu) && dt.confirmedCount + dt.unconfirmedCount > 0) {
     lines.push(dt.unconfirmedCount
-      ? `<div class="stat-row"><span>หนี้ · ยืนยันแล้ว ${dt.confirmedCount} หนี้</span><b>${mfm(dt.confirmedTotal)}</b></div>
+      ? `<div class="stat-row" data-act="money-debts" role="button" tabindex="0"><span>หนี้ · ยืนยันแล้ว ${dt.confirmedCount} หนี้ ›</span><b>${mfm(dt.confirmedTotal)}</b></div>
          <div class="hint" style="margin:-2px 0 6px">ยังไม่ยืนยันยอดหลังการชำระ ${dt.unconfirmedCount} หนี้ — ไม่รวมในยอดนี้</div>`
-      : `<div class="stat-row"><span>หนี้รวม</span><b>${mfm(dt.total)}</b></div>`);
+      : `<div class="stat-row" data-act="money-debts" role="button" tabindex="0"><span>หนี้รวม ›</span><b>${mfm(dt.total)}</b></div>`);
   }
-  if (moneyHasSharing(mu)) lines.push(`<div class="stat-row"><span>ค้างรับ (คนอื่นต้องคืนฉัน)</span><b>${mfm(ot.receivable)}</b></div>`);
-  if (ot.payable) lines.push(`<div class="stat-row"><span>ต้องคืนคนอื่น</span><b>${mfm(ot.payable)}</b></div>`);
+  if (moneyHasSharing(mu)) lines.push(`<div class="stat-row" data-act="money-others" role="button" tabindex="0"><span>ค้างรับ (คนอื่นต้องคืนฉัน) ›</span><b>${mfm(ot.receivable)}</b></div>`);
+  if (ot.payable) lines.push(`<div class="stat-row" data-act="money-others" role="button" tabindex="0"><span>ต้องคืนคนอื่น ›</span><b>${mfm(ot.payable)}</b></div>`);
   if (!lines.length) return '';
   return `
       <div class="card">
@@ -4959,7 +4967,7 @@ function moneyTxnRow(mu, t) {
     icon = '🤝'; title = 'ไม่ต้องคืนแล้ว · ' + moneyCatName(mu, t.categoryId); sign = 'ไม่ใช่เงินสด'; color = 'var(--muted)';
   } else return '';
   return `
-        <div class="mrow" ${editable ? `data-act="money-edit" data-id="${h(t.id)}" role="button" tabindex="0"` : ''}>
+        <div class="mrow" data-act="money-edit" data-id="${h(t.id)}" role="button" tabindex="0">
           <span class="mi">${icon}</span>
           <div style="flex:1;min-width:0">
             <div class="mt1">${h(title)}</div>
@@ -5001,6 +5009,7 @@ function renderMoney() {
       <div class="header">
         <h1 style="flex:1">💰 เงิน</h1>
         <button class="icon-btn ghost" data-act="money-toggle-hide" title="${hidden ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}" aria-label="${hidden ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}">${hidden ? '🙈' : '👁'}</button>
+        <button class="icon-btn ghost" data-act="money-debts" title="หนี้" aria-label="หนี้">🏦</button>
         <button class="icon-btn ghost" data-act="money-cats" title="หมวดและบริบท" aria-label="หมวดและบริบท">🏷️</button>
       </div>
       ${renderMoneyPeriodPicker()}
@@ -5121,12 +5130,31 @@ function moneyNewForm(prev) {
   return {
     id: uid('mt'), kind: prev ? prev.kind : 'expense', amountText: '', categoryId: null,
     contextId: prev ? prev.contextId : MONEY_SELF_CTX, date: prev ? prev.date : todayKey(), note: '',
-    editing: false, batchCount: prev ? prev.batchCount : 0, error: '', saving: false
+    editing: false, batchCount: prev ? prev.batchCount : 0, error: '', saving: false,
+    debtNewId: uid('md'), instFree: true   // v1.10.57 — T-026d: id ของหนี้ถ้าเลือก "ซื้อแบบผ่อน" (กดซ้ำได้หนี้เดียว)
   };
+}
+// เลือกหนี้ในฟอร์มจ่ายหนี้: เติมยอดงวด · หนี้ 0% เติมเงินต้น = ยอดจ่าย − ค่าธรรมเนียม ให้เห็นและแก้ได้ (C4)
+function moneyFormPickDebt(f, debtId) {
+  const d = moneyMU().debts.find(x => x.id === debtId);
+  if (!d) return;
+  f.debtId = d.id;
+  if (!(f.amountText || '').trim() && d.installment) f.amountText = moneyAmountText(d.installment);
+  f.principalTouched = false;
+  f.splitOpen = false;
+  f.principalText = d.interestFree ? f.amountText : '';
+  f.interestText = ''; f.feeText = '';
+}
+function moneyDebtPatch(fx, d) {
+  const type = fx.newType || d.type;
+  const patch = { type };
+  if (type === 'installment') { patch.categoryId = fx.newCat || d.categoryId || null; patch.contextId = d.contextId || MONEY_SELF_CTX; }
+  return patch;
 }
 function moneyRecentCombos(mu, kind) {
   const seen = new Set(), out = [];
-  const list = mu.txns.filter(t => t.kind === kind).sort((a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1));
+  const list = mu.txns.filter(t => t.kind === kind && !t.debtId).sort(   // ไม่เสนอเงินดาวน์ (ผูกกับหนี้) — กดซ้ำจะได้รายจ่ายที่ดูเหมือนดาวน์ซ้ำ
+(a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1));
   for (const t of list) {
     const key = [t.categoryId, t.contextId || '', t.amount, t.note || ''].join('|');
     if (seen.has(key)) continue;
@@ -5139,11 +5167,76 @@ function renderMoneyForm() {
   const mu = moneyMU();
   const f = state.tmp.mf;
   if (!mu || !f) return renderMoneyEnable();
-  const isExp = f.kind === 'expense';
-  const cats = mu.categories.filter(c => c.kind === f.kind && (!c.archived || c.id === f.categoryId)).sort((a, b) => a.order - b.order);
+  const isExp = f.kind === 'expense', isInc = f.kind === 'income', isPay = f.kind === 'debtPayment';
+  const activeDebts = mu.debts.filter(d => d.status === 'active');
+  const cats = mu.categories.filter(c => c.kind === (isInc ? 'income' : 'expense') && (!c.archived || c.id === f.categoryId)).sort((a, b) => a.order - b.order);
   const ctxs = mu.contexts.filter(c => !c.archived || c.id === f.contextId).sort((a, b) => a.order - b.order);
-  const recent = f.editing ? [] : moneyRecentCombos(mu, f.kind);
+  const recent = f.editing || isPay ? [] : moneyRecentCombos(mu, f.kind);
   const today = todayKey(), yesterday = moneyAddDays(today, -1);
+  const debt = isPay ? mu.debts.find(d => d.id === f.debtId) : null;
+  const amount = parseMoneyInput(f.amountText);
+  const showKindSeg = !f.editing;
+  // ---- ส่วนเสริมของรายจ่าย (เปิดเมื่อเลือกใช้เท่านั้น) ----
+  let extras = '';
+  if (isExp && !f.instOpen) {
+    const mine = parseMoneyInput(f.myShareText);
+    extras += f.shareOpen ? `
+      <div class="card tight" style="padding:12px">
+        <div class="row between"><b>จ่ายแทนคนอื่นด้วย</b><button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="shareOpen">ปิด</button></div>
+        <label for="mf-myshare" style="margin-top:6px">ส่วนของฉัน (บาท)</label>
+        <input id="mf-myshare" data-mf="myShareText" class="input" inputmode="decimal" autocomplete="off" value="${h(f.myShareText || '')}">
+        <div class="mchips" style="margin-top:8px">${[2, 3, 4].map(n => `<button type="button" class="mchip" data-act="mf-split" data-n="${n}">${n === 2 ? 'ครึ่ง' : '÷' + n}</button>`).join('')}</div>
+        <div class="hint">${amount && mine != null && mine <= amount ? `คนอื่นต้องคืน ${mfm(amount - mine)} — นับเป็นค้างรับ ไม่ใช่ค่าใช้จ่ายของฉัน` : 'ส่วนของฉันต้องไม่เกินยอดที่จ่าย'}</div>
+        <label for="mf-owedby" style="margin-top:8px">ใครต้องคืน (ไม่บังคับ)</label>
+        <input id="mf-owedby" data-mf="owedBy" class="input" maxlength="40" value="${h(f.owedBy || '')}" placeholder="เช่น เพื่อน ๆ ที่ทำงาน">
+      </div>` : `<button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="shareOpen">▸ จ่ายแทนคนอื่นด้วย</button>`;
+  }
+  if (isExp && !f.editing && !f.shareOpen) {
+    const price = parseMoneyInput(f.priceText), down = parseMoneyInput(f.downText || '0');
+    extras += f.instOpen ? `
+      <div class="card tight" style="padding:12px">
+        <div class="row between"><b>ซื้อแบบผ่อน</b><button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="instOpen">ปิด</button></div>
+        <div class="row-2" style="margin-top:6px">
+          <div><label for="mf-price">ราคาเต็ม</label><input id="mf-price" data-mf="priceText" class="input" inputmode="decimal" value="${h(f.priceText || '')}"></div>
+          <div><label for="mf-down">เงินดาวน์วันนี้</label><input id="mf-down" data-mf="downText" class="input" inputmode="decimal" value="${h(f.downText || '')}" placeholder="0"></div>
+        </div>
+        <label for="mf-instname" style="margin-top:8px">ชื่อหนี้</label>
+        <input id="mf-instname" data-mf="instName" class="input" maxlength="40" value="${h(f.instName || '')}" placeholder="เช่น ทีวี">
+        <div class="row-2" style="margin-top:8px">
+          <div><label for="mf-instamt">งวดละ (ไม่บังคับ)</label><input id="mf-instamt" data-mf="instAmtText" class="input" inputmode="decimal" value="${h(f.instAmtText || '')}"></div>
+          <div><label>ดอกเบี้ย</label><button type="button" class="mchip ${f.instFree ? 'on' : ''}" data-act="mf-toggle" data-k="instFree">${f.instFree ? '0% ✓' : 'มีดอกเบี้ย'}</button></div>
+        </div>
+        <div class="hint">${price && down != null && down < price ? `เงินออกวันนี้ ${mfm(down)} (เงินดาวน์) · หนี้ใหม่ ${mfm(price - down)} · งวดที่จ่ายภายหลังนับในหมวดนี้ตามที่จ่ายจริง ไม่นับราคาเต็ม` : 'เงินดาวน์ต้องน้อยกว่าราคาเต็ม'}</div>
+      </div>` : ` <button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="instOpen">▸ ซื้อแบบผ่อน</button>`;
+  }
+  // ---- ฟอร์มจ่ายหนี้ ----
+  let payFields = '';
+  if (isPay) {
+    const bal = debt ? moneyDebtBalanceAt(mu, debt, f.date) : null;
+    payFields = `
+      <div class="field">
+        <label>จ่ายหนี้ก้อนไหน</label>
+        <div class="mchips">${(f.editing ? mu.debts.filter(d => d.id === f.debtId) : activeDebts).map(d => `<button type="button" class="mchip ${f.debtId === d.id ? 'on' : ''}" data-act="mf-debt" data-id="${h(d.id)}">${h(d.name)}</button>`).join('')}</div>
+        ${bal ? `<div class="hint">${bal.confirmed ? `คงเหลือ ณ วันที่จ่าย ${mfm(bal.balance)} (ยืนยันแล้ว)` : `ยอดยังไม่ยืนยัน — ยอดยืนยันล่าสุด ${mfm(bal.lastConfirmed)} ณ ${formatDateTH(bal.lastConfirmedDate)}`}</div>` : ''}
+      </div>
+      ${debt ? (debt.interestFree ? `
+      <div class="row-2">
+        <div><label for="mf-principal">เงินต้น</label><input id="mf-principal" data-mf="principalText" class="input" inputmode="decimal" value="${h(f.principalText || '')}"></div>
+        <div><label for="mf-fee">ค่าธรรมเนียม</label><input id="mf-fee" data-mf="feeText" class="input" inputmode="decimal" value="${h(f.feeText || '')}" placeholder="0"></div>
+      </div>
+      <div class="hint">หนี้ 0% — เงินต้นเติมให้เท่ายอดจ่ายลบค่าธรรมเนียม แก้ได้ · ลบช่องเงินต้นให้ว่าง = ยังไม่ทราบสัดส่วน</div>` : f.splitOpen ? `
+      <div class="card tight" style="padding:12px">
+        <div class="row between"><b>แยกยอดที่จ่าย</b><button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="splitOpen">ไม่แยก</button></div>
+        <div class="row-2" style="margin-top:6px">
+          <div><label for="mf-principal">เงินต้น</label><input id="mf-principal" data-mf="principalText" class="input" inputmode="decimal" value="${h(f.principalText || '')}"></div>
+          <div><label for="mf-interest">ดอกเบี้ย</label><input id="mf-interest" data-mf="interestText" class="input" inputmode="decimal" value="${h(f.interestText || '')}" placeholder="0"></div>
+        </div>
+        <label for="mf-fee" style="margin-top:8px">ค่าธรรมเนียม</label><input id="mf-fee" data-mf="feeText" class="input" inputmode="decimal" value="${h(f.feeText || '')}" placeholder="0">
+        <div class="hint">เงินต้น + ดอกเบี้ย + ค่าธรรมเนียม ต้องเท่ายอดจ่าย</div>
+      </div>` : `
+      <button type="button" class="btn ghost sm" data-act="mf-toggle" data-k="splitOpen">▸ แยกเงินต้น / ดอกเบี้ย / ค่าธรรมเนียม</button>
+      <div class="hint">ยังไม่แยก = บันทึกเงินออกเต็มจำนวน แต่ยอดหนี้จะ "ยังไม่ยืนยัน" จนกว่าจะแยกหรืออัปเดตจากใบแจ้ง</div>`) : ''}`;
+  }
   return `
     <div class="screen">
       <div class="header">
@@ -5151,30 +5244,36 @@ function renderMoneyForm() {
         <h1>${f.editing ? 'แก้ไขรายการ' : 'บันทึกเงิน'}</h1>
       </div>
       ${f.batchCount && !f.editing ? `<div class="callout info">บันทึกแล้ว · ${f.batchCount} รายการในชุดนี้</div>` : ''}
+      ${showKindSeg ? `
       <div class="seg" style="margin-bottom:12px">
-        <button type="button" class="${isExp ? 'on' : ''}" data-act="mf-kind" data-k="expense" ${f.editing ? 'disabled' : ''}>รายจ่าย</button>
-        <button type="button" class="${!isExp ? 'on' : ''}" data-act="mf-kind" data-k="income" ${f.editing ? 'disabled' : ''}>รายรับ</button>
-      </div>
+        <button type="button" class="${isExp ? 'on' : ''}" data-act="mf-kind" data-k="expense">รายจ่าย</button>
+        <button type="button" class="${isInc ? 'on' : ''}" data-act="mf-kind" data-k="income">รายรับ</button>
+        ${activeDebts.length ? `<button type="button" class="${isPay ? 'on' : ''}" data-act="mf-kind" data-k="debtPayment">จ่ายหนี้</button>` : ''}
+      </div>` : ''}
+      ${isExp && f.instOpen ? '' : `
       <div class="field">
-        <label for="mf-amount">จำนวนเงิน (บาท)</label>
+        <label for="mf-amount">${isPay ? 'ยอดที่จ่าย (บาท)' : 'จำนวนเงิน (บาท)'}</label>
         <input id="mf-amount" class="input mamount" inputmode="decimal" autocomplete="off" placeholder="0" value="${h(f.amountText)}">
-        ${isExp ? `<div class="hint">บันทึกเงินที่จ่ายจริงแล้ว</div>` : `<div class="hint">รายได้เท่านั้น · เงินที่คนอื่นหรือร้านคืนไม่ใช่รายได้</div>`}
-      </div>
+        ${isExp ? `<div class="hint">บันทึกเงินที่จ่ายจริงแล้ว</div>` : isInc ? `<div class="hint">รายได้เท่านั้น · เงินที่คนอื่นหรือร้านคืนไม่ใช่รายได้</div>` : ''}
+      </div>`}
       ${recent.length ? `
       <div class="field">
         <label>ล่าสุด · แตะเพื่อเติม</label>
         <div class="mchips">${recent.map((t, i) => `<button type="button" class="mchip" data-act="mf-recent" data-i="${i}">${h(t.note || moneyCatName(mu, t.categoryId))} ${mfm(t.amount)}</button>`).join('')}</div>
       </div>` : ''}
+      ${payFields}
+      ${isPay ? '' : `
       <div class="field">
-        <label>หมวด · ซื้ออะไร / ได้จากอะไร</label>
+        <label>หมวด · ${isInc ? 'ได้จากอะไร' : 'ซื้ออะไร'}</label>
         <div class="mchips">${cats.map(c => `<button type="button" class="mchip ${f.categoryId === c.id ? 'on' : ''}" data-act="mf-cat" data-id="${h(c.id)}">${h(c.name)}</button>`).join('')}</div>
-      </div>
+      </div>`}
       ${isExp ? `
       <div class="field">
         <label>เกี่ยวกับใคร</label>
         <div class="mchips">${ctxs.map(c => `<button type="button" class="mchip ${f.contextId === c.id ? 'on' : ''}" data-act="mf-ctx" data-id="${h(c.id)}">${h(c.name)}</button>`).join('')}</div>
         <div class="hint">บริบทของรายการ เช่น ใช้คนเดียว · กับแฟน · กับเพื่อน — ไม่ได้แปลว่าเลี้ยงหรือจ่ายแทนคนอื่น</div>
       </div>` : ''}
+      ${extras ? `<div class="field">${extras}</div>` : ''}
       <div class="field">
         <label for="mf-date">วันที่</label>
         <div class="row" style="gap:8px">
@@ -5186,56 +5285,100 @@ function renderMoneyForm() {
       </div>
       <div class="field">
         <label for="mf-note">โน้ต (ไม่บังคับ)</label>
-        <input id="mf-note" class="input" maxlength="80" value="${h(f.note)}" placeholder="${isExp ? 'เช่น ข้าวมันไก่' : 'เช่น เงินเดือน ต.ค.'}">
+        <input id="mf-note" class="input" maxlength="80" value="${h(f.note)}" placeholder="${isExp ? 'เช่น ข้าวมันไก่' : isInc ? 'เช่น เงินเดือน ต.ค.' : 'เช่น งวดที่ 3'}">
       </div>
+      ${f.editing && isExp ? renderMoneyLinkedActions(mu, f.id) : ''}
       ${f.error ? `<div class="callout warn" role="alert">${h(f.error)}</div>` : ''}
       <div class="btn-row">
         ${f.editing
           ? `<button class="btn secondary" data-act="mf-delete" style="color:var(--red)" ${f.saving ? 'disabled' : ''}>ลบ</button>`
-          : `<button class="btn secondary" data-act="mf-save" data-more="1" ${f.saving ? 'disabled' : ''}>บันทึกต่อ</button>`}
+          : (f.instOpen || isPay ? '' : `<button class="btn secondary" data-act="mf-save" data-more="1" ${f.saving ? 'disabled' : ''}>บันทึกต่อ</button>`)}
         <button class="btn" data-act="mf-save" ${f.saving ? 'disabled' : ''}>${f.saving ? 'กำลังบันทึก…' : 'บันทึก'}</button>
       </div>
       <div style="height:24px"></div>
     </div>`;
 }
-// อ่านค่าที่พิมพ์ล่าสุดจากช่อง (กรณี event input ยังไม่มา) — ไม่ให้ข้อมูลที่กรอกหาย
+// อ่านค่าที่พิมพ์ล่าสุดจากทุกช่องของฟอร์ม (กรณี event input ยังไม่มา) — ไม่ให้ข้อมูลที่กรอกหาย
 function moneyFormSync() {
   const f = state.tmp.mf;
   if (!f) return;
   const a = document.getElementById('mf-amount'); if (a) f.amountText = a.value;
   const n = document.getElementById('mf-note'); if (n) f.note = n.value;
   const d = document.getElementById('mf-date'); if (d && isRealDateKey(d.value)) f.date = d.value;
+  document.querySelectorAll('[data-mf]').forEach(el => { f[el.dataset.mf] = el.value; });
 }
+const moneyAmountText = satang => satang == null ? '' : String(satang / 100);
 async function moneyFormSave(more) {
   const f = state.tmp.mf;
   if (!f || f.saving) return;
   moneyFormSync();
-  const amount = parseMoneyInput(f.amountText);
-  f.error = '';
-  if (!amount) f.error = 'ใส่จำนวนเงิน เช่น 60 หรือ 1,200.50';
-  else if (!f.categoryId) f.error = 'เลือกหมวด';
-  else if (!isRealDateKey(f.date) || f.date > todayKey()) f.error = 'วันที่ต้องไม่อยู่ในอนาคต';
-  if (f.error) return render();
+  const mu = moneyMU();
+  const today = todayKey();
   const uidNow = state.currentUserId;
-  const txn = f.kind === 'expense'
-    ? { id: f.id, kind: 'expense', date: f.date, amount, myShare: amount, categoryId: f.categoryId, contextId: f.contextId || MONEY_SELF_CTX, note: f.note.trim() }
-    : { id: f.id, kind: 'income', date: f.date, amount, categoryId: f.categoryId, note: f.note.trim() };
-  if (f.editing && f.original) {
-    // แก้รายการเดิม: เก็บฟิลด์ที่ฟอร์มนี้ไม่ได้แสดง (เช่นส่วนของฉัน) ถ้ายังใช้ได้
-    if (f.kind === 'expense' && f.original.myShare < f.original.amount && f.original.myShare <= amount) txn.myShare = f.original.myShare;
-    if (f.original.debtId) txn.debtId = f.original.debtId;
+  f.error = '';
+  const fail = msg => { f.error = msg; render(); };
+  if (!isRealDateKey(f.date) || f.date > today) return fail('วันที่ต้องไม่อยู่ในอนาคต');
+  let mutate;
+  // ---- ซื้อแบบผ่อน: หนี้ + เงินดาวน์ใน commit เดียว ----
+  if (f.kind === 'expense' && f.instOpen) {
+    const price = parseMoneyInput(f.priceText), down = (f.downText || '').trim() ? parseMoneyInput(f.downText) : 0;
+    const inst = (f.instAmtText || '').trim() ? parseMoneyInput(f.instAmtText) : null;
+    if (!price) return fail('ใส่ราคาเต็ม');
+    if (down == null || down >= price) return fail('เงินดาวน์ต้องน้อยกว่าราคาเต็ม (ถ้าจ่ายครบให้บันทึกเป็นรายจ่ายปกติ)');
+    if (!f.categoryId) return fail('เลือกหมวดของสินค้า');
+    if (!(f.instName || '').trim()) return fail('ใส่ชื่อหนี้ เช่น ทีวี');
+    if ((f.instAmtText || '').trim() && !inst) return fail('ยอดงวดไม่ถูกต้อง');
+    const p = { debtId: f.debtNewId, downTxnId: f.id, name: f.instName, date: f.date, price, down, categoryId: f.categoryId, contextId: f.contextId || MONEY_SELF_CTX, interestFree: !!f.instFree, installment: inst, note: f.note.trim() };
+    mutate = d => moneyCreateInstallmentPurchase(moneyUser(d, uidNow), p, today);
+  } else if (f.kind === 'debtPayment') {
+    const amount = parseMoneyInput(f.amountText);
+    if (!amount) return fail('ใส่ยอดที่จ่าย');
+    const debt = mu.debts.find(d => d.id === f.debtId);
+    if (!debt) return fail('เลือกหนี้ที่จ่าย');
+    let principal = null, interest = null, fee = null;
+    const ptxt = (f.principalText || '').trim();
+    if (debt.interestFree ? ptxt !== '' : f.splitOpen) {
+      principal = parseMoneyInput(ptxt || '0'); interest = debt.interestFree ? 0 : parseMoneyInput((f.interestText || '').trim() || '0'); fee = parseMoneyInput((f.feeText || '').trim() || '0');
+      if (principal == null || interest == null || fee == null) return fail('ตัวเลขเงินต้น/ดอกเบี้ย/ค่าธรรมเนียมไม่ถูกต้อง');
+      if (principal + interest + fee !== amount) return fail(`เงินต้น + ดอกเบี้ย + ค่าธรรมเนียม = ${formatMoney(principal + interest + fee)} ไม่เท่ายอดจ่าย ${formatMoney(amount)}`);
+    }
+    const txn = { id: f.id, kind: 'debtPayment', date: f.date, debtId: debt.id, amount, principal, interest, fee, note: f.note.trim() };
+    // แก้งวดเดิมที่ทำให้รายงานช่วงก่อนเปลี่ยน → บอกผลก่อนบันทึก (C2)
+    if (f.editing) {
+      const after = JSON.parse(JSON.stringify(mu));
+      const i = after.txns.findIndex(t => t.id === f.id); if (i >= 0) after.txns[i] = { ...after.txns[i], ...txn };
+      const delta = moneyMonthlyDelta(mu, after).filter(m => m.month !== today.slice(0, 7));
+      if (delta.length && !confirm('การแก้นี้เปลี่ยนรายงานเดือนก่อน:\n' + delta.map(m => `• ${m.month}: ค่าใช้จ่ายของฉัน ${m.delta > 0 ? '+' : '−'}${formatMoney(Math.abs(m.delta))}`).join('\n') + '\n\nบันทึก?')) return;
+    }
+    mutate = d => { const m = moneyUser(d, uidNow); if (f.editing && !m.txns.some(t => t.id === f.id)) throw new Error('รายการนี้ถูกลบจากหน้าต่างอื่นแล้ว'); moneyUpsertTxn(m, txn, today); };
+  } else {
+    const amount = parseMoneyInput(f.amountText);
+    if (!amount) return fail('ใส่จำนวนเงิน เช่น 60 หรือ 1,200.50');
+    if (!f.categoryId) return fail('เลือกหมวด');
+    let txn;
+    if (f.kind === 'expense') {
+      let myShare = amount;
+      if (f.shareOpen) {
+        myShare = parseMoneyInput((f.myShareText || '').trim());
+        if (myShare == null || myShare > amount) return fail('ส่วนของฉันต้องอยู่ระหว่าง 0 ถึงยอดที่จ่าย');
+      }
+      txn = { id: f.id, kind: 'expense', date: f.date, amount, myShare, categoryId: f.categoryId, contextId: f.contextId || MONEY_SELF_CTX, note: f.note.trim() };
+      if (f.shareOpen && (f.owedBy || '').trim()) txn.owedBy = f.owedBy.trim();
+      if (f.original && f.original.debtId) txn.debtId = f.original.debtId;
+      // บันทึกงวดผ่อนเป็นรายจ่ายซ้ำ? เตือน ไม่บล็อก
+      const dup = !f.editing && moneyInstallmentDupWarning(mu, txn);
+      if (dup && !confirm(`รายการนี้เหมือนงวดของ "${dup.name}" — ถ้าเป็นการจ่ายงวด ให้บันทึกที่ "จ่ายหนี้" แทน (ไม่งั้นจะนับซ้ำ)\n\nบันทึกเป็นรายจ่ายต่อไหม?`)) return;
+    } else {
+      txn = { id: f.id, kind: 'income', date: f.date, amount, categoryId: f.categoryId, note: f.note.trim() };
+    }
+    mutate = d => { const m = moneyUser(d, uidNow); if (f.editing && !m.txns.some(t => t.id === f.id)) throw new Error('รายการนี้ถูกลบจากหน้าต่างอื่นแล้ว'); moneyUpsertTxn(m, txn, today); };
   }
   f.saving = true;
   render();
-  const r = await moneySave(d => {
-    const mu = moneyUser(d, uidNow);
-    if (f.editing && !mu.txns.some(t => t.id === f.id)) throw new Error('รายการนี้ถูกลบจากหน้าต่างอื่นแล้ว');
-    moneyUpsertTxn(mu, txn, todayKey());
-  });
+  const r = await moneySave(mutate);
   f.saving = false;
   if (!r.ok) {
-    f.error = r.error || 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ';
-    if (r.reason === 'stale') f.error = 'มีการแก้จากหน้าต่างอื่น ข้อมูลล่าสุดโหลดแล้ว — ตรวจแล้วกดบันทึกอีกครั้ง';
+    f.error = r.reason === 'stale' ? 'มีการแก้จากหน้าต่างอื่น ข้อมูลล่าสุดโหลดแล้ว — ตรวจแล้วกดบันทึกอีกครั้ง' : (r.error || 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ');
     return render();
   }
   if (more) {
@@ -5244,7 +5387,7 @@ async function moneyFormSave(more) {
     document.getElementById('mf-amount')?.focus();
     return;
   }
-  toast(f.editing ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกแล้ว');
+  toast(f.instOpen ? 'บันทึกการซื้อผ่อนแล้ว' : f.editing ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกแล้ว');
   back();
 }
 
@@ -5291,6 +5434,379 @@ function renderMoneySettingsCard() {
         <button class="btn ${on ? 'ghost' : 'secondary'} block mt" data-act="money-enable" data-v="${on ? '0' : '1'}">${on ? 'ปิดแท็บเงิน (ข้อมูลยังอยู่)' : 'เปิดใช้แท็บเงิน'}</button>`}
         ${on ? `<div class="hint" style="font-size:12px;line-height:1.6">ซ่อนยอดเงิน (👁) ช่วยกันคนข้าง ๆ เห็นโดยไม่ตั้งใจ — ไม่ใช่การล็อก ไม่เข้ารหัส ใครเปิดแอปก็กดแสดงได้</div>` : ''}
       </div>`;
+}
+
+/* ========== MONEY UI — จ่ายแทน · เงินคืน · หนี้ (v1.10.57 — T-026d) ========== */
+// ใช้กติกาและการตรวจของเครื่องคำนวณ T-026b ทั้งหมด (moneyValidateUser) — หน้าจอไม่มีกติกาการเงินของตัวเอง
+// ช่องในฟอร์มรอง: data-fx="key" → state.tmp.fx[key] · data-live → วาดใหม่ (debounce) เพื่ออัปเดตยอดรวม
+const MONEY_DEBT_TYPE_INFO = {
+  installment: { icon: '📦', example: 'เช่น ผ่อนมือถือ 0% 10 เดือน', rule: 'งวดที่จ่ายนับเป็นค่าใช้จ่ายในหมวดของสินค้า (รวมดอกเบี้ย/ค่าธรรมเนียม)' },
+  loan: { icon: '🏦', example: 'เช่น สินเชื่อบุคคล บัตรกดเงินสด', rule: 'เงินต้นที่จ่ายไม่นับเป็นค่าใช้จ่าย · ดอกเบี้ย/ค่าธรรมเนียมที่ทราบนับ' },
+  card: { icon: '💳', example: 'ยอดค้างบัตรที่ไม่รูดเพิ่มแล้ว', rule: 'กติกาเดียวกับเงินกู้' },
+  personal: { icon: '🤝', example: 'เช่น ยืมพี่ ยืมเพื่อน', rule: 'กติกาเดียวกับเงินกู้' }
+};
+function moneyExpenseLinks(mu, eid) {
+  const out = [];
+  for (const t of mu.txns) {
+    if (t.kind === 'moneyBack') for (const a of (t.allocations || [])) if (a.txnId === eid) out.push({ t, label: t.backType === 'refund' ? 'ร้านคืนเงิน' : 'คนอื่นคืน', amount: t.backType === 'refund' ? a.mine + a.others : a.amount });
+    if (t.kind === 'writeOff' && t.sourceTxnId === eid) out.push({ t, label: 'ไม่ต้องคืนแล้ว', amount: t.amount });
+    if (t.kind === 'payOut' && t.sourceTxnId === eid) out.push({ t, label: 'คืนเงินให้คนอื่น', amount: t.amount });
+  }
+  return out.sort((a, b) => (a.t.date < b.t.date ? -1 : 1));
+}
+function moneyPosToday(mu, e) { return moneyPosition(moneyLinkIndex(mu), e, todayKey()); }
+function renderMoneyLinkedActions(mu, eid) {
+  const e = mu.txns.find(t => t.id === eid);
+  if (!e || e.kind !== 'expense') return '';
+  const pos = moneyPosToday(mu, e);
+  const links = moneyExpenseLinks(mu, eid);
+  const debt = e.debtId ? mu.debts.find(d => d.id === e.debtId) : null;
+  return `
+      <div class="card tight" style="padding:12px">
+        <b>รายการที่ผูกกับรายจ่ายนี้</b>
+        ${debt ? `<div class="stat-row" data-act="money-debt-open" data-id="${h(debt.id)}" role="button" tabindex="0"><span>เงินดาวน์ของหนี้ "${h(debt.name)}"</span><b>›</b></div>` : ''}
+        ${links.map(l => `<div class="stat-row" data-act="money-edit" data-id="${h(l.t.id)}" role="button" tabindex="0"><span>${formatDateTH(l.t.date)} · ${l.label}</span><b>${mfm(l.amount)} ›</b></div>`).join('') || (debt ? '' : '<div class="muted ms" style="margin:4px 0">ยังไม่มี</div>')}
+        ${pos > 0 ? `<div class="hint">ค้างรับ ณ วันนี้ ${mfm(pos)}</div>` : pos < 0 ? `<div class="hint">ต้องคืนคนอื่น ณ วันนี้ ${mfm(-pos)}</div>` : ''}
+        <div class="mchips" style="margin-top:8px">
+          ${pos > 0 ? `<button type="button" class="mchip" data-act="money-back-open" data-id="${h(eid)}">รับเงินคืนจากคนอื่น</button><button type="button" class="mchip" data-act="money-writeoff-open" data-id="${h(eid)}">ไม่ต้องคืนแล้ว</button>` : ''}
+          <button type="button" class="mchip" data-act="money-refund-open" data-id="${h(eid)}">ร้านคืนเงิน</button>
+          ${pos < 0 ? `<button type="button" class="mchip" data-act="money-payout-open" data-id="${h(eid)}">คืนเงินให้คนอื่น</button>` : ''}
+        </div>
+      </div>`;
+}
+// ---------- บันทึกจากฟอร์มรอง (ข้อความผิดพลาดอยู่ในฟอร์ม ค่าที่กรอกไม่หาย) ----------
+async function moneyFxSave(mutate, okMsg) {
+  const fx = state.tmp.fx;
+  if (!fx || fx.saving) return false;
+  document.querySelectorAll('[data-fx]').forEach(el => { fx[el.dataset.fx] = el.value; });
+  fx.saving = true; fx.error = ''; render();
+  const uidNow = state.currentUserId;
+  let r;
+  // แก้รายการเดิม: ใช้ id เดิมใน commit เดียว (แทนที่ทั้งรายการ ไม่ลบแล้วสร้างใหม่) · ถูกลบจากหน้าต่างอื่นแล้ว = ไม่สร้างกลับมาเงียบ ๆ
+  try { r = await moneySave(d => { const mu = moneyUser(d, uidNow); if (fx.editing && !mu.txns.some(t => t.id === fx.id)) throw new Error('รายการนี้ถูกลบจากหน้าต่างอื่นแล้ว'); return mutate(mu, todayKey()); }); }
+  catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+  fx.saving = false;
+  if (!r.ok) {
+    fx.error = r.reason === 'stale' ? 'มีการแก้จากหน้าต่างอื่น ข้อมูลล่าสุดโหลดแล้ว — ตรวจแล้วกดบันทึกอีกครั้ง' : (r.error || 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ');
+    render();
+    return false;
+  }
+  if (okMsg) toast(okMsg);
+  return true;
+}
+function moneyWithout(mu, id) { return id ? { ...mu, txns: mu.txns.filter(t => t.id !== id) } : mu; }   // ยอด/เพดาน ไม่นับรายการที่กำลังแก้
+function fxDel(fx) { return fx.editing ? `<button class="btn secondary block mt" data-act="money-fx-delete" style="color:var(--red)" ${fx.saving ? 'disabled' : ''}>ลบรายการนี้</button>` : ''; }
+function fxErr(fx) { return fx.error ? `<div class="callout warn" role="alert">${h(fx.error)}</div>` : ''; }
+function fxBtns(fx, act, label) {
+  return `<button class="btn block mt" data-act="${act}" ${fx.saving ? 'disabled' : ''}>${fx.saving ? 'กำลังบันทึก…' : label}</button>`;
+}
+function fxDate(fx) {
+  return `<div class="field"><label for="fx-date">วันที่</label><input id="fx-date" data-fx="date" data-live="1" type="date" class="input" value="${h(fx.date)}" max="${todayKey()}"></div>`;
+}
+const fxNum = (txt, blankAs) => { const s = String(txt == null ? '' : txt).trim(); return s === '' ? (blankAs === undefined ? null : blankAs) : parseMoneyInput(s); };
+
+// ---------- ค้างรับ / ต้องคืน ----------
+function renderMoneyOthers() {
+  const mu = moneyMU();
+  if (!mu) return renderMoneyEnable();
+  const today = todayKey();
+  const ot = moneyBalancesWithOthersAt(mu, today);
+  const byId = new Map(mu.txns.map(t => [t.id, t]));
+  const row = i => { const e = byId.get(i.txnId); return `<div class="mrow" data-act="money-edit" data-id="${h(e.id)}" role="button" tabindex="0"><span class="mi">${i.pos > 0 ? '⏳' : '↪️'}</span><div style="flex:1;min-width:0"><div class="mt1">${h(moneyCatName(mu, e.categoryId))} · ${formatDateTH(e.date)}</div><div class="muted ms">${h(e.owedBy || e.note || moneyCtxName(mu, e.contextId))} · จ่ายไป ${mfm(e.amount)}</div></div><b>${mfm(Math.abs(i.pos))}</b></div>`; };
+  const rec = ot.items.filter(i => i.pos > 0), pay = ot.items.filter(i => i.pos < 0);
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>ค้างรับ / ต้องคืน</h1></div>
+      <div class="muted" style="font-size:13px;margin-bottom:8px">ณ วันนี้ ${formatDateTH(today)}</div>
+      <div class="card">
+        <div class="row between"><b>คนอื่นต้องคืนฉัน</b><b>${mfm(ot.receivable)}</b></div>
+        ${rec.length ? `<button class="btn block mt" data-act="money-back-open">รับเงินคืน (ก้อนเดียวหลายรายการได้)</button>` : ''}
+        ${rec.map(row).join('') || '<div class="muted ms" style="margin-top:6px">ไม่มีรายการค้างรับ</div>'}
+      </div>
+      ${pay.length ? `<div class="card"><div class="row between"><b>ฉันต้องคืนคนอื่น</b><b>${mfm(ot.payable)}</b></div><div class="hint">เกิดเมื่อร้านคืนส่วนของคนอื่นที่เขาจ่ายให้ฉันแล้ว</div>${pay.map(row).join('')}</div>` : ''}
+    </div>
+    ${bottomNavHtml('money')}`;
+}
+
+// ---------- รับเงินคืนจากคนอื่น (ก้อนเดียว จัดสรรหลายรายการ) ----------
+function moneyBackForm(mu, focusId, edit) {
+  const today = todayKey();
+  const base = moneyWithout(mu, edit && edit.id);
+  const ot = moneyBalancesWithOthersAt(base, today).items.filter(i => i.pos > 0 || (edit && edit.allocations.some(a => a.txnId === i.txnId)));
+  const items = ot.map(i => ({ txnId: i.txnId, date: i.date, max: Math.max(0, i.pos), text: focusId && i.txnId === focusId ? moneyAmountText(i.pos) : '' }));
+  if (edit) for (const a of edit.allocations) {
+    let it = items.find(x => x.txnId === a.txnId);
+    if (!it) { const e = mu.txns.find(t => t.id === a.txnId); if (!e) continue; it = { txnId: a.txnId, date: e.date, max: 0, text: '' }; items.push(it); }
+    it.text = moneyAmountText(a.amount);
+  }
+  items.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return edit
+    ? { id: edit.id, editing: true, amountText: moneyAmountText(edit.amount), date: edit.date, note: edit.note || '', items, focusId: null, error: '', saving: false }
+    : { id: uid('mb'), amountText: '', date: today, note: '', items, focusId: focusId || null, error: '', saving: false };
+}
+function renderMoneyBack() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  if (!mu || !fx) return renderMoneyEnable();
+  const byId = new Map(mu.txns.map(t => [t.id, t]));
+  const received = fxNum(fx.amountText);
+  const alloc = fx.items.reduce((s, it) => s + (fxNum(it.text, 0) || 0), 0);
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>${fx.editing ? 'แก้ไขเงินคืนจากคนอื่น' : 'รับเงินคืน'}</h1></div>
+      <div class="callout info">เงินที่คนอื่นคืนให้ ไม่ใช่รายได้ · ลดยอดค้างรับ · ไม่เปลี่ยนค่าใช้จ่ายของฉัน</div>
+      <div class="field"><label for="fx-amount">ได้รับคืนทั้งหมด (บาท)</label><input id="fx-amount" data-fx="amountText" data-live="1" class="input mamount" inputmode="decimal" value="${h(fx.amountText)}"></div>
+      ${fxDate(fx)}
+      <div class="row between" style="margin:6px 0"><b>แบ่งให้รายการค้างรับ</b><button type="button" class="btn ghost sm" data-act="money-back-autofill">เติมจากเก่าสุด</button></div>
+      <div class="card tight" style="padding:4px 12px">
+        ${fx.items.map((it, i) => { const e = byId.get(it.txnId); return `<div class="mrow"><div style="flex:1;min-width:0"><div class="mt1">${h(moneyCatName(mu, e.categoryId))} · ${formatDateTH(e.date)}</div><div class="muted ms">${h(e.owedBy || e.note || moneyCtxName(mu, e.contextId))} · ค้าง ${mfm(it.max)}</div></div><input data-fxi="${i}" data-live="1" class="input" inputmode="decimal" style="width:96px;min-height:44px" value="${h(it.text)}" placeholder="0" aria-label="จำนวนที่คืนให้รายการนี้"></div>`; }).join('') || '<div class="muted">ไม่มีรายการค้างรับ</div>'}
+      </div>
+      <div class="hint" style="font-size:14px">จัดสรรแล้ว ${mfm(alloc)}${received ? ` / ${mfm(received)}` : ''}${received && alloc > received ? ' — เกินยอดที่ได้รับ' : received && alloc < received ? ` · เหลือ ${mfm(received - alloc)} จะเก็บเป็นเงินคืนที่ไม่ผูก (ไม่ใช่รายได้)` : ''}</div>
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-back-save', 'บันทึกเงินคืน')}
+      ${fxDel(fx)}
+    </div>`;
+}
+// ---------- ร้านคืนเงิน ----------
+function moneyRefundCaps(mu, e, date, excludeId) {
+  const L = moneyLinkTotals(moneyLinkIndex(moneyWithout(mu, excludeId)), e.id, date);
+  return { mine: Math.max(0, e.myShare + L.writtenOff - L.refundMine), others: Math.max(0, (e.amount - e.myShare) - L.writtenOff - L.refundOthers) };
+}
+function renderMoneyRefund() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  const e = mu && fx && mu.txns.find(t => t.id === fx.txnId);
+  if (!e) return renderMoneyEnable();
+  const shared = e.myShare < e.amount;
+  const caps = moneyRefundCaps(mu, e, fx.date, fx.editing ? fx.id : null);
+  const mine = fxNum(fx.mineText, 0), others = shared ? fxNum(fx.othersText, 0) : 0;
+  const pos = moneyPosToday(moneyWithout(mu, fx.editing ? fx.id : null), e);
+  let effect = '';
+  if (mine != null && others != null) {
+    effect = `เงินเข้าจากร้าน ${mfm(mine + others)} (ไม่ใช่รายได้) · ลดค่าใช้จ่ายของฉัน ${mfm(mine)} ในหมวด ${h(moneyCatName(mu, e.categoryId))} วันที่ ${formatDateTH(fx.date)}`;
+    if (others) effect += pos >= others ? ` · ล้างค้างรับ ${mfm(others)}` : pos > 0 ? ` · ล้างค้างรับ ${mfm(pos)} และเกิดยอดต้องคืนคนอื่น ${mfm(others - pos)}` : ` · เกิดยอดต้องคืนคนอื่น ${mfm(others)} (เขาจ่ายให้ฉันแล้ว)`;
+  }
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>${fx.editing ? 'แก้ไขเงินคืนจากร้าน' : 'ร้านคืนเงิน'}</h1></div>
+      <div class="card tight" style="padding:10px 12px">${h(moneyCatName(mu, e.categoryId))} · ${formatDateTH(e.date)} · จ่ายไป ${mfm(e.amount)}${shared ? ` · ส่วนของฉัน ${mfm(e.myShare)}` : ''}</div>
+      ${shared ? `
+      <div class="row-2">
+        <div><label for="fx-mine">ส่วนของฉัน</label><input id="fx-mine" data-fx="mineText" data-live="1" class="input" inputmode="decimal" value="${h(fx.mineText)}"><div class="hint">คืนได้สูงสุด ${mfm(caps.mine)}</div></div>
+        <div><label for="fx-others">ส่วนของคนอื่น</label><input id="fx-others" data-fx="othersText" data-live="1" class="input" inputmode="decimal" value="${h(fx.othersText)}"><div class="hint">สูงสุด ${mfm(caps.others)}</div></div>
+      </div>` : `
+      <div class="field"><label for="fx-mine">ร้านคืน (บาท)</label><input id="fx-mine" data-fx="mineText" data-live="1" class="input mamount" inputmode="decimal" value="${h(fx.mineText)}"><div class="hint">คืนได้สูงสุด ${mfm(caps.mine)}</div></div>`}
+      ${fxDate(fx)}
+      ${effect ? `<div class="callout info">${effect}</div>` : ''}
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-refund-save', 'บันทึกเงินคืนจากร้าน')}
+      ${fxDel(fx)}
+    </div>`;
+}
+// ---------- ไม่ต้องคืนแล้ว ----------
+function renderMoneyWriteOff() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  const e = mu && fx && mu.txns.find(t => t.id === fx.txnId);
+  if (!e) return renderMoneyEnable();
+  const cats = mu.categories.filter(c => c.kind === 'expense' && (!c.archived || c.id === fx.categoryId));
+  const ctxs = mu.contexts.filter(c => !c.archived || c.id === fx.contextId);
+  const amt = fxNum(fx.amountText);
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>${fx.editing ? 'แก้ไข ไม่ต้องคืนแล้ว' : 'ไม่ต้องคืนแล้ว'}</h1></div>
+      <div class="card tight" style="padding:10px 12px">${h(moneyCatName(mu, e.categoryId))} · ${formatDateTH(e.date)} · ค้างรับ${fx.editing ? ' (ไม่นับรายการนี้)' : ''} ${mfm(fx.max)}</div>
+      <div class="field"><label for="fx-amount">จำนวนที่ไม่ต้องคืน</label><input id="fx-amount" data-fx="amountText" data-live="1" class="input" inputmode="decimal" value="${h(fx.amountText)}"></div>
+      ${fxDate(fx)}
+      <div class="field"><label>หมวด</label><div class="mchips">${cats.map(c => `<button type="button" class="mchip ${fx.categoryId === c.id ? 'on' : ''}" data-act="fx-pick" data-k="categoryId" data-v="${h(c.id)}">${h(c.name)}</button>`).join('')}</div></div>
+      <div class="field"><label>เกี่ยวกับใคร</label><div class="mchips">${ctxs.map(c => `<button type="button" class="mchip ${fx.contextId === c.id ? 'on' : ''}" data-act="fx-pick" data-k="contextId" data-v="${h(c.id)}">${h(c.name)}</button>`).join('')}</div></div>
+      ${amt ? `<div class="callout info">เพิ่มค่าใช้จ่ายของฉัน ${mfm(amt)} วันที่ ${formatDateTH(fx.date)} · ไม่มีเงินเข้า/ออก · เดือนของรายการเดิมไม่เปลี่ยน</div>` : ''}
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-writeoff-save', fx.editing ? 'บันทึกการแก้ไข' : 'ยืนยัน ไม่ต้องคืนแล้ว')}
+      ${fxDel(fx)}
+    </div>`;
+}
+// ---------- คืนเงินให้คนอื่น ----------
+function renderMoneyPayOut() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  const e = mu && fx && mu.txns.find(t => t.id === fx.txnId);
+  if (!e) return renderMoneyEnable();
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>${fx.editing ? 'แก้ไขการคืนเงินให้คนอื่น' : 'คืนเงินให้คนอื่น'}</h1></div>
+      <div class="card tight" style="padding:10px 12px">${h(moneyCatName(mu, e.categoryId))} · ${formatDateTH(e.date)} · ต้องคืน${fx.editing ? ' (ไม่นับรายการนี้)' : ''} ${mfm(fx.max)}</div>
+      <div class="field"><label for="fx-amount">คืนให้ (บาท)</label><input id="fx-amount" data-fx="amountText" class="input mamount" inputmode="decimal" value="${h(fx.amountText)}"></div>
+      ${fxDate(fx)}
+      <div class="callout info">เป็นเงินออกที่เคลียร์ยอดต้องคืน · ไม่ใช่ค่าใช้จ่ายของฉัน</div>
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-payout-save', 'บันทึกการคืนเงิน')}
+      ${fxDel(fx)}
+    </div>`;
+}
+// ---------- ดูรายการผูก (เงินคืน · ไม่ต้องคืนแล้ว · คืนให้คนอื่น) ----------
+function renderMoneyTxn() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  const t = mu && fx && mu.txns.find(x => x.id === fx.txnId);
+  if (!t) return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>รายการ</h1></div><div class="card">ไม่พบรายการ (อาจถูกลบแล้ว)</div></div>`;
+  const byId = new Map(mu.txns.map(x => [x.id, x]));
+  const label = t.kind === 'moneyBack' ? (t.backType === 'refund' ? 'ร้านคืนเงิน' : 'คนอื่นคืนเงิน') : t.kind === 'writeOff' ? 'ไม่ต้องคืนแล้ว' : 'คืนเงินให้คนอื่น';
+  const src = id => { const e = byId.get(id); return e ? `<span data-act="money-edit" data-id="${h(e.id)}" role="button" tabindex="0" style="text-decoration:underline">${h(moneyCatName(mu, e.categoryId))} ${formatDateTH(e.date)}</span>` : 'รายการที่ถูกลบแล้ว'; };
+  let lines = '';
+  if (t.kind === 'moneyBack') lines = (t.allocations || []).map(a => `<div class="stat-row"><span>→ ${src(a.txnId)}</span><b>${t.backType === 'refund' ? `ของฉัน ${mfm(a.mine)} · คนอื่น ${mfm(a.others)}` : mfm(a.amount)}</b></div>`).join('') || '<div class="muted ms">ไม่ผูกกับรายการใด</div>';
+  else lines = `<div class="stat-row"><span>→ ${t.sourceTxnId ? src(t.sourceTxnId) : 'ไม่ผูกกับรายการใด'}</span></div>`;
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>${label}</h1></div>
+      <div class="card">
+        <div class="stat-row bold"><span>${formatDateTH(t.date)}</span><b>${mfm(t.amount)}</b></div>
+        ${t.kind === 'writeOff' ? `<div class="hint">${h(moneyCatName(mu, t.categoryId))} · ${h(moneyCtxName(mu, t.contextId))} · ไม่ใช่เงินสด</div>` : ''}
+        ${lines}
+      </div>
+      <div class="field"><label for="fx-amount">จำนวน</label><input id="fx-amount" data-fx="amountText" class="input" inputmode="decimal" value="${h(fx.amountText)}"></div>
+      ${fxDate(fx)}
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-txn-save', 'บันทึกการแก้ไข')}
+      ${fxDel(fx)}
+    </div>`;
+}
+
+// ---------- หนี้ ----------
+function moneyDebtStatusHtml(mu, d, t) {
+  const b = moneyDebtBalanceAt(mu, d, t);
+  if (!b) return '<span class="muted">ยังไม่เริ่มติดตาม</span>';
+  if (d.status === 'closed') return '<b>ปิดแล้ว</b>';
+  return b.confirmed ? `เหลือ <b>${mfm(b.balance)}</b> · ยืนยันแล้ว`
+    : `<b>ยังไม่ยืนยันยอดหลังการชำระ</b><div class="muted ms">ยอดยืนยันล่าสุด ${mfm(b.lastConfirmed)} ณ ${formatDateTH(b.lastConfirmedDate)} · จ่ายหลังจากนั้น ${mfm(b.paidSince)} (${b.unsplitCount} งวดยังไม่แยกเงินต้น)</div>`;
+}
+function renderMoneyDebts() {
+  const mu = moneyMU();
+  if (!mu) return renderMoneyEnable();
+  const today = todayKey();
+  const tot = moneyDebtTotalsAt(mu, today);
+  const list = mu.debts.slice().sort((a, b) => (a.status === b.status ? 0 : a.status === 'active' ? -1 : 1));
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1 style="flex:1">🏦 หนี้</h1><button class="icon-btn ghost" data-act="money-toggle-hide" aria-label="ซ่อนหรือแสดงยอดเงิน">${moneyHidden() ? '🙈' : '👁'}</button></div>
+      <div class="muted" style="font-size:13px;margin-bottom:8px">ณ วันนี้ ${formatDateTH(today)}</div>
+      ${list.map(d => `
+      <div class="card" data-act="money-debt-open" data-id="${h(d.id)}" role="button" tabindex="0">
+        <div class="row between"><b>${MONEY_DEBT_TYPE_INFO[d.type].icon} ${h(d.name)}</b><span class="muted ms">${DEBT_TYPES[d.type].name}${d.interestFree ? ' · 0%' : ''}</span></div>
+        <div style="margin-top:4px;font-size:15px">${moneyDebtStatusHtml(mu, d, today)}</div>
+      </div>`).join('') || '<div class="card empty"><div class="big">🏦</div><div>ยังไม่มีหนี้ที่ติดตาม</div></div>'}
+      ${mu.debts.length ? `<div class="card"><div class="row between"><span>${tot.unconfirmedCount ? `รวมที่ยืนยันแล้ว (${tot.confirmedCount} หนี้)` : 'หนี้รวม'}</span><b>${mfm(tot.confirmedTotal)}</b></div>${tot.unconfirmedCount ? `<div class="hint">ยังไม่ยืนยัน ${tot.unconfirmedCount} หนี้ — ไม่รวมในยอดนี้</div>` : ''}</div>` : ''}
+      <button class="btn block" data-act="money-debt-new">+ เพิ่มหนี้ที่มีอยู่แล้ว</button>
+      <div class="hint">ซื้อของผ่อนใหม่: บันทึกที่ "+ บันทึกเงิน" → รายจ่าย → ▸ ซื้อแบบผ่อน</div>
+    </div>
+    ${bottomNavHtml('money')}`;
+}
+function renderMoneyDebtForm() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  if (!mu || !fx) return renderMoneyEnable();
+  const info = MONEY_DEBT_TYPE_INFO;
+  const cats = mu.categories.filter(c => c.kind === 'expense' && !c.archived && c.system !== 'interest');
+  const ctxs = mu.contexts.filter(c => !c.archived);
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>เพิ่มหนี้ที่มีอยู่แล้ว</h1></div>
+      <label>หนี้แบบไหน · ชนิดกำหนดว่าการจ่ายนับเป็นค่าใช้จ่ายอย่างไร</label>
+      ${Object.keys(info).map(k => `
+      <div class="card tight ${fx.type === k ? 'mpick on' : 'mpick'}" data-act="fx-pick" data-k="type" data-v="${k}" role="button" tabindex="0" style="padding:10px 12px">
+        <b>${info[k].icon} ${DEBT_TYPES[k].name}</b><div class="muted ms">${info[k].example} · ${info[k].rule}</div>
+      </div>`).join('')}
+      <div class="callout warn">ยังไม่รองรับวงเงินหมุนเวียน หรือบัตรที่ยังรูดเพิ่มในหนี้ก้อนเดียวกัน — ยอดและเงินออกจะนับผิด</div>
+      ${fx.type ? `
+      <div class="field"><label for="fx-name">ชื่อหนี้</label><input id="fx-name" data-fx="name" class="input" maxlength="40" value="${h(fx.name)}"></div>
+      <div class="row-2">
+        <div><label for="fx-balance">ยอดคงเหลือ</label><input id="fx-balance" data-fx="balanceText" class="input" inputmode="decimal" value="${h(fx.balanceText)}"></div>
+        <div><label for="fx-start">ณ วันที่ (เริ่มติดตาม)</label><input id="fx-start" data-fx="startDate" type="date" class="input" value="${h(fx.startDate)}" max="${todayKey()}"></div>
+      </div>
+      <div class="hint">ยอดก่อนการจ่ายที่จะบันทึกต่อจากนี้ · เพิ่มหนี้ไม่ใช่เงินออก — เงินออกเกิดเมื่อบันทึกการชำระ</div>
+      <div class="row-2 mt">
+        <div><label for="fx-inst">งวดละ (ไม่บังคับ)</label><input id="fx-inst" data-fx="instText" class="input" inputmode="decimal" value="${h(fx.instText)}"></div>
+        <div><label for="fx-due">ทุกวันที่ (ไม่บังคับ)</label><input id="fx-due" data-fx="dueText" class="input" inputmode="numeric" value="${h(fx.dueText)}" placeholder="1–31"></div>
+      </div>
+      <div class="field mt"><label>ดอกเบี้ย</label><button type="button" class="mchip ${fx.interestFree ? 'on' : ''}" data-act="fx-pick" data-k="interestFree" data-v="${fx.interestFree ? '' : '1'}">${fx.interestFree ? '0% ✓' : 'มีดอกเบี้ย'}</button></div>
+      <div class="field"><label for="fx-origin">วันที่ก่อหนี้ (ไม่บังคับ · แสดงผลเท่านั้น)</label><input id="fx-origin" data-fx="originDate" type="date" class="input" value="${h(fx.originDate)}" max="${todayKey()}"></div>
+      ${fx.type === 'installment' ? `
+      <div class="field"><label>หมวดของสินค้า</label><div class="mchips">${cats.map(c => `<button type="button" class="mchip ${fx.categoryId === c.id ? 'on' : ''}" data-act="fx-pick" data-k="categoryId" data-v="${h(c.id)}">${h(c.name)}</button>`).join('')}</div></div>
+      <div class="field"><label>เกี่ยวกับใคร</label><div class="mchips">${ctxs.map(c => `<button type="button" class="mchip ${fx.contextId === c.id ? 'on' : ''}" data-act="fx-pick" data-k="contextId" data-v="${h(c.id)}">${h(c.name)}</button>`).join('')}</div></div>` : ''}
+      ${fxErr(fx)}
+      ${fxBtns(fx, 'money-debt-save', 'เพิ่มหนี้')}` : ''}
+    </div>`;
+}
+// ปิดหนี้ = ยอดเหลือ 0 จริง (จ่ายครบ) หรือปรับยอดที่เหลือเป็น 0 พร้อมเหตุผล — ไม่ใช่เปลี่ยนสถานะให้ยอดหายเงียบ ๆ
+function renderMoneyClosePanel(mu, d, fx, today) {
+  const at = isRealDateKey(fx.closeDate) ? fx.closeDate : today;
+  const cb = moneyDebtBalanceAt(mu, d, at);
+  let body;
+  if (!cb) body = '<div class="hint">วันที่ปิดต้องไม่ก่อนวันเริ่มติดตาม</div>';
+  else if (!cb.confirmed) body = '<div class="callout warn">ยอดยังไม่ยืนยัน — แยกเงินต้นของงวดที่จ่าย หรืออัปเดตยอดจากใบแจ้งก่อน แล้วจึงปิด</div>';
+  else if (cb.balance === 0) body = `<div class="hint">ยอดคงเหลือ ณ วันนั้น ${mfm(0)} — จ่ายครบแล้ว ปิดได้</div>${fxBtns(fx, 'money-close-save', 'ปิดหนี้')}`;
+  else body = `<div class="callout warn">ยังเหลือยอด ${mfm(cb.balance)} ณ ${formatDateTH(at)} — ปกติให้บันทึกการจ่ายยอดที่เหลือก่อน</div>
+        <button class="btn block" data-act="money-debt-pay" data-id="${h(d.id)}" data-amount="${cb.balance}">จ่ายยอดที่เหลือ ${mfm(cb.balance)}</button>
+        <label for="fx-creason" style="margin-top:12px">หรือ ปรับยอดที่เหลือเป็น 0 พร้อมเหตุผล (ไม่ใช่เงินสด ไม่ใช่ค่าใช้จ่าย)</label>
+        <input id="fx-creason" data-fx="closeReason" class="input" maxlength="60" value="${h(fx.closeReason || '')}" placeholder="เช่น ส่วนลดปิดก่อนกำหนด">
+        ${fxBtns(fx, 'money-close-save', 'ปิดหนี้ และปรับยอด ' + mfm(cb.balance) + ' เป็น 0')}`;
+  return `
+      <div class="card">
+        <b>ปิดหนี้</b>
+        <label for="fx-cdate" style="margin-top:6px">วันที่ปิด</label><input id="fx-cdate" data-fx="closeDate" data-live="1" type="date" class="input" value="${h(fx.closeDate)}" max="${today}">
+        ${body}
+      </div>`;
+}
+function renderMoneyDebt() {
+  const mu = moneyMU(), fx = state.tmp.fx;
+  const d = mu && fx && mu.debts.find(x => x.id === fx.debtId);
+  if (!d) return `<div class="screen"><div class="header"><button class="icon-btn" data-act="back">←</button><h1>หนี้</h1></div><div class="card">ไม่พบหนี้นี้ (อาจถูกลบแล้ว)</div></div>`;
+  const today = todayKey();
+  const pays = mu.txns.filter(t => t.kind === 'debtPayment' && t.debtId === d.id);
+  const events = [
+    ...d.anchors.map(a => ({ date: a.date, a })),
+    ...pays.map(p => ({ date: p.date, p })),
+    ...(d.purchase && d.purchase.downPaymentTxnId ? mu.txns.filter(t => t.id === d.purchase.downPaymentTxnId).map(t => ({ date: t.date, down: t })) : [])
+  ].sort((x, y) => (x.date === y.date ? 0 : x.date < y.date ? 1 : -1));
+  const aLabel = { start: 'ยอดตั้งต้น (เริ่มติดตาม)', statement: 'ยอดตามใบแจ้ง', adjust: 'ปรับยอด', close: 'ปิดหนี้' };
+  const ev = e => {
+    if (e.a) {
+      const facts = e.a.type === 'statement' || e.a.type === 'adjust' ? moneyAnchorFacts(mu, d, e.a) : null;
+      return `<div class="mrow"><span class="mi">📌</span><div style="flex:1"><div class="mt1">${aLabel[e.a.type]} · ${formatDateTH(e.a.date)}</div>${facts ? `<div class="muted ms">ตั้งแต่ยอดก่อนหน้า: จ่ายไป ${mfm(facts.paidSince)} · ยอด${facts.decreasedBy >= 0 ? 'ลดลง' : 'เพิ่มขึ้น'} ${mfm(Math.abs(facts.decreasedBy))}</div>` : ''}${e.a.waived ? `<div class="muted ms">ปรับยอดที่เหลือ ${mfm(e.a.waived)} เป็น 0 · เหตุผล: ${h(e.a.note || '—')} (ไม่ใช่เงินสด ไม่ใช่ค่าใช้จ่าย)</div>` : ''}${e.a.note && e.a.type !== 'close' ? `<div class="muted ms">${h(e.a.note)}</div>` : ''}</div><b>${mfm(e.a.balance)}</b></div>`;
+    }
+    if (e.down) return `<div class="mrow" data-act="money-edit" data-id="${h(e.down.id)}" role="button" tabindex="0"><span class="mi">💸</span><div style="flex:1"><div class="mt1">เงินดาวน์ · ${formatDateTH(e.down.date)}</div></div><b>${mfm(e.down.amount)}</b></div>`;
+    const p = e.p;
+    return `<div class="mrow" data-act="money-edit" data-id="${h(p.id)}" role="button" tabindex="0"><span class="mi">🏦</span><div style="flex:1"><div class="mt1">จ่าย · ${formatDateTH(p.date)}</div><div class="muted ms">${p.principal == null ? 'ยังไม่แยกเงินต้น/ดอกเบี้ย' : `เงินต้น ${mfm(p.principal)}${p.interest ? ' · ดอกเบี้ย ' + mfm(p.interest) : ''}${p.fee ? ' · ค่าธรรมเนียม ' + mfm(p.fee) : ''}`}</div></div><b>${mfm(p.amount)}</b></div>`;
+  };
+  const pv = fx.preview;
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1 style="flex:1">${MONEY_DEBT_TYPE_INFO[d.type].icon} ${h(d.name)}</h1></div>
+      <div class="card">
+        <div class="muted ms">${DEBT_TYPES[d.type].name}${d.interestFree ? ' · 0%' : ''}${d.type === 'installment' ? ' · ' + h(moneyCatName(mu, d.categoryId)) + ' · ' + h(moneyCtxName(mu, d.contextId)) : ''}${d.installment ? ' · งวดละ ' + mfm(d.installment) : ''}${d.originDate ? ' · ก่อหนี้ ' + formatDateTH(d.originDate) : ''}</div>
+        <div class="muted ms">${MONEY_DEBT_TYPE_INFO[d.type].rule}</div>
+        <div style="margin-top:6px">ณ วันนี้ · ${moneyDebtStatusHtml(mu, d, today)}</div>
+        ${d.status === 'active' ? `<div class="mchips" style="margin-top:10px"><button type="button" class="mchip" data-act="money-debt-pay" data-id="${h(d.id)}">จ่ายงวด</button><button type="button" class="mchip" data-act="fx-pick" data-k="panel" data-v="anchor">อัปเดตยอด</button><button type="button" class="mchip" data-act="fx-pick" data-k="panel" data-v="close">ปิดหนี้</button><button type="button" class="mchip" data-act="fx-pick" data-k="panel" data-v="type">เปลี่ยนชนิด/หมวด</button></div>` : ''}
+      </div>
+      ${fx.panel === 'anchor' ? `
+      <div class="card">
+        <b>อัปเดตยอด · ไม่สร้างเงินเข้า/ออก</b>
+        <div class="mchips" style="margin:6px 0"><button type="button" class="mchip ${fx.anchorType === 'statement' ? 'on' : ''}" data-act="fx-pick" data-k="anchorType" data-v="statement">ตามใบแจ้งหนี้</button><button type="button" class="mchip ${fx.anchorType === 'adjust' ? 'on' : ''}" data-act="fx-pick" data-k="anchorType" data-v="adjust">ปรับตามที่รู้</button></div>
+        <div class="row-2"><div><label for="fx-abal">ยอด ณ สิ้นวัน</label><input id="fx-abal" data-fx="anchorBalText" class="input" inputmode="decimal" value="${h(fx.anchorBalText || '')}"></div><div><label for="fx-adate">วันที่</label><input id="fx-adate" data-fx="anchorDate" type="date" class="input" value="${h(fx.anchorDate)}" max="${today}"></div></div>
+        <label for="fx-anote" style="margin-top:6px">หมายเหตุ</label><input id="fx-anote" data-fx="anchorNote" class="input" maxlength="60" value="${h(fx.anchorNote || '')}">
+        ${fxBtns(fx, 'money-anchor-save', 'บันทึกยอด')}
+      </div>` : ''}
+      ${fx.panel === 'close' ? renderMoneyClosePanel(mu, d, fx, today) : ''}
+      ${fx.panel === 'type' ? `
+      <div class="card">
+        <b>เปลี่ยนชนิด/หมวด</b>
+        <div class="hint">ถ้าเป็นหนี้คนละลักษณะ ให้เพิ่มหนี้ใหม่แทนการเปลี่ยนประวัติก้อนเดิม</div>
+        <div class="mchips" style="margin:6px 0">${Object.keys(DEBT_TYPES).map(k => `<button type="button" class="mchip ${(fx.newType || d.type) === k ? 'on' : ''}" data-act="fx-pick" data-k="newType" data-v="${k}">${DEBT_TYPES[k].name}</button>`).join('')}</div>
+        ${(fx.newType || d.type) === 'installment' ? `<div class="mchips">${mu.categories.filter(c => c.kind === 'expense' && !c.archived && c.system !== 'interest').map(c => `<button type="button" class="mchip ${(fx.newCat || d.categoryId) === c.id ? 'on' : ''}" data-act="fx-pick" data-k="newCat" data-v="${h(c.id)}">${h(c.name)}</button>`).join('')}</div>` : ''}
+        <button class="btn secondary block mt" data-act="money-debt-preview">ดูผลกระทบก่อน</button>
+        ${pv ? `<div class="callout ${pv.error ? 'warn' : 'info'} mt">${pv.error ? h(pv.error) : pv.months.length ? `เปลี่ยนค่าใช้จ่ายของฉัน (งวด ${formatDateTH(pv.firstDate)} – ${formatDateTH(pv.lastDate)}):<br>${pv.months.map(m => `${m.month}: ${m.delta > 0 ? '+' : '−'}${mfm(Math.abs(m.delta))}`).join('<br>')}` : 'ไม่เปลี่ยนตัวเลขในรายงาน'}</div>${pv.error ? '' : fxBtns(fx, 'money-debt-change', 'ยืนยันการเปลี่ยน')}` : ''}
+      </div>` : ''}
+      ${fxErr(fx)}
+      <div class="mday"><span>ประวัติ</span></div>
+      <div class="card tight" style="padding:4px 12px">${events.map(ev).join('')}</div>
+      ${d.history && d.history.length ? `<div class="hint">ประวัติการเปลี่ยน: ${d.history.map(x => `${formatTsThai(Date.parse(x.at))} ${x.field} ${h(String(x.from))} → ${h(String(x.to))}`).join(' · ')}</div>` : ''}
+      ${pays.length ? '' : `<button class="btn secondary block mt" data-act="money-debt-delete" style="color:var(--red)">ลบหนี้นี้</button>`}
+      <div style="height:24px"></div>
+    </div>`;
 }
 
 /* ========== CSV EXPORT ========== */
@@ -10218,6 +10734,15 @@ function render() {
       case 'money-summary': html = renderMoneySummary(); break;
       case 'money-form': html = renderMoneyForm(); break;
       case 'money-cats': html = renderMoneyCats(); break;
+      case 'money-debts': html = renderMoneyDebts(); break;               // v1.10.57 — T-026d
+      case 'money-debt': html = renderMoneyDebt(); break;
+      case 'money-debt-form': html = renderMoneyDebtForm(); break;
+      case 'money-others': html = renderMoneyOthers(); break;
+      case 'money-back': html = renderMoneyBack(); break;
+      case 'money-refund': html = renderMoneyRefund(); break;
+      case 'money-writeoff': html = renderMoneyWriteOff(); break;
+      case 'money-payout': html = renderMoneyPayOut(); break;
+      case 'money-txn': html = renderMoneyTxn(); break;
       case 'profile-edit': html = renderProfileEdit(); break;
       case 'reports': html = renderReports(); break;
       case 'weight-log': html = renderWeightLog(); break;
@@ -12523,13 +13048,36 @@ const actions = {
   'money-edit': (e, el) => {
     const mu = moneyMU();
     const t = mu && mu.txns.find(x => x.id === el.dataset.id);
-    if (!t || (t.kind !== 'expense' && t.kind !== 'income')) return;
+    if (!t) return;
+    // v1.10.57: รายการผูกแก้ได้ในฟอร์มเดิมของมัน (id เดิม · ความสัมพันธ์เดิม) · ที่ไม่ผูกแล้วแก้จำนวน/วันที่ในหน้ารายละเอียด
+    const src = t.sourceTxnId && mu.txns.find(x => x.id === t.sourceTxnId);
+    const base = moneyWithout(mu, t.id);
+    if (t.kind === 'moneyBack' && t.backType === 'refund' && (t.allocations || []).length) {
+      const a = t.allocations[0];
+      return go('money-refund', { fx: { id: t.id, editing: true, txnId: a.txnId, date: t.date, mineText: moneyAmountText(a.mine), othersText: a.others ? moneyAmountText(a.others) : '', error: '', saving: false } });
+    }
+    if (t.kind === 'moneyBack' && t.backType === 'reimburse' && (t.allocations || []).length) return go('money-back', { fx: moneyBackForm(mu, null, t) });
+    if (t.kind === 'writeOff' && src) return go('money-writeoff', { fx: { id: t.id, editing: true, txnId: src.id, max: moneyPosToday(base, src), amountText: moneyAmountText(t.amount), date: t.date, categoryId: t.categoryId, contextId: t.contextId, error: '', saving: false } });
+    if (t.kind === 'payOut' && src) return go('money-payout', { fx: { id: t.id, editing: true, txnId: src.id, max: -moneyPosToday(base, src), amountText: moneyAmountText(t.amount), date: t.date, error: '', saving: false } });
+    if (t.kind === 'moneyBack' || t.kind === 'writeOff' || t.kind === 'payOut') return go('money-txn', { fx: { id: t.id, editing: true, txnId: t.id, amountText: moneyAmountText(t.amount), date: t.date, error: '', saving: false } });
+    const split = t.kind === 'debtPayment' && t.principal != null;
     go('money-form', { mf: {
-      id: t.id, kind: t.kind, amountText: String(t.amount / 100), categoryId: t.categoryId, contextId: t.contextId || MONEY_SELF_CTX,
-      date: t.date, note: t.note || '', editing: true, original: JSON.parse(JSON.stringify(t)), batchCount: 0, error: '', saving: false
+      id: t.id, kind: t.kind, amountText: moneyAmountText(t.amount), categoryId: t.categoryId || null, contextId: t.contextId || MONEY_SELF_CTX,
+      date: t.date, note: t.note || '', editing: true, original: JSON.parse(JSON.stringify(t)), batchCount: 0, error: '', saving: false,
+      shareOpen: t.kind === 'expense' && t.myShare < t.amount, myShareText: t.kind === 'expense' ? moneyAmountText(t.myShare) : '', owedBy: t.owedBy || '',
+      debtId: t.debtId || null, splitOpen: split, principalTouched: true,
+      principalText: split ? moneyAmountText(t.principal) : '', interestText: split ? moneyAmountText(t.interest) : '', feeText: split ? moneyAmountText(t.fee) : ''
     } });
   },
-  'mf-kind': (e, el) => { moneyFormSync(); const f = state.tmp.mf; if (f.kind !== el.dataset.k) { f.kind = el.dataset.k; f.categoryId = null; } render(); },
+  'mf-kind': (e, el) => {
+    moneyFormSync();
+    const f = state.tmp.mf;
+    if (f.kind !== el.dataset.k) {
+      f.kind = el.dataset.k; f.categoryId = null; f.shareOpen = false; f.instOpen = false;
+      if (f.kind === 'debtPayment') { const d = moneyMU().debts.find(x => x.status === 'active'); f.amountText = ''; if (d) moneyFormPickDebt(f, d.id); }
+    }
+    render();
+  },
   'mf-cat': (e, el) => { moneyFormSync(); state.tmp.mf.categoryId = el.dataset.id; state.tmp.mf.error = ''; render(); },
   'mf-ctx': (e, el) => { moneyFormSync(); state.tmp.mf.contextId = el.dataset.id; render(); },
   'mf-date-quick': (e, el) => { moneyFormSync(); state.tmp.mf.date = el.dataset.d; render(); },
@@ -12583,6 +13131,170 @@ const actions = {
     if (el.dataset.ctx) state.tmp.filterCtx = state.tmp.filterCtx === el.dataset.ctx ? null : el.dataset.ctx;
     render();
     window.scrollTo(0, 0);
+  },
+
+  // ---------- v1.10.57 — T-026d: จ่ายแทน · เงินคืน · หนี้ ----------
+  'mf-toggle': (e, el) => {
+    moneyFormSync();
+    const f = state.tmp.mf, k = el.dataset.k;
+    f[k] = !f[k];
+    if (k === 'shareOpen' && f.shareOpen && !(f.myShareText || '').trim()) f.myShareText = f.amountText;
+    if (k === 'splitOpen' && f.splitOpen && !(f.principalText || '').trim()) f.principalText = f.amountText;
+    render();
+  },
+  'mf-split': (e, el) => {
+    moneyFormSync();
+    const f = state.tmp.mf, amt = parseMoneyInput(f.amountText);
+    if (!amt) { f.error = 'ใส่จำนวนเงินก่อน'; return render(); }
+    f.myShareText = moneyAmountText(Math.round(amt / Number(el.dataset.n)));
+    f.error = '';
+    render();
+  },
+  'mf-debt': (e, el) => { moneyFormSync(); moneyFormPickDebt(state.tmp.mf, el.dataset.id); render(); },
+  'money-debts': () => go('money-debts'),
+  'money-others': () => go('money-others'),
+  'fx-pick': (e, el) => {
+    document.querySelectorAll('[data-fx]').forEach(x => { state.tmp.fx[x.dataset.fx] = x.value; });
+    const fx = state.tmp.fx, k = el.dataset.k, v = el.dataset.v;
+    fx[k] = k === 'interestFree' ? v === '1' : (k === 'panel' && fx.panel === v ? null : v);
+    if (k === 'newType' || k === 'newCat') fx.preview = null;
+    fx.error = '';
+    render();
+  },
+  'money-debt-open': (e, el) => {
+    const today = todayKey();
+    go('money-debt', { fx: { debtId: el.dataset.id, panel: null, anchorType: 'statement', anchorDate: today, closeDate: today, error: '', saving: false } });
+  },
+  'money-debt-new': () => go('money-debt-form', { fx: { id: uid('md'), type: null, name: '', balanceText: '', startDate: todayKey(), instText: '', dueText: '', interestFree: false, originDate: '', categoryId: null, contextId: MONEY_SELF_CTX, error: '', saving: false } }),
+  'money-debt-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const bal = fxNum(fx.balanceText), inst = fxNum(fx.instText), due = (fx.dueText || '').trim() ? Number(fx.dueText) : null;
+    const err = !fx.name.trim() ? 'ใส่ชื่อหนี้' : bal == null ? 'ใส่ยอดคงเหลือ' : (fx.instText || '').trim() && !inst ? 'ยอดงวดไม่ถูกต้อง'
+      : due != null && !(Number.isInteger(due) && due >= 1 && due <= 31) ? 'วันครบกำหนดต้องเป็น 1–31' : fx.type === 'installment' && !fx.categoryId ? 'เลือกหมวดของสินค้า' : '';
+    if (err) { fx.error = err; return render(); }
+    const ok = await moneyFxSave((mu, today) => moneyAddDebt(mu, {
+      id: fx.id, name: fx.name, type: fx.type, interestFree: fx.interestFree, categoryId: fx.categoryId, contextId: fx.contextId,
+      startDate: fx.startDate, startBalance: bal, originDate: isRealDateKey(fx.originDate) ? fx.originDate : null, installment: inst, dueDay: due
+    }, today), 'เพิ่มหนี้แล้ว');
+    if (ok) back();
+  },
+  'money-debt-pay': (e, el) => {
+    const f = moneyNewForm();
+    f.kind = 'debtPayment';
+    if (el.dataset.amount) f.amountText = moneyAmountText(Number(el.dataset.amount));   // "จ่ายยอดที่เหลือ"
+    moneyFormPickDebt(f, el.dataset.id);
+    go('money-form', { mf: f });
+  },
+  'money-anchor-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const bal = fxNum(fx.anchorBalText);
+    if (bal == null) { fx.error = 'ใส่ยอด'; return render(); }
+    const ok = await moneyFxSave((mu, today) => moneyAddDebtAnchor(mu, fx.debtId, { id: uid('ma'), type: fx.anchorType, date: fx.anchorDate, balance: bal, note: (fx.anchorNote || '').trim() }, today), 'บันทึกยอดแล้ว');
+    if (ok) { fx.panel = null; fx.anchorBalText = ''; fx.anchorNote = ''; render(); }
+  },
+  'money-close-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    let waived = 0;
+    const ok = await moneyFxSave((mu, today) => { waived = moneyCloseDebt(mu, fx.debtId, fx.closeDate, today, fx.closeReason); });
+    if (ok) { toast(waived ? `ปิดหนี้แล้ว · ปรับยอด ${mfm(waived)} เป็น 0 (${String(fx.closeReason).trim()})` : 'ปิดหนี้แล้ว · จ่ายครบ'); fx.panel = null; render(); }
+  },
+  'money-debt-preview': () => {
+    const fx = state.tmp.fx, mu = moneyMU(), d = mu.debts.find(x => x.id === fx.debtId);
+    const patch = moneyDebtPatch(fx, d);
+    fx.preview = moneyDebtChangePreview(mu, d.id, patch);
+    render();
+  },
+  'money-debt-change': async () => {
+    const fx = state.tmp.fx, d = moneyMU().debts.find(x => x.id === fx.debtId);
+    const patch = moneyDebtPatch(fx, d);
+    const ok = await moneyFxSave(mu => moneyChangeDebt(mu, fx.debtId, patch, new Date().toISOString()), 'เปลี่ยนแล้ว · บันทึกประวัติแล้ว');
+    if (ok) { fx.panel = null; fx.preview = null; render(); }
+  },
+  'money-debt-delete': async () => {
+    const fx = state.tmp.fx, d = moneyMU().debts.find(x => x.id === fx.debtId);
+    if (!d || !confirm(`ลบหนี้ "${d.name}"?`)) return;
+    const withDown = !!(d.purchase && d.purchase.downPaymentTxnId) && confirm('ลบเงินดาวน์ที่ผูกกับหนี้นี้ด้วยไหม?\nตกลง = ลบด้วย · ยกเลิก = เก็บไว้เป็นรายจ่ายปกติ');
+    const ok = await moneyFxSave(mu => moneyDeleteDebt(mu, fx.debtId, withDown), 'ลบหนี้แล้ว');
+    if (ok) back();
+  },
+  'money-back-open': (e, el) => go('money-back', { fx: moneyBackForm(moneyMU(), el.dataset.id || null) }),
+  'money-back-autofill': () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    let left = fxNum(fx.amountText) || 0;
+    for (const it of fx.items) { const a = Math.min(left, it.max); it.text = a ? moneyAmountText(a) : ''; left -= a; }
+    render();
+  },
+  'money-back-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const received = fxNum(fx.amountText);
+    const allocations = [];
+    for (const it of fx.items) {
+      const a = fxNum(it.text, 0);
+      if (a == null) { fx.error = 'จำนวนในรายการไม่ถูกต้อง'; return render(); }
+      if (a) allocations.push({ txnId: it.txnId, amount: a });
+    }
+    const alloc = allocations.reduce((s, a) => s + a.amount, 0);
+    if (!received) { fx.error = 'ใส่ยอดที่ได้รับคืน'; return render(); }
+    if (alloc > received) { fx.error = `จัดสรร ${formatMoney(alloc)} เกินยอดที่ได้รับ ${formatMoney(received)}`; return render(); }
+    if (alloc < received && !confirm(`เหลือ ${formatMoney(received - alloc)} ไม่ได้จัดสรร — จะเก็บเป็นเงินคืนที่ไม่ผูกกับรายการใด (ไม่ใช่รายได้)\n\nบันทึกต่อไหม?`)) return;
+    const ok = await moneyFxSave((mu, today) => moneyUpsertTxn(mu, { id: fx.id, kind: 'moneyBack', backType: 'reimburse', date: fx.date, amount: received, allocations, note: (fx.note || '').trim() }, today), 'บันทึกเงินคืนแล้ว');
+    if (ok) back();
+  },
+  'money-refund-open': (e, el) => {
+    const mu = moneyMU(), t = mu.txns.find(x => x.id === el.dataset.id), today = todayKey();
+    const caps = moneyRefundCaps(mu, t, today);
+    go('money-refund', { fx: { id: uid('mr'), txnId: t.id, date: today, mineText: moneyAmountText(caps.mine), othersText: t.myShare < t.amount ? moneyAmountText(caps.others) : '', error: '', saving: false } });
+  },
+  'money-refund-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const mine = fxNum(fx.mineText, 0), others = fxNum(fx.othersText, 0);
+    if (mine == null || others == null || mine + others === 0) { fx.error = 'ใส่จำนวนที่ร้านคืน'; return render(); }
+    const ok = await moneyFxSave((mu, today) => moneyUpsertTxn(mu, { id: fx.id, kind: 'moneyBack', backType: 'refund', date: fx.date, amount: mine + others, allocations: [{ txnId: fx.txnId, mine, others }] }, today), 'บันทึกเงินคืนจากร้านแล้ว');
+    if (ok) back();
+  },
+  'money-writeoff-open': (e, el) => {
+    const mu = moneyMU(), t = mu.txns.find(x => x.id === el.dataset.id), pos = moneyPosToday(mu, t);
+    go('money-writeoff', { fx: { id: uid('mw'), txnId: t.id, max: pos, amountText: moneyAmountText(pos), date: todayKey(), categoryId: t.categoryId, contextId: t.contextId, error: '', saving: false } });
+  },
+  'money-writeoff-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const amt = fxNum(fx.amountText);
+    if (!amt) { fx.error = 'ใส่จำนวน'; return render(); }
+    const ok = await moneyFxSave((mu, today) => moneyUpsertTxn(mu, { id: fx.id, kind: 'writeOff', date: fx.date, amount: amt, sourceTxnId: fx.txnId, categoryId: fx.categoryId, contextId: fx.contextId }, today), 'บันทึกแล้ว');
+    if (ok) back();
+  },
+  'money-payout-open': (e, el) => {
+    const mu = moneyMU(), t = mu.txns.find(x => x.id === el.dataset.id), pos = moneyPosToday(mu, t);
+    go('money-payout', { fx: { id: uid('mp'), txnId: t.id, max: -pos, amountText: moneyAmountText(-pos), date: todayKey(), error: '', saving: false } });
+  },
+  'money-payout-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const amt = fxNum(fx.amountText);
+    if (!amt) { fx.error = 'ใส่จำนวน'; return render(); }
+    const ok = await moneyFxSave((mu, today) => moneyUpsertTxn(mu, { id: fx.id, kind: 'payOut', date: fx.date, amount: amt, sourceTxnId: fx.txnId }, today), 'บันทึกการคืนเงินแล้ว');
+    if (ok) back();
+  },
+  'money-fx-delete': async () => {
+    const fx = state.tmp.fx;
+    if (!confirm('ลบรายการนี้? ยอดค้างรับ/ค่าใช้จ่ายที่เกี่ยวข้องจะคำนวณใหม่')) return;
+    const ok = await moneyFxSave(mu => { moneyDeleteTxn(mu, fx.id); }, 'ลบแล้ว');
+    if (ok) back();
+  },
+  'money-txn-save': async () => {
+    const fx = state.tmp.fx;
+    document.querySelectorAll('[data-fx]').forEach(x => { fx[x.dataset.fx] = x.value; });
+    const amt = fxNum(fx.amountText);
+    if (!amt) { fx.error = 'ใส่จำนวน'; return render(); }
+    const ok = await moneyFxSave((mu, today) => { const t = mu.txns.find(x => x.id === fx.id); moneyUpsertTxn(mu, { ...t, amount: amt, date: fx.date }, today); }, 'บันทึกการแก้ไขแล้ว');
+    if (ok) back();
   },
   'money-filter-clear': () => { state.tmp.filterCat = null; state.tmp.filterCtx = null; render(); },
   'money-cat-add': (e, el) => {
@@ -12723,8 +13435,24 @@ document.addEventListener('change', (e) => {
 
 document.addEventListener('input', (e) => {
   // v1.10.56 — T-026c: เก็บค่าที่พิมพ์ในฟอร์มเงินทันที — วาดหน้าใหม่หรือบันทึกไม่สำเร็จก็ไม่หาย
-  if (state.tmp.mf && (e.target.id === 'mf-amount' || e.target.id === 'mf-note')) {
-    if (e.target.id === 'mf-amount') state.tmp.mf.amountText = e.target.value; else state.tmp.mf.note = e.target.value;
+  if (state.tmp.mf && (e.target.id === 'mf-amount' || e.target.id === 'mf-note' || e.target.dataset.mf)) {
+    const f = state.tmp.mf;
+    if (e.target.id === 'mf-amount') f.amountText = e.target.value; else if (e.target.id === 'mf-note') f.note = e.target.value; else f[e.target.dataset.mf] = e.target.value;
+    if (e.target.id === 'mf-principal') f.principalTouched = true;
+    // v1.10.57 — หนี้ 0%: เงินต้นตามยอดจ่าย − ค่าธรรมเนียม จนกว่าผู้ใช้จะแก้เอง (C4)
+    const d = f.kind === 'debtPayment' && !f.principalTouched && moneyMU() && moneyMU().debts.find(x => x.id === f.debtId);
+    if (d && d.interestFree && (e.target.id === 'mf-amount' || e.target.id === 'mf-fee')) {
+      const amt = parseMoneyInput(f.amountText), fee = (f.feeText || '').trim() ? parseMoneyInput(f.feeText) : 0;
+      f.principalText = amt != null && fee != null && amt >= fee ? moneyAmountText(amt - fee) : '';
+      const pe = document.getElementById('mf-principal'); if (pe) pe.value = f.principalText;
+    }
+    if (f.shareOpen && e.target.id === 'mf-myshare') { clearTimeout(render._t); render._t = setTimeout(render, 250); }
+    return;
+  }
+  if (state.tmp.fx && (e.target.dataset.fx || e.target.dataset.fxi)) {
+    if (e.target.dataset.fxi != null && e.target.dataset.fxi !== '') state.tmp.fx.items[Number(e.target.dataset.fxi)].text = e.target.value;
+    else state.tmp.fx[e.target.dataset.fx] = e.target.value;
+    if (e.target.dataset.live) { clearTimeout(render._t); render._t = setTimeout(render, 300); }
     return;
   }
   if (e.target.id === 'lib-search') {

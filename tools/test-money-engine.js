@@ -218,7 +218,7 @@ eqB('E-6 พ.ย. ของฉัน', Q.sum(r.mu, '2026-11-01', '2026-11-30').m
 eq('E-6 T11 เหลือผูก T9 เท่านั้น', r.mu.txns.find(t => t.id === 'T11').allocations.map(a => a.txnId), ['T9']);
 r = tryMut(mu => { mu.txns = mu.txns.filter(t => t.id !== 'W1'); mu.txns.find(x => x.id === 'T4').myShare = B(1000); });
 has('E-7 ส่วนของฉันเกินขอบ', r.error, 'ส่วนของฉันสูงสุดได้ ฿900');
-r = tryMut((mu) => { F.upsert(mu, pay('T19', '2026-11-28', 'D1', 7800, 7800, 0, 0), TODAY); return F.close(mu, 'D1', '2026-11-28', TODAY); });
+r = tryMut((mu) => { F.upsert(mu, pay('T19', '2026-11-28', 'D1', 7800, 7800, 0, 0), TODAY); return F.close(mu, 'D1', '2026-11-28', TODAY, 'ส่วนลดปิดก่อนกำหนด'); });
 eq('E-8 validate', r.error, null);
 eq('E-8 D1 ปิด ส่วนลด 200', [D(r.mu, 'D1').status, D(r.mu, 'D1').anchors.find(a => a.type === 'close').waived], ['closed', B(200)]);
 eqB('E-8 พ.ย. เงินออก', Q.sum(r.mu, '2026-11-01', '2026-11-30').cash.cashOut, 17100); eqB('E-8 พ.ย. ของฉัน', Q.sum(r.mu, '2026-11-01', '2026-11-30').mine, 12800);
@@ -307,6 +307,38 @@ eq('RF-F ผลการลบที่บอกในกล่องยืน�
 F.del(m, 'E');
 s = Q.sum(m, '2026-11-01', '2026-11-30');
 eq('RF-F หลังลบ: validate · ของฉัน 0 · เงินเข้า/ออกยังอยู่', [Q.validate(m), s.mine, s.cash.cashIn, s.cash.payOut], [null, 0, B(1800), B(600)]);
+
+sec('แก้รายการที่ผูกโดยตรง (id เดิม · ตรวจตามลำดับวันที่) — v1.10.57');
+const editTx = (id, patch) => tryMut(mu => { const t = mu.txns.find(x => x.id === id); F.upsert(mu, { ...t, ...patch }, TODAY); });
+r = editTx('T12', { amount: B(1500), allocations: [{ txnId: 'T5', mine: B(1500), others: 0 }] });
+eq('ED-1 แก้ร้านคืน T12 2,000 → 1,500: ผ่าน · id เดิม · จำนวนรายการเท่าเดิม', [r.error, r.mu.txns.filter(x => x.id === 'T12').length, r.mu.txns.length], [null, 1, MU.txns.length]);
+eqB('ED-1 พ.ย. เกม/บันเทิง สุทธิ', Q.sum(r.mu, '2026-11-01', '2026-11-30').byCategory.c_fun.net, -1200);
+r = editTx('W1', { date: '2026-11-07' });
+eq('ED-2 ย้าย "ไม่ต้องคืนแล้ว" ไปก่อนวันเพื่อนคืน (7 พ.ย.) → ผ่าน (ค้างรับวันนั้น 600)', r.error, null);
+eqB('ED-2 ค้างรับ ณ 7 พ.ย. หลังย้าย', Q.others(r.mu, '2026-11-07').receivable, 700);
+r = editTx('W1', { amount: B(400) });
+has('ED-3 แก้ "ไม่ต้องคืนแล้ว" 300 → 400 (เพื่อนคืนแล้ว 300 ของ 600)', r.error, 'ได้รับคืนแล้ว ฿700 เกินส่วนของคนอื่น ฿600');
+r = editTx('T11', { allocations: [{ txnId: 'T9', amount: B(400) }, { txnId: 'T4', amount: B(400) }], amount: B(800) });
+has('ED-4 แก้เงินคืนก้อนเดียว T4 300 → 400 ขณะมี "ไม่ต้องคืนแล้ว" 300', r.error, 'เกินส่วนของคนอื่น ฿600');
+const rfMu = () => { const mu = { ...clone(MU), txns: [], debts: [] }; F.upsert(mu, exp('E', '2026-11-01', 1200, 'c_food', 'x_friend', 600), TODAY);
+  for (const e of [{ id: 'RB', kind: 'moneyBack', backType: 'reimburse', date: '2026-11-05', amount: B(600), allocations: [{ txnId: 'E', amount: B(600) }] },
+    { id: 'RS', kind: 'moneyBack', backType: 'refund', date: '2026-11-10', amount: B(1200), allocations: [{ txnId: 'E', mine: B(600), others: B(600) }] },
+    { id: 'PO', kind: 'payOut', date: '2026-11-15', amount: B(600), sourceTxnId: 'E' }]) F.upsert(mu, e, TODAY); return mu; };
+let m5 = rfMu(); F.upsert(m5, { ...m5.txns.find(x => x.id === 'RS'), date: '2026-11-16' }, TODAY);
+has('ED-5 ย้ายร้านคืนไปหลังวันคืนเงินให้เพื่อน → ระบุรายการที่ติดและวิธีแก้', Q.validate(m5), 'คืนเงินให้คนอื่นวันที่ 15 พ.ย. 2569 — ต้องคืนรายการนี้ ฿0 ณ วันนั้น');
+m5 = rfMu(); F.upsert(m5, { ...m5.txns.find(x => x.id === 'PO'), date: '2026-11-12', amount: B(500) }, TODAY);
+eq('ED-6 แก้คืนเงินให้คนอื่น 600 → 500 และย้ายเป็น 12 พ.ย. → ผ่าน · ยังต้องคืน 100', [Q.validate(m5), Q.others(m5, '2026-11-30').payable], [null, B(100)]);
+const stE = makeStores(); const TE = makeTab(stE);
+await TE('moneyCommit')(d => { const mu = TE('moneyUser')(d, 'u'); for (const x of clone(MU).txns) mu.txns.push(x); for (const x of clone(MU).debts) mu.debts.push(x); });
+const rawBefore = stE.money.raw();
+r = await TE('moneyCommit')(d => { const mu = TE('moneyUser')(d, 'u'); const w = mu.txns.find(x => x.id === 'W1'); TE('moneyUpsertTxn')(mu, { ...w, amount: B(400) }, TODAY); });
+eq('ED-7 แก้ผิดกติกาผ่าน moneyCommit → invalid · ที่เก็บไม่เปลี่ยนทุกไบต์', [r.ok, r.reason, stE.money.raw() === rawBefore], [false, 'invalid', true]);
+r = tryMut(mu => F.close(mu, 'D1', '2026-11-30', TODAY));
+has('CL-1 ปิดหนี้ที่ยังเหลือยอดโดยไม่มีเหตุผล → ไม่ให้ปิด', r.error, 'ยังเหลือยอด ฿8,000');
+r = tryMut(mu => { F.upsert(mu, pay('T19', '2026-11-28', 'D1', 8000, 8000, 0, 0), TODAY); F.close(mu, 'D1', '2026-11-28', TODAY); });
+eq('CL-2 จ่ายครบแล้วปิด → ไม่ต้องมีเหตุผล · ส่วนลด 0', [r.error, D(r.mu, 'D1').anchors.find(a => a.type === 'close').waived], [null, 0]);
+r = tryMut(mu => { D(mu, 'D1').anchors.push({ id: 'x', type: 'close', date: '2026-11-30', balance: 0, waived: B(8000) }); });
+has('CL-3 ไฟล์/ข้อมูลที่ปิดหนี้เหลือยอดโดยไม่มีเหตุผล → ไม่ผ่านกติกา', r.error, 'ต้องมีเหตุผล');
 
 sec('6.6 วันที่');
 eq('B-1 T8 อยู่ในเดือน ต.ค.', Q.filt(MU, '2026-10-01', '2026-10-31', 'c_travel', null).count, 1);
