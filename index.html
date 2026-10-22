@@ -244,6 +244,29 @@
     display: flex; align-items: center; justify-content: center;
   }
   .fab:active { transform: scale(0.95); }
+  /* v1.10.56 — T-026c: แท็บเงิน */
+  .mseg button { min-width: 0; min-height: 44px; font-size: 14px; padding: 0 6px; flex: 1 1 auto; }
+  .mbig { font-size: 24px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+  .ms { font-size: 12.5px; }
+  .mdiv { border-top: 1px dashed var(--line); margin: 10px 0; }
+  .mday { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin: 12px 2px 4px; }
+  .mrow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .mrow:last-child { border-bottom: 0; }
+  .mrow[data-act] { cursor: pointer; }
+  .mrow .mi { font-size: 20px; line-height: 1.3; }
+  .mrow .mt1 { font-size: 15px; overflow-wrap: anywhere; }
+  .mchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mchip { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: #fff; color: var(--ink); font-size: 15px; }
+  .mchip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .mamount { font-size: 28px; font-weight: 600; min-height: 60px; }
+  .mfab { position: fixed; right: 16px; bottom: calc(84px + var(--safe-bottom)); z-index: 15; min-height: 52px; padding: 0 20px; border-radius: 999px; background: var(--green); color: #fff; font-size: 17px; font-weight: 600; box-shadow: var(--shadow-lg); }
+  .mtable .mth, .mtable .mtr { display: grid; grid-template-columns: minmax(0, 1.6fr) 1fr 1fr 1fr; gap: 6px; font-size: 13.5px; padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+  .mtable .mth { color: var(--muted); font-size: 12px; }
+  .mtable .mth span:first-child, .mtable .mtr span:first-child { text-align: left; overflow-wrap: anywhere; }
+  .mtable .mtr { cursor: pointer; }
+  .mtable .mtr.on { background: var(--primary-soft); }
+  /* แถบล่าง 5 แท็บบนจอ ≤ 340px (เช่น 320px): ป้ายไม่ตัดกลางคำ แถบไม่สูงขึ้น */
+  @media (max-width: 340px) { .botnav button { padding: 4px 2px; min-width: 56px; } .botnav button span:last-child { white-space: nowrap; } }
 
   /* Confidence chips */
   .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
@@ -716,7 +739,7 @@
 'use strict';
 
 /* ========== CONSTANTS ========== */
-const VERSION = 'v1.10.55';
+const VERSION = 'v1.10.56';
 const STORAGE_KEY = 'pracal_v1';
 // v1.10.54 — T-026a: สำรอง v2 + กู้คืน · key ต่อไปนี้อยู่นอก pracal_v1 โดยตั้งใจ — เป็นสถานะของเครื่อง/แท็บ
 // ไม่ใช่ข้อมูลผู้ใช้ จึงต้องไม่ถูกการกู้คืนเขียนทับ
@@ -3682,18 +3705,19 @@ function parseBackupText(text, byteLength) {
 // id = เวลาที่สร้าง จึงเรียงและตัดของเก่าได้จาก key โดยไม่ต้องโหลดข้อมูลทั้งก้อน
 let _safetyDbPromise = null;
 function openSafetyDb() {
-  if (_safetyDbPromise) return _safetyDbPromise;
+  if (_safetyDbPromise) return withDbTimeout(_safetyDbPromise);
   _safetyDbPromise = new Promise((resolve, reject) => {
     if (!window.indexedDB) return reject(new Error('IndexedDB ไม่รองรับในเบราว์เซอร์นี้'));
     const req = indexedDB.open(SAFETY_DB_NAME, 1);
     req.onerror = () => { _safetyDbPromise = null; reject(req.error); };
-    req.onsuccess = () => resolve(req.result);
+    // v1.10.56 — ปิดเมื่อมีการลบ/อัปเกรดฐานจากที่อื่น ไม่งั้นคำขอนั้นค้าง และการเปิดฐานครั้งถัดไปทั้งหมดค้างตาม (ปุ่มนำเข้าหมุนไม่จบ)
+    req.onsuccess = () => { const db = req.result; db.onversionchange = () => { db.close(); _safetyDbPromise = null; }; resolve(db); };
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(SAFETY_STORE)) db.createObjectStore(SAFETY_STORE, { keyPath: 'id' });
     };
   });
-  return _safetyDbPromise;
+  return withDbTimeout(_safetyDbPromise);
 }
 async function saveSafetySnapshot(rec) {
   const db = await openSafetyDb();
@@ -3734,7 +3758,8 @@ async function safetySnapshotKeys() {
 async function pruneSafetySnapshots() {
   const keys = await safetySnapshotKeys();
   const now = Date.now();
-  const doomed = keys.filter((k, i) => i >= SAFETY_MAX_SNAPSHOTS || now - k > SAFETY_KEEP_MS);
+  const j = readRestoreMarker();   // สำเนาของการนำเข้าที่ยังไม่ปิดงาน ห้ามลบ
+  const doomed = keys.filter((k, i) => (i >= SAFETY_MAX_SNAPSHOTS || now - k > SAFETY_KEEP_MS) && !(j && j.snapId === k));
   for (const k of doomed) await deleteSafetySnapshot(k);
   return doomed.length;
 }
@@ -3760,11 +3785,6 @@ function myTabId() {
     return id;
   } catch { return ''; }
 }
-function ownsRestoreMarker(marker) {
-  if (!marker) return false;
-  if (marker.tabId && marker.tabId === myTabId()) return true;
-  return Date.now() - (Number(marker.at) || 0) > RESTORE_MARKER_STALE_MS;   // แท็บที่กู้คืนปิดไปแล้ว
-}
 function setBootNotice(kind, detail) {
   try { sessionStorage.setItem(BOOT_NOTICE_KEY, JSON.stringify({ kind, detail: detail || '' })); } catch {}
 }
@@ -3775,6 +3795,130 @@ function reloadAfterExternalRestore() {
   location.reload();
 }
 
+// ---------- สถานะการนำเข้าที่เก็บถาวร (journal) — v1.10.56 ----------
+// เครื่องหมาย "เพิ่งนำเข้า" เดิมเก็บหลังเขียนเสร็จ จึงไม่ครอบคลุมการปิดหน้า/แท็บระหว่างเขียน (catch/finally ไม่ได้รัน)
+// ตอนนี้บันทึก journal ให้สำเร็จก่อนเปลี่ยนข้อมูลจริง แล้วเลื่อน phase:
+//   'writing'   → กำลังเขียน (ถ้าเจอตอนเปิดแอป = ถูกขัดจังหวะ → คืนชุดเดิม)
+//   'verify'    → เขียนครบแล้ว รอตรวจหลังโหลด (ตรวจ hash ของทั้งสองส่วน + เปิดได้ทุกโปรไฟล์)
+//   'reverting' → กำลังคืนชุดเดิม (ถ้าเจอตอนเปิดแอป = คืนค้าง → คืนซ้ำ)
+// แท็บที่นำเข้าถือ Web Lock ไว้ตลอดช่วงเขียน — แท็บอื่นแยกได้ว่า "ยังทำอยู่" หรือ "ปิดไปแล้ว"
+const RESTORE_LOCK_NAME = 'pracal-restore';
+const DB_OPEN_TIMEOUT_MS = 5000;
+const DB_BLOCKED_MESSAGE = 'ฐานข้อมูลถูก PraCaL หน้าต่างอื่นใช้อยู่ — กรุณาปิด PraCaL แท็บ/หน้าต่างอื่นทั้งหมด แล้วลองอีกครั้ง';
+// เปิดฐาน IndexedDB ค้างได้เมื่อมีคำขอลบ/อัปเกรดฐานที่ถูกแท็บอื่น (เช่นแท็บโค้ดเก่า) บล็อกอยู่ → ไม่ปล่อยให้หมุนค้าง
+function withDbTimeout(promise) {
+  let t;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { t = setTimeout(() => { const e = new Error(DB_BLOCKED_MESSAGE); e.dbBlocked = true; reject(e); }, DB_OPEN_TIMEOUT_MS); })
+  ]).finally(() => clearTimeout(t));
+}
+// hash ของข้อความ (cyrb53) — ใช้ตรวจว่าข้อมูลที่อยู่ในเครื่องตรงกับชุดที่ตั้งใจเขียนหรือไม่ โดยไม่ต้องเก็บข้อมูลทั้งก้อนซ้ำ
+function hashRaw(s) {
+  if (s == null) return 'null';
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return s.length + ':' + (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+// throw ถ้าเขียนไม่ได้ — ผู้เรียกต้องหยุด ห้ามเปลี่ยนข้อมูลโดยไม่มี journal
+function writeRestoreJournal(j) {
+  localStorage.setItem(RESTORE_MARKER_KEY, JSON.stringify({ ...j, at: Date.now(), tabId: myTabId() }));
+}
+// ถือ lock จนกว่าจะเรียก release() หรือหน้าถูกปิด/โหลดใหม่ · เบราว์เซอร์ที่ไม่มี Web Locks → ใช้เวลา (RESTORE_MARKER_STALE_MS) แทน
+async function acquireRestoreLock() {
+  let release = () => {};
+  if (navigator.locks && navigator.locks.request) {
+    await new Promise(acquired => {
+      navigator.locks.request(RESTORE_LOCK_NAME, () => new Promise(done => { release = done; acquired(); })).catch(() => acquired());
+    });
+  }
+  return { release: () => release() };
+}
+async function restoreLockHeld() {
+  try {
+    if (navigator.locks && navigator.locks.query) {
+      const q = await navigator.locks.query();
+      return (q.held || []).some(l => l.name === RESTORE_LOCK_NAME);
+    }
+  } catch {}
+  return null;   // ไม่รู้
+}
+// คืนชุดก่อนนำเข้าจาก safety snapshot แล้วอ่านกลับมาตรวจ · ล้าง journal เฉพาะเมื่อตรวจแล้วว่าทั้งสองส่วนตรงจริง
+async function revertToSnapshot(j) {
+  try { writeRestoreJournal({ ...j, phase: 'reverting' }); } catch {}
+  let ok = false;
+  try {
+    const snap = await getSafetySnapshot(j.snapId);
+    if (snap) ok = await rollbackRaw(snap.health, snap.money);
+  } catch {}
+  try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now()) + 'r'); } catch {}   // แท็บอื่นที่เปิดค้างต้องโหลดใหม่ ห้ามเขียน
+  if (ok) {
+    clearRestoreMarker();
+    try { await deleteSafetySnapshot(j.snapId); } catch {}   // ลบหลังล้าง journal: ถ้าปิดหน้าระหว่างนี้ จะเหลือสำเนาเกิน ไม่ใช่ journal ที่ไม่มีสำเนา
+  }
+  return ok;
+}
+// เรียกต้น main() ก่อน initFromStorage (ซึ่งอาจเขียนผ่าน migrateData) · ผล: { go, verify } | { wait } | { stop, recovery }
+async function handleRestoreJournalAtBoot() {
+  const j = readRestoreMarker();
+  if (!j) return { go: true };
+  const mine = !!j.tabId && j.tabId === myTabId();
+  const fresh = Date.now() - (Number(j.at) || 0) <= RESTORE_MARKER_STALE_MS;
+  const phase = j.phase || 'verify';   // เครื่องหมายจาก v1.10.54/55 ไม่มี phase = เขียนครบแล้ว
+  if (phase === 'verify') {
+    if (!mine && fresh) return { go: true };   // แท็บที่นำเข้ากำลังโหลดใหม่และจะตรวจเอง
+    if (j.tgtH) {
+      let curH = null, curM;
+      try { curH = localStorage.getItem(STORAGE_KEY); curM = await withDbTimeout(moneyReadRaw()); } catch { curM = undefined; }
+      if (hashRaw(curH) !== j.tgtH || curM === undefined || hashRaw(curM) !== j.tgtM) return revertOrRecover(j, 'restore-reverted');
+    }
+    return { go: true, verify: j };
+  }
+  // 'writing' / 'reverting' = งานค้าง · ถ้าแท็บที่ทำยังเปิดอยู่ (ถือ lock) ให้รอ ไม่แย่งคืนข้อมูลกลางทาง
+  const held = await restoreLockHeld();
+  if (!mine && (held === true || (held === null && fresh))) return { wait: true };
+  return revertOrRecover(j, 'restore-interrupted-reverted');
+}
+async function revertOrRecover(j, noticeKind) {
+  if (await revertToSnapshot(j)) {
+    setBootNotice(noticeKind, '');
+    location.reload();
+    return { stop: true };
+  }
+  return { stop: true, recovery: true };
+}
+function renderRestoreRecovery() {
+  const t = state.tmp || {};
+  return `
+    <div class="screen">
+      <div class="header"><h1>⚠️ ต้องคืนข้อมูลก่อนใช้งาน</h1></div>
+      <div class="card">
+        <div style="line-height:1.7">การนำเข้าข้อมูลครั้งก่อนไม่เสร็จ (หน้าถูกปิดหรือโหลดใหม่ระหว่างเขียน) และคืนข้อมูลชุดเดิมอัตโนมัติยังไม่สำเร็จ</div>
+        <div class="muted" style="font-size:14px;line-height:1.7;margin-top:8px">ยังไม่เปิดใช้งานแอป เพื่อไม่ให้ข้อมูลสุขภาพกับข้อมูลเงินจากคนละชุดถูกใช้หรือบันทึกทับ · สำเนาข้อมูลก่อนนำเข้ายังเก็บอยู่</div>
+      </div>
+      <div class="callout">ปิด PraCaL แท็บ/หน้าต่างอื่นทั้งหมดก่อน แล้วกดลองอีกครั้ง</div>
+      ${t.recoveryError ? `<div class="callout warn">${h(t.recoveryError)}</div>` : ''}
+      <button class="btn block lg" data-act="restore-recovery-retry" ${t.recovering ? 'disabled' : ''}>${t.recovering ? 'กำลังคืนข้อมูล…' : 'คืนข้อมูลชุดเดิมอีกครั้ง'}</button>
+    </div>`;
+}
+function renderRestoreWait() {
+  return `
+    <div class="screen">
+      <div class="header"><h1>⏳ กำลังนำเข้าข้อมูล</h1></div>
+      <div class="card" style="line-height:1.7">มีการนำเข้าข้อมูลใน PraCaL หน้าต่างอื่นที่ยังทำไม่เสร็จ · หน้านี้จะเปิดเองเมื่อเสร็จ<div class="muted" style="font-size:14px;margin-top:6px">ถ้าปิดหน้าต่างนั้นไปแล้ว หน้านี้จะคืนข้อมูลชุดเดิมให้อัตโนมัติ</div></div>
+    </div>`;
+}
+function pollRestoreWait() {
+  const t = setInterval(async () => {
+    const j = readRestoreMarker();
+    if (!j || (j.phase !== 'writing' && j.phase !== 'reverting')) { clearInterval(t); location.reload(); return; }
+    const held = await restoreLockHeld();
+    if (held === false || (held === null && Date.now() - (Number(j.at) || 0) > RESTORE_MARKER_STALE_MS)) { clearInterval(t); location.reload(); }
+  }, 1000);
+}
+
 // ---------- กู้คืน ----------
 // คืนทั้งสองส่วน แล้วอ่านกลับมาตรวจ — คืน true เฉพาะเมื่อทั้งสองส่วนตรงกับค่าเดิมจริง
 async function rollbackRaw(prevHealth, prevMoney) {
@@ -3783,32 +3927,42 @@ async function rollbackRaw(prevHealth, prevMoney) {
   try { return localStorage.getItem(STORAGE_KEY) === prevHealth && (await moneyReadRaw()) === prevMoney; } catch { return false; }
 }
 // source = { healthRaw: string|null, moneyRaw: string|null, reason: 'pre-restore'|'pre-undo', label }
+// ลำดับ: lock → อ่านชุดปัจจุบัน → safety snapshot (เขียนเสร็จจริง) → journal 'writing' → epoch → เขียนเงิน → เขียนสุขภาพ
+//        → journal 'verify' → โหลดใหม่ → ตรวจตอนเปิดแอป (handleRestoreJournalAtBoot + smoke test)
+// ปิดหน้าตรงไหนก็ตามหลัง journal 'writing' → เปิดแอปครั้งถัดไปคืนชุดเดิมก่อนให้บันทึกอะไรได้
 async function performRestore(source) {
   if (state.tmp.restoring) return;
   state.tmp.restoring = true;
   state.tmp.restoreError = '';
   render();
+  const lock = await acquireRestoreLock();
+  const stop = (msg) => { lock.release(); state.tmp.restoring = false; state.tmp.restoreError = msg; render(); };
+  if (readRestoreMarker()) return stop('มีการนำเข้าครั้งก่อนที่ยังไม่เสร็จ — โหลดหน้าใหม่ก่อน แล้วลองอีกครั้ง');
   let prevHealth, prevMoney;
   try {
     prevHealth = localStorage.getItem(STORAGE_KEY);
     prevMoney = await moneyReadRaw();
   } catch (e) {
-    state.tmp.restoring = false;
-    state.tmp.restoreError = 'อ่านข้อมูลปัจจุบันไม่ได้ จึงยกเลิกการนำเข้า — ไม่มีอะไรเปลี่ยน';
-    return render();
+    return stop(e && e.dbBlocked ? e.message : 'อ่านข้อมูลปัจจุบันไม่ได้ จึงยกเลิกการนำเข้า — ไม่มีอะไรเปลี่ยน');
   }
   let snapId;
   try {
     snapId = await saveSafetySnapshot({ reason: source.reason, label: source.label || '', appVersion: VERSION, health: prevHealth, money: prevMoney });
   } catch (e) {
-    state.tmp.restoring = false;
-    state.tmp.restoreError = 'เก็บสำเนาข้อมูลปัจจุบันไม่สำเร็จ จึงยังไม่นำเข้า — กด "ดาวน์โหลดไฟล์สำรอง" ของเครื่องนี้เก็บไว้ก่อน แล้วลองใหม่ (' + (e && e.message || e) + ')';
-    return render();
+    return stop(e && e.dbBlocked ? e.message : 'เก็บสำเนาข้อมูลปัจจุบันไม่สำเร็จ จึงยังไม่นำเข้า — กด "ดาวน์โหลดไฟล์สำรอง" ของเครื่องนี้เก็บไว้ก่อน แล้วลองใหม่ (' + (e && e.message || e) + ')');
   }
-  // epoch ก่อน: นับจากตอนนี้ persist() ของทุกแท็บอื่นจะปฏิเสธการเขียน จึงแทรกข้อมูลเก่าเข้ามาระหว่างนี้ไม่ได้
+  const journal = {
+    phase: 'writing', snapId, reason: source.reason,
+    prevH: hashRaw(prevHealth), prevM: hashRaw(prevMoney), tgtH: hashRaw(source.healthRaw), tgtM: hashRaw(source.moneyRaw)
+  };
+  try { writeRestoreJournal(journal); }
+  catch (e) {
+    try { await deleteSafetySnapshot(snapId); } catch {}
+    return stop('บันทึกสถานะการนำเข้าไม่สำเร็จ (พื้นที่ในเครื่องอาจไม่พอ) จึงยังไม่นำเข้า — ไม่มีอะไรเปลี่ยน');
+  }
+  // epoch ก่อน: นับจากตอนนี้ persist() / บันทึกเงินของทุกแท็บอื่นจะปฏิเสธการเขียน
   try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now())); } catch {}
-  // เขียนเงิน (IndexedDB) แล้วสุขภาพ (localStorage) — สองที่เก็บจึงไม่มี transaction ร่วม:
-  // ขั้นใดล้มเหลว คืนทั้งสองส่วนแล้วตรวจ ห้ามเหลือสุขภาพชุดใหม่กับเงินชุดเก่า
+  // เขียนเงิน (IndexedDB) แล้วสุขภาพ (localStorage) — สองที่เก็บไม่มี transaction ร่วม
   let failed = null;
   try { await moneyWriteRaw(source.moneyRaw); } catch (e) { failed = e; }
   if (!failed) {
@@ -3818,18 +3972,15 @@ async function performRestore(source) {
     } catch (e) { failed = e; }
   }
   if (failed) {
-    const detail = String(failed && (failed.name || failed.message) || failed);
-    if (await rollbackRaw(prevHealth, prevMoney)) {
-      try { await deleteSafetySnapshot(snapId); } catch {}   // สำเนานี้เท่ากับข้อมูลปัจจุบัน ไม่ต้องเก็บ
-      setBootNotice('restore-write-failed', detail);
-    } else {
-      setBootNotice('restore-rollback-incomplete', detail);   // เก็บสำเนาไว้ ให้ผู้ใช้กด "ย้อนการนำเข้า"
-    }
-    location.reload();   // epoch ของแท็บนี้เปลี่ยนแล้วเช่นกัน ต้องโหลดใหม่ให้ตรงกัน
+    const detail = String(failed && (failed.dbBlocked ? failed.message : (failed.name || failed.message)) || failed);
+    // คืนไม่ครบ → journal ยังอยู่ ('reverting') → เปิดแอปครั้งถัดไปเข้าหน้ากู้คืน ไม่เปิดใช้งานปกติ
+    setBootNotice((await revertToSnapshot(journal)) ? 'restore-write-failed' : 'restore-rollback-incomplete', detail);
+    location.reload();
     return;
   }
-  try { localStorage.setItem(RESTORE_MARKER_KEY, JSON.stringify({ snapId, at: Date.now(), reason: source.reason, tabId: myTabId() })); } catch {}
-  // epoch อีกครั้งหลังเขียนเสร็จ: แท็บที่โหลดใหม่ระหว่างช่วงเขียน (อาจอ่านได้ข้อมูลเก่า) จะได้ event อีกรอบแล้วโหลดข้อมูลชุดสุดท้าย
+  // ถ้าเขียน 'verify' ไม่ได้ journal ยังเป็น 'writing' → เปิดครั้งถัดไปจะคืนชุดเดิม (ปลอดภัย แค่การนำเข้าไม่เกิด)
+  try { writeRestoreJournal({ ...journal, phase: 'verify' }); } catch {}
+  // epoch อีกครั้งหลังเขียนเสร็จ: แท็บที่โหลดใหม่ระหว่างช่วงเขียน จะได้ event อีกรอบแล้วโหลดข้อมูลชุดสุดท้าย
   try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now()) + 'b'); } catch {}
   location.reload();
 }
@@ -3849,25 +4000,6 @@ function smokeTestAllProfiles() {
     state.currentUserId = keepId;
   }
 }
-async function revertFailedRestore(marker, err) {
-  // อ่านเครื่องหมายซ้ำ: ถ้าหายไปแล้ว แปลว่ามีแท็บอื่นจัดการแล้ว — อย่าคืนซ้ำและอย่าเตือนว่าคืนไม่ได้
-  const still = readRestoreMarker();
-  if (!still || still.snapId !== marker.snapId) { location.reload(); return; }
-  let reverted = false;
-  try {
-    const snap = await getSafetySnapshot(marker.snapId);
-    if (snap && await rollbackRaw(snap.health, snap.money)) {
-      reverted = true;
-      // สำเนานี้เท่ากับข้อมูลที่คืนแล้ว — ลบทิ้ง ไม่งั้นปุ่ม "ย้อนการนำเข้า" จะชวนให้ย้อนการนำเข้าที่ล้มเหลวไปแล้ว
-      try { await deleteSafetySnapshot(marker.snapId); } catch {}
-    }
-  } catch {}
-  clearRestoreMarker();
-  try { localStorage.setItem(RESTORE_EPOCH_KEY, String(Date.now())); } catch {}
-  setBootNotice(reverted ? 'restore-reverted' : 'restore-revert-failed', String(err && err.message || err));
-  location.reload();
-}
-
 // ---------- ไฟล์ที่ผู้ใช้เลือก ----------
 function handleBackupFile(file) {
   state.tmp.importError = '';
@@ -4009,6 +4141,7 @@ const BACKUP_NOTICES = {
   'restore-reverted': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'ข้อมูลในไฟล์ทำให้แอปเปิดไม่ได้ จึงคืนข้อมูลเดิมให้แล้ว — ไม่มีอะไรเปลี่ยน', error: true },
   'restore-revert-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'คืนข้อมูลเดิมอัตโนมัติไม่ได้ — ไปที่ ตั้งค่า → นำเข้าจากไฟล์สำรอง แล้วเลือกไฟล์สำรองล่าสุดของคุณ', error: true },
   'restore-write-failed': { title: '⚠️ นำเข้าไม่สำเร็จ', body: 'บันทึกข้อมูลจากไฟล์ไม่ได้ (พื้นที่ในเครื่องอาจไม่พอ) — ข้อมูลเดิมยังอยู่ครบ ไม่มีอะไรเปลี่ยน', error: true },
+  'restore-interrupted-reverted': { title: '⚠️ การนำเข้าครั้งก่อนไม่เสร็จ', body: 'หน้าถูกปิดหรือโหลดใหม่ระหว่างนำเข้า — คืนข้อมูลชุดเดิมทั้งสุขภาพและเงินให้แล้ว และตรวจแล้วว่าตรงกับก่อนนำเข้า', error: true },
   'restore-rollback-incomplete': { title: '⚠️ นำเข้าไม่สำเร็จ และคืนข้อมูลเดิมได้ไม่ครบ', body: 'ไปที่ ตั้งค่า → สำรอง / นำเข้า แล้วกด "ย้อนการนำเข้า" เพื่อคืนข้อมูลก่อนนำเข้าทั้งสุขภาพและเงิน', error: true },
   'external-restore': { title: 'ℹ️ โหลดข้อมูลใหม่แล้ว', body: 'มีการนำเข้าข้อมูลจากหน้าต่าง PraCaL อื่น · ถ้าเพิ่งบันทึกอะไรในหน้าต่างนี้ กรุณาบันทึกอีกครั้ง' }
 };
@@ -4600,7 +4733,7 @@ function moneyIdbBackend() {
   }));
   return {
     async readRaw() {
-      const db = await open();
+      const db = await withDbTimeout(open());
       return new Promise((resolve, reject) => {
         const g = db.transaction(MONEY_DB_STORE, 'readonly').objectStore(MONEY_DB_STORE).get(MONEY_DB_KEY);
         g.onsuccess = () => resolve(g.result ? g.result.json : null);
@@ -4609,7 +4742,7 @@ function moneyIdbBackend() {
     },
     // fn(raw) → { result, write? } · write: string = แทนที่ · null = ลบ · ไม่ระบุ = ไม่เขียน
     async transact(fn) {
-      const db = await open();
+      const db = await withDbTimeout(open());
       return new Promise((resolve, reject) => {
         const tx = db.transaction(MONEY_DB_STORE, 'readwrite');
         const st = tx.objectStore(MONEY_DB_STORE);
@@ -4647,7 +4780,7 @@ function moneyParse(raw) {
 }
 async function moneyLoad() {
   let raw;
-  try { raw = await moneyReadRaw(); } catch (e) { return { ok: false, reason: 'read-failed', error: 'อ่านข้อมูลเงินไม่ได้' }; }
+  try { raw = await moneyReadRaw(); } catch (e) { return { ok: false, reason: 'read-failed', error: e && e.dbBlocked ? e.message : 'อ่านข้อมูลเงินไม่ได้' }; }
   const p = moneyParse(raw);
   if (!p.ok) { _money = null; _moneyStamp = null; return p; }
   _money = p.data;
@@ -4683,7 +4816,7 @@ async function moneyCommit(mutate, opts) {
       return { write: JSON.stringify(next), result: { ok: true, data: next, result } };
     });
   } catch (e) {
-    return { ok: false, reason: 'write-failed', error: 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ (' + String(e && (e.name || e.message) || e) + ')' };
+    return { ok: false, reason: 'write-failed', error: e && e.dbBlocked ? 'บันทึกไม่สำเร็จ — ' + e.message : 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ (' + String(e && (e.name || e.message) || e) + ')' };
   }
   if (out.ok) { _money = out.data; _moneyStamp = moneyStampOf(out.data); }
   else if (out.reason === 'stale') { _money = out.fresh; _moneyStamp = out.freshStamp; delete out.fresh; delete out.freshStamp; }
@@ -4695,6 +4828,469 @@ function moneyDeleteUserData(uid) {
 }
 function moneyPutUserData(uid, mu) {
   return moneyCommit(d => { d.byUser[uid] = mu; }, { ignoreStale: true });
+}
+
+/* ========== MONEY UI (v1.10.56 — T-026c) ========== */
+// Spec: docs/specs/T-026-money-tracking.md §4 (W1–W3) · ใช้เครื่องคำนวณของ T-026b เท่านั้น ไม่คำนวณเงินซ้ำในหน้าจอ
+// - "เงินเข้า–ออก" กับ "ค่าใช้จ่ายของฉัน" แสดงแยกกล่อง มีป้ายความหมายเสมอ
+// - ยอดคงค้างมีป้ายวันที่เสมอ (ณ สิ้นช่วง / ณ วันนี้)
+// - ซ่อนยอด: ทุกจำนวนเงินผ่าน mfm() ยกเว้นช่องที่ผู้ใช้กำลังพิมพ์
+// - บันทึกไม่สำเร็จ: ฟอร์มไม่ถูกล้าง ข้อความอยู่ในฟอร์มจนกว่าจะบันทึกสำเร็จหรือแก้
+
+const MONEY_PERIOD_KEY = 'pracal_money_period_';      // + userId · ช่วงที่เลือกล่าสุด (การตั้งค่าการแสดงผลของเครื่องนี้ ไม่ใช่ข้อมูลเงิน)
+const MONEY_VIEWS = ['money', 'money-summary', 'money-form', 'money-cats'];
+const MONEY_PERIODS = [['today', 'วันนี้'], ['week', 'สัปดาห์นี้'], ['month', 'เดือนนี้'], ['lastMonth', 'เดือนก่อน'], ['custom', 'กำหนดเอง']];
+const MONEY_DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+let _moneyLoadError = '';
+let _moneyChannel = null;
+
+function moneyMU() { return _money && _money.byUser ? _money.byUser[state.currentUserId] || null : null; }
+function moneyEnabled() { const mu = moneyMU(); return !!(mu && mu.enabled); }
+function moneyHidden() { const mu = moneyMU(); return !!(mu && mu.prefs && mu.prefs.hideAmounts); }
+function mfm(satang) { return formatMoney(satang, { hidden: moneyHidden() }); }
+function moneyCatName(mu, id) { const c = mu && mu.categories.find(x => x.id === id); return c ? c.name : 'ไม่ระบุหมวด'; }
+function moneyCtxName(mu, id) { const c = mu && mu.contexts.find(x => x.id === id); return c ? c.name : 'ไม่ระบุ'; }
+function moneyDayLabel(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return MONEY_DOW[new Date(y, m - 1, d).getDay()] + ' ' + formatDateTH(key);
+}
+function moneyRangeLabel(r) { return r.start === r.end ? formatDateTH(r.start) : `${formatDateTH(r.start)} – ${formatDateTH(r.end)}`; }
+
+// ---------- โหลด / แจ้งแท็บอื่น ----------
+async function moneyBoot() {
+  const r = await moneyLoad();
+  _moneyLoadError = r.ok ? '' : (r.error || 'อ่านข้อมูลเงินไม่ได้');
+  try {
+    _moneyChannel = new BroadcastChannel('pracal-money');
+    // อีกแท็บบันทึกเงิน → โหลดใหม่และวาดหน้าเงินใหม่ (ความถูกต้องไม่ขึ้นกับข้อนี้ — แท็บเก่าถูกปฏิเสธตอนบันทึกอยู่แล้ว)
+    _moneyChannel.onmessage = async () => {
+      await moneyLoad();
+      if (['money', 'money-summary', 'money-cats', 'settings'].includes(state.view)) render();
+    };
+  } catch {}
+  render();
+}
+// ห่อ moneyCommit สำหรับหน้าจอ: แจ้งแท็บอื่นเมื่อสำเร็จ · แท็บอื่นกู้คืนข้อมูล → โหลดหน้าใหม่
+async function moneySave(mutate, opts) {
+  const r = await moneyCommit(mutate, opts);
+  if (r.ok) { try { _moneyChannel && _moneyChannel.postMessage({ saved: r.data.revision }); } catch {} }
+  else if (r.reason === 'restored-elsewhere') reloadAfterExternalRestore();
+  return r;
+}
+
+// ---------- ช่วงวันที่ ----------
+function moneyPeriodState() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(MONEY_PERIOD_KEY + state.currentUserId) || 'null'); } catch {}
+  return p && MONEY_PERIODS.some(([k]) => k === p.kind) ? p : { kind: 'month' };
+}
+function moneySetPeriod(p) {
+  try { localStorage.setItem(MONEY_PERIOD_KEY + state.currentUserId, JSON.stringify(p)); } catch {}
+}
+function moneyCurrentRange() {
+  const p = moneyPeriodState();
+  const today = todayKey();
+  return moneyPeriodRange(p.kind, today, p.kind === 'custom' ? { start: p.start, end: p.end } : null) || moneyPeriodRange('month', today);
+}
+function renderMoneyPeriodPicker() {
+  const p = moneyPeriodState();
+  const r = moneyCurrentRange();
+  return `
+      <div class="seg mseg" style="margin-bottom:6px">
+        ${MONEY_PERIODS.map(([k, label]) => `<button type="button" class="${p.kind === k ? 'on' : ''}" data-act="money-period" data-k="${k}">${label}</button>`).join('')}
+      </div>
+      ${p.kind === 'custom' ? `
+        <div class="card tight" style="margin-bottom:8px;padding:10px 12px">
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <span class="muted" style="font-size:13px">ตั้งแต่</span>
+            <input id="money-range-start" type="date" class="input" value="${h(r.start)}" max="${todayKey()}" style="flex:1;min-width:120px;min-height:40px;font-size:14px">
+            <span class="muted" style="font-size:13px">ถึง</span>
+            <input id="money-range-end" type="date" class="input" value="${h(r.end)}" max="${todayKey()}" style="flex:1;min-width:120px;min-height:40px;font-size:14px">
+          </div>
+          ${state.tmp.rangeError ? `<div class="hint" style="color:var(--red)">${h(state.tmp.rangeError)}</div>` : ''}
+        </div>` : ''}
+      <div class="muted" style="font-size:14px;margin-bottom:10px">📅 ${moneyRangeLabel(r)}</div>`;
+}
+
+// ---------- กล่องยอดคงค้าง (มีป้ายวันที่เสมอ) ----------
+// แสดงเฉพาะส่วนที่มีข้อมูลจริง — ไม่แสดง ฿0 ของความสามารถที่ยังไม่ได้ใช้ ให้ดูเหมือนระบบตรวจครบแล้ว
+function moneyHasDebts(mu) { return mu.debts.length > 0; }
+function moneyHasSharing(mu) { return mu.txns.some(t => (t.kind === 'expense' && t.myShare < t.amount) || t.kind === 'moneyBack' || t.kind === 'payOut' || t.kind === 'writeOff'); }
+function renderMoneyAsOf(mu, range) {
+  if (!moneyHasDebts(mu) && !moneyHasSharing(mu)) return '';
+  const at = moneyAsOf(range, todayKey());
+  const dt = moneyDebtTotalsAt(mu, at.date);
+  const ot = moneyBalancesWithOthersAt(mu, at.date);
+  const lines = [];
+  if (moneyHasDebts(mu) && dt.confirmedCount + dt.unconfirmedCount > 0) {
+    lines.push(dt.unconfirmedCount
+      ? `<div class="stat-row"><span>หนี้ · ยืนยันแล้ว ${dt.confirmedCount} หนี้</span><b>${mfm(dt.confirmedTotal)}</b></div>
+         <div class="hint" style="margin:-2px 0 6px">ยังไม่ยืนยันยอดหลังการชำระ ${dt.unconfirmedCount} หนี้ — ไม่รวมในยอดนี้</div>`
+      : `<div class="stat-row"><span>หนี้รวม</span><b>${mfm(dt.total)}</b></div>`);
+  }
+  if (moneyHasSharing(mu)) lines.push(`<div class="stat-row"><span>ค้างรับ (คนอื่นต้องคืนฉัน)</span><b>${mfm(ot.receivable)}</b></div>`);
+  if (ot.payable) lines.push(`<div class="stat-row"><span>ต้องคืนคนอื่น</span><b>${mfm(ot.payable)}</b></div>`);
+  if (!lines.length) return '';
+  return `
+      <div class="card">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">ยอดคงค้าง ${h(at.label)}</div>
+        ${lines.join('')}
+      </div>`;
+}
+
+// ---------- W1 แท็บเงิน ----------
+function moneyTxnRow(mu, t) {
+  const amt = mfm(t.amount);
+  let icon, title, sign, color, sub = '', editable = false;
+  if (t.kind === 'expense') {
+    icon = '💸'; title = `${moneyCatName(mu, t.categoryId)} · ${moneyCtxName(mu, t.contextId)}`; sign = 'ออก'; color = 'var(--ink)'; editable = true;
+    if (t.myShare < t.amount) sub = `ของฉัน ${mfm(t.myShare)}`;
+    if (t.debtId) sub = (sub ? sub + ' · ' : '') + 'เงินดาวน์';
+  } else if (t.kind === 'income') {
+    icon = '💰'; title = moneyCatName(mu, t.categoryId); sign = 'เข้า'; color = 'var(--green)'; editable = true;
+  } else if (t.kind === 'moneyBack') {
+    icon = '↩️'; title = t.backType === 'refund' ? 'ร้านคืนเงิน (ไม่ใช่รายได้)' : 'คนอื่นคืนเงิน (ไม่ใช่รายได้)'; sign = 'เข้า'; color = 'var(--green)';
+  } else if (t.kind === 'payOut') {
+    icon = '↪️'; title = 'คืนเงินให้คนอื่น'; sign = 'ออก'; color = 'var(--ink)';
+  } else if (t.kind === 'debtPayment') {
+    const d = mu.debts.find(x => x.id === t.debtId);
+    icon = '🏦'; title = 'จ่ายหนี้ · ' + (d ? d.name : ''); sign = 'ออก'; color = 'var(--ink)';
+  } else if (t.kind === 'writeOff') {
+    icon = '🤝'; title = 'ไม่ต้องคืนแล้ว · ' + moneyCatName(mu, t.categoryId); sign = 'ไม่ใช่เงินสด'; color = 'var(--muted)';
+  } else return '';
+  return `
+        <div class="mrow" ${editable ? `data-act="money-edit" data-id="${h(t.id)}" role="button" tabindex="0"` : ''}>
+          <span class="mi">${icon}</span>
+          <div style="flex:1;min-width:0">
+            <div class="mt1">${h(title)}</div>
+            ${t.note ? `<div class="muted ms">${h(t.note)}</div>` : ''}
+          </div>
+          <div style="text-align:right">
+            <div style="color:${color};font-weight:600">${sign === 'ไม่ใช่เงินสด' ? amt : (sign === 'เข้า' ? '+' : '−') + amt}</div>
+            ${sub ? `<div class="muted ms">${h(sub)}</div>` : ''}
+            ${sign === 'ไม่ใช่เงินสด' ? `<div class="muted ms">ไม่ใช่เงินสด</div>` : ''}
+          </div>
+        </div>`;
+}
+function renderMoneyEnable() {
+  return `
+    <div class="screen">
+      <div class="header"><h1>💰 เงิน</h1></div>
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:6px">บันทึกรายรับรายจ่ายของ ${h(currentUser().name)}</div>
+        <div class="muted" style="font-size:14px;line-height:1.7">เปิดใช้แล้วจะมีแท็บ "เงิน" ที่แถบล่างของโปรไฟล์นี้ · โปรไฟล์อื่นไม่เปลี่ยน · ข้อมูลเงินอยู่ในไฟล์สำรองเดียวกับข้อมูลสุขภาพ</div>
+        ${_moneyLoadError ? `<div class="callout warn mt">${h(_moneyLoadError)} — ยังเปิดใช้ไม่ได้</div>` : `<button class="btn block mt" data-act="money-enable" data-v="1">เปิดใช้แท็บเงิน</button>`}
+      </div>
+    </div>`;
+}
+function renderMoney() {
+  const mu = moneyMU();
+  if (!mu || !mu.enabled) return renderMoneyEnable();
+  const range = moneyCurrentRange();
+  const s = moneySummary(mu, range.start, range.end);
+  const txns = mu.txns.filter(t => t.date >= range.start && t.date <= range.end)
+    .sort((a, b) => (a.date === b.date ? (b.createdAt || '').localeCompare(a.createdAt || '') : a.date < b.date ? 1 : -1));
+  const days = [];
+  for (const t of txns) { if (!days.length || days[days.length - 1].date !== t.date) days.push({ date: t.date, items: [] }); days[days.length - 1].items.push(t); }
+  const cashIn = t => (t.kind === 'income' || t.kind === 'moneyBack') ? t.amount : 0;
+  const cashOut = t => (t.kind === 'expense' || t.kind === 'debtPayment' || t.kind === 'payOut') ? t.amount : 0;
+  const undo = state.moneyUndo && state.moneyUndo.until > Date.now() ? state.moneyUndo : null;
+  const hidden = moneyHidden();
+  return `
+    <div class="screen">
+      <div class="header">
+        <h1 style="flex:1">💰 เงิน</h1>
+        <button class="icon-btn ghost" data-act="money-toggle-hide" title="${hidden ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}" aria-label="${hidden ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}">${hidden ? '🙈' : '👁'}</button>
+        <button class="icon-btn ghost" data-act="money-cats" title="หมวดและบริบท" aria-label="หมวดและบริบท">🏷️</button>
+      </div>
+      ${renderMoneyPeriodPicker()}
+
+      <div class="card">
+        <div class="muted" style="font-size:13px">เงินเข้า–ออกจริง · ตามวันที่เงินเคลื่อน</div>
+        <div class="row-2" style="margin-top:4px">
+          <div><div class="muted ms">เงินเข้า</div><div class="mbig" style="color:var(--green)">${mfm(s.cash.cashIn)}</div></div>
+          <div><div class="muted ms">เงินออก</div><div class="mbig">${mfm(s.cash.cashOut)}</div></div>
+        </div>
+        <div style="font-size:14px;margin-top:6px">ผลต่างเข้า − ออก <b>${s.cash.net > 0 ? '+' : ''}${mfm(s.cash.net)}</b> <span class="muted ms">· ไม่ใช่ยอดเงินในบัญชี</span></div>
+        ${s.cash.back ? `<div class="muted ms">รวมเงินคืน ${mfm(s.cash.back)} — ไม่ใช่รายได้</div>` : ''}
+        <div class="mdiv"></div>
+        <div class="muted" style="font-size:13px">ค่าใช้จ่ายของฉัน · ตามการชำระ</div>
+        <div class="row between" style="align-items:flex-end">
+          <div class="mbig">${mfm(s.mine)}</div>
+          <button class="btn ghost sm" data-act="money-summary">ดูสรุป ›</button>
+        </div>
+        <div class="muted ms">${moneyHasSharing(mu) ? 'ไม่นับส่วนที่จ่ายแทนคนอื่น' : 'นับตามวันที่จ่ายจริง'}${s.mine < 0 ? ' · ติดลบเพราะได้เงินคืนมากกว่าที่จ่ายในช่วงนี้' : ''}</div>
+        ${s.unsplitLoan ? `<div class="hint" style="color:#92400e">ยอดชำระที่ยังไม่แยกเงินต้น/ดอกเบี้ย ${mfm(s.unsplitLoan)} — ค่าใช้จ่ายนี้ยังไม่รวมดอกเบี้ยส่วนที่ไม่ทราบ</div>` : ''}
+      </div>
+
+      ${renderMoneyAsOf(mu, range)}
+
+      ${undo ? `<div class="callout row between" style="align-items:center">ลบรายการแล้ว <button class="btn secondary sm" data-act="money-undo">เลิกทำ</button></div>` : ''}
+
+      ${days.length ? days.map(d => {
+        const din = d.items.reduce((a, t) => a + cashIn(t), 0), dout = d.items.reduce((a, t) => a + cashOut(t), 0);
+        return `
+      <div class="mday">
+        <span>${moneyDayLabel(d.date)}</span>
+        <span class="muted">${din ? 'เข้า ' + mfm(din) : ''}${din && dout ? ' · ' : ''}${dout ? 'ออก ' + mfm(dout) : ''}</span>
+      </div>
+      <div class="card tight" style="padding:4px 12px">${d.items.map(t => moneyTxnRow(mu, t)).join('')}</div>`;
+      }).join('') : `<div class="card empty"><div class="big">🧾</div><div>ยังไม่มีรายการในช่วงนี้</div></div>`}
+      <div style="height:84px"></div>
+    </div>
+    <button class="mfab" data-act="money-add">+ บันทึกเงิน</button>
+    ${bottomNavHtml('money')}`;
+}
+
+// ---------- W2 สรุป ----------
+function renderMoneySummary() {
+  const mu = moneyMU();
+  if (!mu) return renderMoneyEnable();
+  const range = moneyCurrentRange();
+  const s = moneySummary(mu, range.start, range.end);
+  const fc = state.tmp.filterCat || null, fx = state.tmp.filterCtx || null;
+  const cats = Object.entries(s.byCategory).sort((a, b) => b[1].net - a[1].net);
+  const ctxs = Object.entries(s.byContext).sort((a, b) => b[1] - a[1]);
+  const rc = s.reconcile;
+  let filtered = '';
+  if (fc || fx) {
+    const f = moneyFilteredCost(mu, range.start, range.end, fc, fx);
+    const lines = moneyMyCostLines(mu, range.start, range.end).lines
+      .filter(l => (!fc || l.categoryId === fc) && (!fx || l.contextId === fx)).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const kindLabel = { spend: 'จ่าย', writeOff: 'ไม่ต้องคืนแล้ว', refund: 'ร้านคืน', installment: 'งวดผ่อน', interest: 'ดอกเบี้ย/ค่าธรรมเนียม' };
+    filtered = `
+      <div class="card">
+        <div class="row between"><b>กรอง: ${fc ? h(moneyCatName(mu, fc)) : 'ทุกหมวด'} × ${fx ? h(moneyCtxName(mu, fx)) : 'ทุกบริบท'}</b>
+          <button class="btn ghost sm" data-act="money-filter-clear">ล้าง</button></div>
+        <div style="font-size:15px;margin:4px 0 8px">ของฉัน <b>${mfm(f.net)}</b> · จ่ายไป ${mfm(f.paid)} · ${f.count} รายการ</div>
+        ${lines.map(l => `<div class="stat-row"><span>${formatDateTH(l.date)} · ${kindLabel[l.kind] || ''}</span><b>${l.amount < 0 ? '−' : ''}${mfm(Math.abs(l.amount))}</b></div>`).join('') || '<div class="muted">ไม่มีรายการ</div>'}
+      </div>`;
+  }
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back">←</button>
+        <h1>สรุปเงิน</h1>
+        <button class="icon-btn ghost" data-act="money-toggle-hide" aria-label="ซ่อนหรือแสดงยอดเงิน">${moneyHidden() ? '🙈' : '👁'}</button>
+      </div>
+      ${renderMoneyPeriodPicker()}
+      ${filtered}
+      <div class="stat-card">
+        <h3>เงินเข้า–ออกจริง</h3>
+        <div class="hint" style="margin:-4px 0 6px">ตามวันที่เงินเคลื่อน</div>
+        <div class="stat-row"><span>รายรับ</span><b>${mfm(s.cash.income)}</b></div>
+        ${s.cash.back || moneyHasSharing(mu) ? `<div class="stat-row"><span>เงินคืน (ไม่ใช่รายได้)</span><b>${mfm(s.cash.back)}</b></div>` : ''}
+        <div class="stat-row"><span>จ่ายค่าใช้จ่าย</span><b>${mfm(s.cash.paid)}</b></div>
+        ${s.cash.debtPaid || moneyHasDebts(mu) ? `<div class="stat-row"><span>จ่ายหนี้</span><b>${mfm(s.cash.debtPaid)}</b></div>` : ''}
+        ${s.cash.payOut ? `<div class="stat-row"><span>คืนเงินให้คนอื่น</span><b>${mfm(s.cash.payOut)}</b></div>` : ''}
+        <div class="stat-row bold"><span>ผลต่าง เข้า − ออก</span><b>${s.cash.net > 0 ? '+' : ''}${mfm(s.cash.net)}</b></div>
+        <div class="hint">ผลต่างไม่ใช่ยอดเงินในบัญชี</div>
+      </div>
+      <div class="stat-card">
+        <h3>ค่าใช้จ่ายของฉัน · ตามการชำระ</h3>
+        <div class="hint" style="margin:-4px 0 6px">ทุกรายการนับในวันที่เกิด · งวดผ่อนนับตามที่จ่ายจริง ไม่ใช่ราคาเต็มในวันซื้อ</div>
+        <div class="stat-row bold"><span>รวม</span><b>${mfm(s.mine)}</b></div>
+        <div class="hint">= จ่ายค่าใช้จ่าย ${mfm(rc.paid)}${rc.othersShare || moneyHasSharing(mu) ? ' − ส่วนของคนอื่น ' + mfm(rc.othersShare) : ''}${rc.writeOff ? ' + ไม่ต้องคืนแล้ว ' + mfm(rc.writeOff) : ''}${rc.refundMine ? ' − ร้านคืน ' + mfm(rc.refundMine) : ''}${rc.installment ? ' + งวดผ่อน ' + mfm(rc.installment) : ''}${rc.interestFee ? ' + ดอกเบี้ย/ค่าธรรมเนียม ' + mfm(rc.interestFee) : ''}</div>
+        ${s.mine < 0 ? `<div class="hint">ติดลบเพราะได้เงินคืนมากกว่าที่จ่ายในช่วงนี้</div>` : ''}
+        ${s.unsplitLoan ? `<div class="hint" style="color:#92400e">ยอดชำระที่ยังไม่แยกเงินต้น/ดอกเบี้ย ${mfm(s.unsplitLoan)} · ค่าใช้จ่ายนี้ยังไม่รวมดอกเบี้ยส่วนที่ไม่ทราบ</div>` : ''}
+        <div class="mtable mt">
+          <div class="mth"><span>หมวด · แตะเพื่อกรอง</span><span>จ่าย</span><span>คืน</span><span>สุทธิ</span></div>
+          ${cats.map(([id, c]) => `<div class="mtr ${fc === id ? 'on' : ''}" data-act="money-filter" data-cat="${h(id)}" role="button" tabindex="0"><span>${h(moneyCatName(mu, id))}</span><span>${mfm(c.paid)}</span><span>${c.refunded ? mfm(c.refunded) : '—'}</span><b>${c.net < 0 ? '−' : ''}${mfm(Math.abs(c.net))}</b></div>`).join('') || '<div class="muted ms">ไม่มีค่าใช้จ่ายในช่วงนี้</div>'}
+        </div>
+        <div class="mtable mt">
+          <div class="mth"><span>เกี่ยวกับใคร · แตะเพื่อกรอง</span><span></span><span></span><span>สุทธิ</span></div>
+          ${ctxs.map(([id, v]) => `<div class="mtr ${fx === id ? 'on' : ''}" data-act="money-filter" data-ctx="${h(id)}" role="button" tabindex="0"><span>${h(moneyCtxName(mu, id))}</span><span></span><span></span><b>${v < 0 ? '−' : ''}${mfm(Math.abs(v))}</b></div>`).join('')}
+        </div>
+      </div>
+      ${s.debt.paid ? `
+      <div class="stat-card">
+        <h3>จ่ายหนี้ในช่วงนี้</h3>
+        <div class="stat-row"><span>รวม</span><b>${mfm(s.debt.paid)}</b></div>
+        <div class="stat-row"><span>เงินต้น</span><b>${mfm(s.debt.principal)}</b></div>
+        <div class="stat-row"><span>ดอกเบี้ย</span><b>${mfm(s.debt.interest)}</b></div>
+        <div class="stat-row"><span>ค่าธรรมเนียม</span><b>${mfm(s.debt.fee)}</b></div>
+        ${s.debt.unsplit ? `<div class="stat-row"><span>ยังไม่แยก</span><b>${mfm(s.debt.unsplit)}</b></div>` : ''}
+      </div>` : ''}
+      ${renderMoneyAsOf(mu, range)}
+    </div>
+    ${bottomNavHtml('money')}`;
+}
+
+// ---------- W3 ฟอร์ม ----------
+function moneyNewForm(prev) {
+  return {
+    id: uid('mt'), kind: prev ? prev.kind : 'expense', amountText: '', categoryId: null,
+    contextId: prev ? prev.contextId : MONEY_SELF_CTX, date: prev ? prev.date : todayKey(), note: '',
+    editing: false, batchCount: prev ? prev.batchCount : 0, error: '', saving: false
+  };
+}
+function moneyRecentCombos(mu, kind) {
+  const seen = new Set(), out = [];
+  const list = mu.txns.filter(t => t.kind === kind).sort((a, b) => ((b.createdAt || '') > (a.createdAt || '') ? 1 : -1));
+  for (const t of list) {
+    const key = [t.categoryId, t.contextId || '', t.amount, t.note || ''].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(t);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+function renderMoneyForm() {
+  const mu = moneyMU();
+  const f = state.tmp.mf;
+  if (!mu || !f) return renderMoneyEnable();
+  const isExp = f.kind === 'expense';
+  const cats = mu.categories.filter(c => c.kind === f.kind && (!c.archived || c.id === f.categoryId)).sort((a, b) => a.order - b.order);
+  const ctxs = mu.contexts.filter(c => !c.archived || c.id === f.contextId).sort((a, b) => a.order - b.order);
+  const recent = f.editing ? [] : moneyRecentCombos(mu, f.kind);
+  const today = todayKey(), yesterday = moneyAddDays(today, -1);
+  return `
+    <div class="screen">
+      <div class="header">
+        <button class="icon-btn" data-act="back" ${f.saving ? 'disabled' : ''}>←</button>
+        <h1>${f.editing ? 'แก้ไขรายการ' : 'บันทึกเงิน'}</h1>
+      </div>
+      ${f.batchCount && !f.editing ? `<div class="callout info">บันทึกแล้ว · ${f.batchCount} รายการในชุดนี้</div>` : ''}
+      <div class="seg" style="margin-bottom:12px">
+        <button type="button" class="${isExp ? 'on' : ''}" data-act="mf-kind" data-k="expense" ${f.editing ? 'disabled' : ''}>รายจ่าย</button>
+        <button type="button" class="${!isExp ? 'on' : ''}" data-act="mf-kind" data-k="income" ${f.editing ? 'disabled' : ''}>รายรับ</button>
+      </div>
+      <div class="field">
+        <label for="mf-amount">จำนวนเงิน (บาท)</label>
+        <input id="mf-amount" class="input mamount" inputmode="decimal" autocomplete="off" placeholder="0" value="${h(f.amountText)}">
+        ${isExp ? `<div class="hint">บันทึกเงินที่จ่ายจริงแล้ว</div>` : `<div class="hint">รายได้เท่านั้น · เงินที่คนอื่นหรือร้านคืนไม่ใช่รายได้</div>`}
+      </div>
+      ${recent.length ? `
+      <div class="field">
+        <label>ล่าสุด · แตะเพื่อเติม</label>
+        <div class="mchips">${recent.map((t, i) => `<button type="button" class="mchip" data-act="mf-recent" data-i="${i}">${h(t.note || moneyCatName(mu, t.categoryId))} ${mfm(t.amount)}</button>`).join('')}</div>
+      </div>` : ''}
+      <div class="field">
+        <label>หมวด · ซื้ออะไร / ได้จากอะไร</label>
+        <div class="mchips">${cats.map(c => `<button type="button" class="mchip ${f.categoryId === c.id ? 'on' : ''}" data-act="mf-cat" data-id="${h(c.id)}">${h(c.name)}</button>`).join('')}</div>
+      </div>
+      ${isExp ? `
+      <div class="field">
+        <label>เกี่ยวกับใคร</label>
+        <div class="mchips">${ctxs.map(c => `<button type="button" class="mchip ${f.contextId === c.id ? 'on' : ''}" data-act="mf-ctx" data-id="${h(c.id)}">${h(c.name)}</button>`).join('')}</div>
+        <div class="hint">บริบทของรายการ เช่น ใช้คนเดียว · กับแฟน · กับเพื่อน — ไม่ได้แปลว่าเลี้ยงหรือจ่ายแทนคนอื่น</div>
+      </div>` : ''}
+      <div class="field">
+        <label for="mf-date">วันที่</label>
+        <div class="row" style="gap:8px">
+          <button type="button" class="mchip ${f.date === today ? 'on' : ''}" data-act="mf-date-quick" data-d="${today}">วันนี้</button>
+          <button type="button" class="mchip ${f.date === yesterday ? 'on' : ''}" data-act="mf-date-quick" data-d="${yesterday}">เมื่อวาน</button>
+          <input id="mf-date" type="date" class="input" value="${h(f.date)}" max="${today}" style="flex:1;min-height:44px;font-size:15px">
+        </div>
+        <div class="hint">${moneyDayLabel(f.date)}</div>
+      </div>
+      <div class="field">
+        <label for="mf-note">โน้ต (ไม่บังคับ)</label>
+        <input id="mf-note" class="input" maxlength="80" value="${h(f.note)}" placeholder="${isExp ? 'เช่น ข้าวมันไก่' : 'เช่น เงินเดือน ต.ค.'}">
+      </div>
+      ${f.error ? `<div class="callout warn" role="alert">${h(f.error)}</div>` : ''}
+      <div class="btn-row">
+        ${f.editing
+          ? `<button class="btn secondary" data-act="mf-delete" style="color:var(--red)" ${f.saving ? 'disabled' : ''}>ลบ</button>`
+          : `<button class="btn secondary" data-act="mf-save" data-more="1" ${f.saving ? 'disabled' : ''}>บันทึกต่อ</button>`}
+        <button class="btn" data-act="mf-save" ${f.saving ? 'disabled' : ''}>${f.saving ? 'กำลังบันทึก…' : 'บันทึก'}</button>
+      </div>
+      <div style="height:24px"></div>
+    </div>`;
+}
+// อ่านค่าที่พิมพ์ล่าสุดจากช่อง (กรณี event input ยังไม่มา) — ไม่ให้ข้อมูลที่กรอกหาย
+function moneyFormSync() {
+  const f = state.tmp.mf;
+  if (!f) return;
+  const a = document.getElementById('mf-amount'); if (a) f.amountText = a.value;
+  const n = document.getElementById('mf-note'); if (n) f.note = n.value;
+  const d = document.getElementById('mf-date'); if (d && isRealDateKey(d.value)) f.date = d.value;
+}
+async function moneyFormSave(more) {
+  const f = state.tmp.mf;
+  if (!f || f.saving) return;
+  moneyFormSync();
+  const amount = parseMoneyInput(f.amountText);
+  f.error = '';
+  if (!amount) f.error = 'ใส่จำนวนเงิน เช่น 60 หรือ 1,200.50';
+  else if (!f.categoryId) f.error = 'เลือกหมวด';
+  else if (!isRealDateKey(f.date) || f.date > todayKey()) f.error = 'วันที่ต้องไม่อยู่ในอนาคต';
+  if (f.error) return render();
+  const uidNow = state.currentUserId;
+  const txn = f.kind === 'expense'
+    ? { id: f.id, kind: 'expense', date: f.date, amount, myShare: amount, categoryId: f.categoryId, contextId: f.contextId || MONEY_SELF_CTX, note: f.note.trim() }
+    : { id: f.id, kind: 'income', date: f.date, amount, categoryId: f.categoryId, note: f.note.trim() };
+  if (f.editing && f.original) {
+    // แก้รายการเดิม: เก็บฟิลด์ที่ฟอร์มนี้ไม่ได้แสดง (เช่นส่วนของฉัน) ถ้ายังใช้ได้
+    if (f.kind === 'expense' && f.original.myShare < f.original.amount && f.original.myShare <= amount) txn.myShare = f.original.myShare;
+    if (f.original.debtId) txn.debtId = f.original.debtId;
+  }
+  f.saving = true;
+  render();
+  const r = await moneySave(d => {
+    const mu = moneyUser(d, uidNow);
+    if (f.editing && !mu.txns.some(t => t.id === f.id)) throw new Error('รายการนี้ถูกลบจากหน้าต่างอื่นแล้ว');
+    moneyUpsertTxn(mu, txn, todayKey());
+  });
+  f.saving = false;
+  if (!r.ok) {
+    f.error = r.error || 'บันทึกไม่สำเร็จ — ข้อมูลยังไม่ถูกเก็บ';
+    if (r.reason === 'stale') f.error = 'มีการแก้จากหน้าต่างอื่น ข้อมูลล่าสุดโหลดแล้ว — ตรวจแล้วกดบันทึกอีกครั้ง';
+    return render();
+  }
+  if (more) {
+    state.tmp.mf = moneyNewForm({ ...f, batchCount: f.batchCount + 1 });
+    render();
+    document.getElementById('mf-amount')?.focus();
+    return;
+  }
+  toast(f.editing ? 'บันทึกการแก้ไขแล้ว' : 'บันทึกแล้ว');
+  back();
+}
+
+// ---------- จัดการหมวด/บริบท ----------
+function renderMoneyCats() {
+  const mu = moneyMU();
+  if (!mu) return renderMoneyEnable();
+  const section = (title, list, type) => `
+      <div class="card">
+        <div class="row between"><h3 style="margin:0">${title}</h3><button class="btn secondary sm" data-act="money-cat-add" data-type="${type}">+ เพิ่ม</button></div>
+        ${list.slice().sort((a, b) => a.order - b.order).map(c => {
+          const locked = c.name === 'อื่น ๆ' || c.system === 'interest';
+          return `<div class="stat-row" style="align-items:center"><span style="${c.archived ? 'color:var(--muted);text-decoration:line-through' : ''}">${h(c.name)}${c.system === 'interest' ? ' <span class="muted ms">(ระบบ)</span>' : ''}</span>
+            <span class="row" style="gap:6px">
+              <button class="btn ghost sm" data-act="money-cat-rename" data-type="${type}" data-id="${h(c.id)}">เปลี่ยนชื่อ</button>
+              ${locked ? '' : `<button class="btn ghost sm" data-act="money-cat-hide" data-type="${type}" data-id="${h(c.id)}">${c.archived ? 'แสดง' : 'ซ่อน'}</button>`}
+            </span></div>`;
+        }).join('')}
+      </div>`;
+  return `
+    <div class="screen">
+      <div class="header"><button class="icon-btn" data-act="back">←</button><h1>หมวดและบริบท</h1></div>
+      <div class="callout">ซ่อน = ไม่อยู่ในตัวเลือก แต่ประวัติและสรุปยังใช้ชื่อเดิม · เปลี่ยนชื่อ = เปลี่ยนทุกที่รวมประวัติ — ถ้าความหมายเปลี่ยน ให้เพิ่มใหม่แล้วซ่อนอันเดิม</div>
+      ${section('หมวดรายจ่าย', mu.categories.filter(c => c.kind === 'expense'), 'expense')}
+      ${section('หมวดรายรับ', mu.categories.filter(c => c.kind === 'income'), 'income')}
+      ${section('เกี่ยวกับใคร (บริบท)', mu.contexts, 'context')}
+    </div>`;
+}
+async function moneyCatChange(fn) {
+  const uidNow = state.currentUserId;
+  const r = await moneySave(d => fn(moneyUser(d, uidNow)), { ignoreStale: true });
+  if (!r.ok) toast(r.error || 'บันทึกไม่สำเร็จ', true);
+  render();
+}
+
+// ---------- ตั้งค่า ----------
+function renderMoneySettingsCard() {
+  const on = moneyEnabled();
+  return `
+      <div class="card">
+        <h3 style="margin-top:0">💰 บันทึกรายรับรายจ่าย</h3>
+        <div class="muted" style="font-size:14px;line-height:1.7">เฉพาะโปรไฟล์นี้ · ${on ? 'เปิดอยู่ — แท็บ "เงิน" อยู่ที่แถบล่าง' : 'ปิดอยู่'}</div>
+        ${_moneyLoadError ? `<div class="callout warn mt" style="margin-bottom:0">${h(_moneyLoadError)}</div>` : `
+        <button class="btn ${on ? 'ghost' : 'secondary'} block mt" data-act="money-enable" data-v="${on ? '0' : '1'}">${on ? 'ปิดแท็บเงิน (ข้อมูลยังอยู่)' : 'เปิดใช้แท็บเงิน'}</button>`}
+        ${on ? `<div class="hint" style="font-size:12px;line-height:1.6">ซ่อนยอดเงิน (👁) ช่วยกันคนข้าง ๆ เห็นโดยไม่ตั้งใจ — ไม่ใช่การล็อก ไม่เข้ารหัส ใครเปิดแอปก็กดแสดงได้</div>` : ''}
+      </div>`;
 }
 
 /* ========== CSV EXPORT ========== */
@@ -5716,6 +6312,7 @@ function bottomNavHtml(active) {
       <button class="${active === 'home' ? 'on' : ''}" data-act="nav-home"><span class="i">🏠</span><span>หน้าหลัก</span></button>
       <button class="${active === 'fav' ? 'on' : ''}" data-act="nav-fav"><span class="i">⭐</span><span>เมนูประจำ</span></button>
       <button class="${active === 'reports' ? 'on' : ''}" data-act="nav-reports"><span class="i">📊</span><span>รายงาน</span></button>
+      ${moneyEnabled() ? `<button class="${active === 'money' ? 'on' : ''}" data-act="nav-money"><span class="i">💰</span><span>เงิน</span></button>` : ''}
       <button class="${active === 'settings' ? 'on' : ''}" data-act="nav-settings"><span class="i">⚙️</span><span>ตั้งค่า</span></button>
     </nav>
   `;
@@ -9433,6 +10030,8 @@ function renderSettings() {
         <div class="hint" style="font-size:12px;margin-top:8px">🔒 ข้อมูลของคุณ download ลงเครื่องตรง ไม่ถูกส่งออกไปที่ไหน</div>
       </div>
 
+      ${renderMoneySettingsCard()}
+
       ${renderBackupCard()}
 
       <div class="card">
@@ -9613,6 +10212,12 @@ function render() {
       case 'users': html = renderUserSwitcher(); break;
       case 'settings': html = renderSettings(); break;
       case 'restore-preview': html = renderRestorePreview(); break;   // v1.10.54 — T-026a
+      case 'restore-recovery': html = renderRestoreRecovery(); break;  // v1.10.56
+      case 'restore-wait': html = renderRestoreWait(); break;
+      case 'money': html = renderMoney(); break;                       // v1.10.56 — T-026c
+      case 'money-summary': html = renderMoneySummary(); break;
+      case 'money-form': html = renderMoneyForm(); break;
+      case 'money-cats': html = renderMoneyCats(); break;
       case 'profile-edit': html = renderProfileEdit(); break;
       case 'reports': html = renderReports(); break;
       case 'weight-log': html = renderWeightLog(); break;
@@ -11876,6 +12481,135 @@ const actions = {
     } });
   },
   'dismiss-backup-notice': () => dismissBackupNotice(),
+  'restore-recovery-retry': async () => {
+    const j = readRestoreMarker();
+    if (!j) return location.reload();
+    if (state.tmp.recovering) return;
+    state.tmp.recovering = true; state.tmp.recoveryError = ''; render();
+    if (await revertToSnapshot(j)) { setBootNotice('restore-interrupted-reverted', ''); location.reload(); return; }
+    state.tmp.recovering = false;
+    state.tmp.recoveryError = (await restoreLockHeld()) ? 'ยังคืนไม่ได้ — มี PraCaL หน้าต่างอื่นกำลังนำเข้าอยู่ ปิดหน้าต่างนั้นแล้วลองอีกครั้ง' : 'ยังคืนข้อมูลไม่สำเร็จ — ' + DB_BLOCKED_MESSAGE;
+    render();
+  },
+
+  // ---------- v1.10.56 — T-026c: แท็บเงิน ----------
+  'nav-money': () => go('money'),
+  'money-enable': async (e, el) => {
+    const on = el.dataset.v === '1';
+    const uidNow = state.currentUserId;
+    const r = await moneySave(d => { moneyUser(d, uidNow).enabled = on; }, { ignoreStale: true });
+    if (!r.ok) return toast(r.error || 'บันทึกไม่สำเร็จ', true);
+    toast(on ? 'เปิดแท็บเงินแล้ว' : 'ปิดแท็บเงินแล้ว · ข้อมูลยังอยู่');
+    if (!on && MONEY_VIEWS.includes(state.view)) return goHome();
+    render();
+  },
+  'money-toggle-hide': async () => {
+    const uidNow = state.currentUserId;
+    const next = !moneyHidden();
+    const r = await moneySave(d => { const mu = moneyUser(d, uidNow); mu.prefs = { ...(mu.prefs || {}), hideAmounts: next }; }, { ignoreStale: true });
+    if (!r.ok) return toast(r.error || 'บันทึกไม่สำเร็จ', true);
+    render();
+  },
+  'money-period': (e, el) => {
+    const k = el.dataset.k;
+    if (k === 'custom') { const r = moneyCurrentRange(); moneySetPeriod({ kind: 'custom', start: r.start, end: r.end }); }
+    else moneySetPeriod({ kind: k });
+    state.tmp.rangeError = '';
+    render();
+  },
+  'money-summary': () => go('money-summary'),
+  'money-cats': () => go('money-cats'),
+  'money-add': () => go('money-form', { mf: moneyNewForm() }),
+  'money-edit': (e, el) => {
+    const mu = moneyMU();
+    const t = mu && mu.txns.find(x => x.id === el.dataset.id);
+    if (!t || (t.kind !== 'expense' && t.kind !== 'income')) return;
+    go('money-form', { mf: {
+      id: t.id, kind: t.kind, amountText: String(t.amount / 100), categoryId: t.categoryId, contextId: t.contextId || MONEY_SELF_CTX,
+      date: t.date, note: t.note || '', editing: true, original: JSON.parse(JSON.stringify(t)), batchCount: 0, error: '', saving: false
+    } });
+  },
+  'mf-kind': (e, el) => { moneyFormSync(); const f = state.tmp.mf; if (f.kind !== el.dataset.k) { f.kind = el.dataset.k; f.categoryId = null; } render(); },
+  'mf-cat': (e, el) => { moneyFormSync(); state.tmp.mf.categoryId = el.dataset.id; state.tmp.mf.error = ''; render(); },
+  'mf-ctx': (e, el) => { moneyFormSync(); state.tmp.mf.contextId = el.dataset.id; render(); },
+  'mf-date-quick': (e, el) => { moneyFormSync(); state.tmp.mf.date = el.dataset.d; render(); },
+  // แตะรายการล่าสุด = เติมทุกช่องยกเว้นวันที่ · ไม่บันทึกเอง
+  'mf-recent': (e, el) => {
+    moneyFormSync();
+    const f = state.tmp.mf;
+    const t = moneyRecentCombos(moneyMU(), f.kind)[Number(el.dataset.i)];
+    if (!t) return;
+    Object.assign(f, { amountText: String(t.amount / 100), categoryId: t.categoryId, contextId: t.contextId || MONEY_SELF_CTX, note: t.note || '', error: '' });
+    render();
+  },
+  'mf-save': (e, el) => moneyFormSave(!!el.dataset.more),
+  'mf-delete': async () => {
+    const f = state.tmp.mf;
+    const mu = moneyMU();
+    if (!f || !mu || f.saving) return;
+    const effects = moneyDeleteEffects(mu, f.id);
+    if (effects.length) {
+      const lines = effects.map(x => x.type === 'unlink-back' ? `• เงินคืน ${formatDateTH(x.date)} ${mfm(x.amount)} ยังอยู่ในเงินเข้า แต่ไม่ผูกกับรายการใด`
+        : x.type === 'delete-writeoff' ? `• "ไม่ต้องคืนแล้ว" ${formatDateTH(x.date)} ${mfm(x.amount)} จะถูกลบด้วย`
+        : x.type === 'unlink-payout' ? `• คืนเงินให้คนอื่น ${formatDateTH(x.date)} ${mfm(x.amount)} ยังอยู่ แต่ไม่ผูก`
+        : '• หนี้ผ่อนที่ผูกจะไม่มีเงินดาวน์ผูก');
+      if (!confirm('ลบรายการนี้?\n\n' + lines.join('\n'))) return;
+    }
+    const snapshot = JSON.parse(JSON.stringify(mu.txns.find(t => t.id === f.id) || null));
+    const uidNow = state.currentUserId;
+    f.saving = true; render();
+    const r = await moneySave(d => { moneyDeleteTxn(moneyUser(d, uidNow), f.id); });
+    f.saving = false;
+    if (!r.ok) {
+      f.error = r.reason === 'stale' ? 'มีการแก้จากหน้าต่างอื่น ข้อมูลล่าสุดโหลดแล้ว — ตรวจแล้วกดลบอีกครั้ง' : (r.error || 'ลบไม่สำเร็จ');
+      return render();
+    }
+    // เลิกทำได้ 6 วินาที เฉพาะรายการที่ไม่มีรายการผูก (คืนรายการเดียวได้ครบ)
+    state.moneyUndo = !effects.length && snapshot ? { txn: snapshot, uid: uidNow, until: Date.now() + 6000 } : null;
+    if (state.moneyUndo) setTimeout(() => { if (state.view === 'money') render(); }, 6100);
+    back();
+  },
+  'money-undo': async () => {
+    const u = state.moneyUndo;
+    state.moneyUndo = null;
+    if (!u) return render();
+    const { createdAt, updatedAt, ...txn } = u.txn;
+    const r = await moneySave(d => { moneyUpsertTxn(moneyUser(d, u.uid), txn, todayKey()); });
+    toast(r.ok ? 'คืนรายการแล้ว' : (r.error || 'คืนรายการไม่สำเร็จ'), !r.ok);
+    render();
+  },
+  'money-filter': (e, el) => {
+    if (el.dataset.cat) state.tmp.filterCat = state.tmp.filterCat === el.dataset.cat ? null : el.dataset.cat;
+    if (el.dataset.ctx) state.tmp.filterCtx = state.tmp.filterCtx === el.dataset.ctx ? null : el.dataset.ctx;
+    render();
+    window.scrollTo(0, 0);
+  },
+  'money-filter-clear': () => { state.tmp.filterCat = null; state.tmp.filterCtx = null; render(); },
+  'money-cat-add': (e, el) => {
+    const type = el.dataset.type;
+    const name = (prompt(type === 'context' ? 'ชื่อบริบทใหม่ (เกี่ยวกับใคร)' : 'ชื่อหมวดใหม่') || '').trim().slice(0, 30);
+    if (!name) return;
+    moneyCatChange(mu => {
+      const list = type === 'context' ? mu.contexts : mu.categories;
+      if (list.some(c => c.name === name && (type === 'context' || c.kind === type))) throw new Error(`มี "${name}" อยู่แล้ว`);
+      const order = list.reduce((m, c) => Math.max(m, c.order || 0), 0) + 1;
+      if (type === 'context') list.push({ id: uid('x'), name, order, archived: false });
+      else list.push({ id: uid('c'), kind: type, name, order, archived: false, system: null });
+    });
+  },
+  'money-cat-rename': (e, el) => {
+    const { type, id } = el.dataset;
+    const mu = moneyMU();
+    const cur = (type === 'context' ? mu.contexts : mu.categories).find(c => c.id === id);
+    if (!cur) return;
+    const name = (prompt('ชื่อใหม่ (เปลี่ยนทุกที่รวมประวัติ)', cur.name) || '').trim().slice(0, 30);
+    if (!name || name === cur.name) return;
+    moneyCatChange(m => { const c = (type === 'context' ? m.contexts : m.categories).find(x => x.id === id); if (c) c.name = name; });
+  },
+  'money-cat-hide': (e, el) => {
+    const { type, id } = el.dataset;
+    moneyCatChange(m => { const c = (type === 'context' ? m.contexts : m.categories).find(x => x.id === id); if (c) c.archived = !c.archived; });
+  },
 
   'clear-today': () => {
     if (!confirm('ลบรายการอาหารของวันนี้ทั้งหมด?')) return;
@@ -11932,6 +12666,22 @@ document.addEventListener('click', (e) => {
 // Pattern: checkin-photo-{front|side|back}-{camera|gallery}
 document.addEventListener('change', (e) => {
   if (!e.target || !e.target.id) return;
+  // v1.10.56 — T-026c: วันที่ในฟอร์มเงิน · ช่วงกำหนดเองของแท็บเงิน
+  if (e.target.id === 'mf-date' && state.tmp.mf) {
+    moneyFormSync();
+    if (isRealDateKey(e.target.value)) state.tmp.mf.date = e.target.value;
+    render();
+    return;
+  }
+  if (e.target.id === 'money-range-start' || e.target.id === 'money-range-end') {
+    const st = document.getElementById('money-range-start')?.value, en = document.getElementById('money-range-end')?.value;
+    if (!isRealDateKey(st) || !isRealDateKey(en)) { state.tmp.rangeError = 'เลือกวันที่ให้ครบ'; return render(); }
+    if (en < st) { state.tmp.rangeError = 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม'; return render(); }
+    state.tmp.rangeError = '';
+    moneySetPeriod({ kind: 'custom', start: st, end: en });
+    render();
+    return;
+  }
   // v1.10.54 — T-026a: ไฟล์สำรองที่เลือกเพื่อนำเข้า
   if (e.target.id === 'backup-import-file') {
     const file = e.target.files && e.target.files[0];
@@ -11972,6 +12722,11 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  // v1.10.56 — T-026c: เก็บค่าที่พิมพ์ในฟอร์มเงินทันที — วาดหน้าใหม่หรือบันทึกไม่สำเร็จก็ไม่หาย
+  if (state.tmp.mf && (e.target.id === 'mf-amount' || e.target.id === 'mf-note')) {
+    if (e.target.id === 'mf-amount') state.tmp.mf.amountText = e.target.value; else state.tmp.mf.note = e.target.value;
+    return;
+  }
   if (e.target.id === 'lib-search') {
     state.tmp.query = e.target.value;
     clearTimeout(render._t);
@@ -12210,14 +12965,21 @@ async function main() {
     if (e.key === RESTORE_EPOCH_KEY && (e.newValue || '') !== _loadedRestoreEpoch) reloadAfterExternalRestore();
   });
   // v1.10.54 — T-026a: ถ้าเพิ่งกู้คืน ต้องพิสูจน์ว่าข้อมูลใช้ได้จริงก่อนยอมรับ ไม่งั้นคืนสำเนาเดิมอัตโนมัติ
-  const markerSeen = readRestoreMarker();
-  const restoreMarker = ownsRestoreMarker(markerSeen) ? markerSeen : null;   // แท็บอื่นเปิดตามปกติ ไม่ตรวจ ไม่คืน
+  // v1.10.56: จัดการการนำเข้าที่ค้าง (ปิดหน้าระหว่างเขียน/คืนค่า) ก่อน init — init อาจเขียนผ่าน migrateData
+  const guard = await handleRestoreJournalAtBoot();
+  if (guard.wait) { state.view = 'restore-wait'; state.tmp = {}; render(); pollRestoreWait(); return; }
+  if (guard.stop) { if (guard.recovery) { state.view = 'restore-recovery'; state.tmp = {}; render(); } return; }
+  const restoreMarker = guard.verify || null;   // แท็บที่นำเข้า (หรือรับช่วง) ตรวจต่อด้านล่าง · แท็บอื่นเปิดตามปกติ
   let initError = null;
   try { initFromStorage(); } catch (err) { initError = err; }
   await Promise.all([loadPreloadedMeals(), loadBrandedProducts()]);
   if (restoreMarker) {
     if (!initError) { try { smokeTestAllProfiles(); } catch (err) { initError = err; } }
-    if (initError) { await revertFailedRestore(restoreMarker, initError); return; }
+    if (initError) {
+      const r = await revertOrRecover(restoreMarker, 'restore-reverted');
+      if (r.recovery) { state.view = 'restore-recovery'; state.tmp = {}; render(); }
+      return;
+    }
     clearRestoreMarker();
     let pending = null;
     try { pending = sessionStorage.getItem(BOOT_NOTICE_KEY); } catch {}
@@ -12236,6 +12998,7 @@ async function main() {
   render();
   // v1.10.54 — T-026a: ข้อความหลังกู้คืน/ย้อนกลับ + ล้างสำเนาที่เกิน 7 วัน
   showPendingBootNotice();
+  moneyBoot();   // v1.10.56 — T-026c: โหลดข้อมูลเงิน (IndexedDB) หลังหน้าแรกขึ้นแล้ว
   pruneSafetySnapshots().catch(() => {});
 
   // v1.10.0 — show migration notice once if user has prior data
