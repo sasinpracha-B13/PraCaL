@@ -101,7 +101,7 @@
 
 ## Current Active Task
 
-**T-026 — money tab — development complete (v1.10.57).** T-026d `done` ✅: advances, refunds, write-offs, pay-backs, debts and installment purchases through the UI; every linked record editable in place (same id, one commit, order-checked, conflicts named, nothing changed silently); "close debt" only at a real zero balance or with a recorded reason. Acceptance checklist: spec §14.2. **Not yet tried by the user on a real phone.** Deferred: money CSV (L10), archiving closed debts.
+**T-026 — money tab — accepted ✅ (v1.10.57, `594ef48`, 2026-10-22).** User tested on a real phone — passed. Advances, refunds, write-offs, pay-backs, debts and installment purchases through the UI; every linked record editable in place; "close debt" only at a real zero balance or with a recorded reason. Acceptance record: spec §14.2–§14.3. Later items (incl. money CSV L10, archiving closed debts) stay in backlog, not started — gather real-use feedback first.
 
 **T-026c — money UI — `done` ✅ (v1.10.56).** Spec §13. Money tab, summary, entry form, categories/contexts, hide amounts, 5-tab nav that fits 320 px, other-tab refresh. Adds a durable **import journal**: an interrupted import (tab closed/reloaded mid-write) is detected at boot and the pre-import set restored before anything can write; if that fails the app shows a recovery screen instead of opening. IndexedDB opens time out with "close other PraCaL tabs" instead of spinning.
 
@@ -294,7 +294,7 @@ These are unresolved and worth a human decision before related work starts.
 
 ## Next Recommended Step
 
-**T-026 — แท็บเงิน.** T-026a (backup/restore) and T-026b (money engine) are `done`. **T-026c (money UI) is in progress**; T-026d (advances, refunds, debts UI) follows. Spec [`docs/specs/T-026-money-tracking.md`](docs/specs/T-026-money-tracking.md) draft 3.
+**T-026 — แท็บเงิน: accepted ✅ (v1.10.57).** No money work is scheduled. Use the money tab for real first and collect feedback; Later items in spec §3 (incl. money CSV L10, archiving closed debts) stay in backlog until then.
 
 **T-024d — surface the new nutrients in the app.** `satFat_g` and `fiber_g` now cover all 496 entries and flow through `calcEntryTotals` / `sumOptionalNutrients`, but nothing in the UI reads them — today they are visible only in a CSV export. T-024d adds the day-detail and reports surfaces, each carrying its DEC-004 rule 2 coverage disclosure. Everything it needs already exists; it is presentation only.
 
